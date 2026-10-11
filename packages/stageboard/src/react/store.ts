@@ -37,19 +37,23 @@ type Snapshot = {
 }
 
 const STORAGE_KEY = "stageboard:selections"
-const GLOBAL_KEY = "__stageboard_store__"
+const GLOBAL_KEY = "__stageboard_store_v2__"
 
 type Store = {
   snapshot: Snapshot
+  serverSnapshot: Snapshot
   listeners: Set<() => void>
   base: string
   pollTimer?: ReturnType<typeof setTimeout>
   polling: boolean
 }
 
+function hydrationSnapshot(snapshot: Snapshot): Snapshot {
+  return { ...snapshot, selections: {}, overrides: {} }
+}
+
 function createStore(): Store {
-  return {
-    snapshot: {
+  const snapshot: Snapshot = {
       selections: readLocalSelections(),
       overrides: readUrlOverrides(),
       jobs: [],
@@ -57,7 +61,10 @@ function createStore(): Store {
       registry: {},
       connected: false,
       version: 0,
-    },
+  }
+  return {
+    snapshot,
+    serverSnapshot: hydrationSnapshot(snapshot),
     listeners: new Set(),
     base: API_BASE,
     polling: false,
@@ -73,6 +80,9 @@ function store(): Store {
 function emit(next: Partial<Snapshot>) {
   const s = store()
   s.snapshot = { ...s.snapshot, ...next }
+  if ("registry" in next || "serverVariants" in next || "jobs" in next || "connected" in next) {
+    s.serverSnapshot = hydrationSnapshot(s.snapshot)
+  }
   s.listeners.forEach((l) => l())
 }
 
@@ -83,8 +93,14 @@ function subscribe(listener: () => void) {
 }
 
 export function useStageboard<T>(select: (s: Snapshot) => T): T {
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getHydrationSnapshot)
   return select(snapshot)
+}
+
+function getHydrationSnapshot(): Snapshot {
+  const s = store()
+  s.serverSnapshot ??= hydrationSnapshot(s.snapshot)
+  return s.serverSnapshot
 }
 
 export function getSnapshot(): Snapshot {
