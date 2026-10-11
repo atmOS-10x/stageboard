@@ -26,6 +26,7 @@ function shotHint(config: ResolvedConfig, job: Job, request: ChangeRequest): str
   const lines = [
     "## Seeing your work",
     `Render any story to a PNG without running the app: \`npx stageboard shot <story-id>${variantFlag} --out /tmp/shot.png\` (run from ${config.root}), then look at the image.`,
+    "A variant's key is its file name without `.variant.tsx` (for `hero.editorial.variant.tsx` it is `hero.editorial`).",
     "List stories with `npx stageboard list`. Use `--width 1440` for page-sized stories and `--full` for the full scroll height.",
   ]
   if (story) lines.push(`The user selected this inside story \`${story}\`; start from that one.`)
