@@ -1,0 +1,7 @@
+node_modules
+dist
+.stageboard
+*.tsbuildinfo
+.DS_Store
+examples/*/stageboard.fake.config.ts
+examples/*/stageboard.variants.ts
