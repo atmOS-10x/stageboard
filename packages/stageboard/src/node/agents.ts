@@ -46,31 +46,135 @@ function exitPromise(child: ChildProcess): Promise<{ ok: boolean; error?: string
   })
 }
 
+function claudeHeadless(config: Extract<AgentConfig, { provider: "claude" }>, prompt: string, ctx: AgentContext): AgentRun {
+  const args = [
+    "-p",
+    prompt,
+    "--permission-mode",
+    config.permissionMode ?? "acceptEdits",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    ...(config.model ? ["--model", config.model] : []),
+    ...(config.extraArgs ?? []),
+  ]
+  const child = spawn("claude", args, { cwd: ctx.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] })
+  pipeLines(child, (line) => {
+    try {
+      const event = JSON.parse(line)
+      if (event.type === "assistant") {
+        for (const part of event.message?.content ?? []) {
+          if (part.type === "text" && part.text) ctx.log(part.text.slice(0, 300))
+          if (part.type === "tool_use") ctx.log(`→ ${part.name}`)
+        }
+      }
+    } catch {
+      ctx.log(line.slice(0, 300))
+    }
+  })
+  return { done: exitPromise(child), cancel: () => child.kill("SIGTERM") }
+}
+
+function runText(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] })
+    let out = ""
+    child.stdout.on("data", (d) => (out += d))
+    child.stderr.on("data", (d) => (out += d))
+    child.on("error", (e) => resolve({ code: 1, out: e.message }))
+    child.on("exit", (code) => resolve({ code: code ?? 1, out }))
+  })
+}
+
+const BUSY = new Set(["busy", "running", "working", "starting", "active", "thinking"])
+
+async function claudeBackground(
+  config: Extract<AgentConfig, { provider: "claude" }>,
+  job: Job,
+  prompt: string,
+  ctx: AgentContext,
+): Promise<AgentRun> {
+  const name = `stageboard: ${job.note.slice(0, 50)}`
+  const args = [
+    "--bg",
+    "-n",
+    name,
+    "--permission-mode",
+    config.permissionMode ?? "acceptEdits",
+    ...(config.model ? ["--model", config.model] : []),
+    ...(config.extraArgs ?? []),
+    prompt,
+  ]
+  const started = await runText("claude", args, ctx.cwd)
+  if (started.code !== 0) throw new Error(started.out.trim() || "claude --bg failed")
+  const id = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(started.out)?.[0] ?? /\b[a-z0-9]{6,}\b/i.exec(started.out.trim().split("\n").pop() ?? "")?.[0]
+  ctx.log(started.out.trim().split("\n").slice(-2).join(" ").slice(0, 300))
+  let cancelled = false
+  const done = (async () => {
+    let seen = false
+    await new Promise((r) => setTimeout(r, 3000))
+    while (!cancelled) {
+      const list = await runText("claude", ["agents", "--json", "--all"], ctx.cwd)
+      try {
+        const sessions = JSON.parse(list.out) as Record<string, unknown>[]
+        const match = sessions.find((s) => [s.id, s.sessionId, s.jobId, s.shortId].some((v) => v && id && String(v).startsWith(id))) ??
+          sessions.find((s) => s.name === name)
+        if (match) {
+          seen = true
+          const status = String(match.status ?? "").toLowerCase()
+          if (/fail|error/.test(status)) return { ok: false, error: `claude session ${status}` }
+          if (!BUSY.has(status)) return { ok: true }
+        } else if (seen) {
+          return { ok: true }
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 4000))
+    }
+    return { ok: false, error: "cancelled" }
+  })()
+  return {
+    externalId: id,
+    done,
+    cancel: () => {
+      cancelled = true
+      if (id) spawn("claude", ["stop", id], { cwd: ctx.cwd, stdio: "ignore" })
+    },
+  }
+}
+
 function claudeProvider(config: Extract<AgentConfig, { provider: "claude" }>): AgentProvider {
   return {
-    name: "claude",
+    name: config.background === false ? "claude" : "claude (background)",
+    async start(job, prompt, ctx) {
+      if (config.background === false) return claudeHeadless(config, prompt, ctx)
+      return claudeBackground(config, job, prompt, ctx)
+    },
+  }
+}
+
+function codexProvider(config: Extract<AgentConfig, { provider: "codex" }>): AgentProvider {
+  return {
+    name: "codex",
     async start(_job, prompt, ctx) {
       const args = [
-        "-p",
-        prompt,
-        "--permission-mode",
-        config.permissionMode ?? "acceptEdits",
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        ...(config.model ? ["--model", config.model] : []),
+        "exec",
+        "--json",
+        "-C",
+        ctx.cwd,
+        "--sandbox",
+        config.sandbox ?? "workspace-write",
+        ...(config.model ? ["-m", config.model] : []),
         ...(config.extraArgs ?? []),
+        prompt,
       ]
-      const child = spawn("claude", args, { cwd: ctx.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] })
+      const child = spawn("codex", args, { cwd: ctx.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] })
       pipeLines(child, (line) => {
         try {
           const event = JSON.parse(line)
-          if (event.type === "assistant") {
-            for (const part of event.message?.content ?? []) {
-              if (part.type === "text" && part.text) ctx.log(part.text.slice(0, 300))
-              if (part.type === "tool_use") ctx.log(`→ ${part.name}`)
-            }
-          }
+          const msg = event.msg ?? event.item ?? event
+          const text = msg.message ?? msg.text ?? msg.content
+          if (typeof text === "string" && text.trim()) ctx.log(text.slice(0, 300))
+          else if (msg.type && /command|exec|tool/.test(String(msg.type))) ctx.log(`→ ${msg.type}`)
         } catch {
           ctx.log(line.slice(0, 300))
         }
@@ -215,5 +319,6 @@ export function createProvider(config: AgentConfig | undefined): AgentProvider {
   const resolved = config ?? { provider: "claude" as const }
   if (resolved.provider === "atmos") return atmosProvider(resolved)
   if (resolved.provider === "command") return commandProvider(resolved)
+  if (resolved.provider === "codex") return codexProvider(resolved)
   return claudeProvider(resolved)
 }

@@ -15,6 +15,7 @@ export type StageParameters = {
   theme?: "light" | "dark"
   background?: string
   page?: PageParameters
+  variants?: Record<string, string>
   [key: string]: unknown
 }
 

@@ -1,6 +1,6 @@
 import { Component, createElement, useEffect, type ComponentType, type CSSProperties, type ReactNode } from "react"
 import { createRoot } from "react-dom/client"
-import { mountDevtools, startBridge } from "stageboard/react"
+import { mountDevtools, setVariantOverrides, startBridge } from "stageboard/react"
 import type { Decorator, StoryContext } from "stageboard"
 import { resolveStory, type ClientEntry, type Loaders, type PreviewModule, type StoryModule } from "./types"
 
@@ -108,6 +108,7 @@ export async function renderFrame(container: HTMLElement | null, options: FrameO
     const mod = (await options.loaders[entry.file]()) as StoryModule
     const resolved = resolveStory(entry, mod, options.preview)
     const { meta, story, parameters } = resolved
+    if (parameters.variants) setVariantOverrides(parameters.variants)
     applyTheme(params.get("sb-theme") ?? parameters.theme)
     const layout = parameters.layout ?? (parameters.page ? "fullscreen" : "centered")
     w.__STAGEBOARD_LAYOUT__ = layout

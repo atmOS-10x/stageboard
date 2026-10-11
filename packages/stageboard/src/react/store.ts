@@ -118,6 +118,10 @@ function readUrlOverrides(): Record<string, string> {
   return out
 }
 
+export function setVariantOverrides(overrides: Record<string, string>) {
+  emit({ overrides: { ...overrides, ...readUrlOverrides() } })
+}
+
 export function registerVariants(entries: { file: string; module: VariantModule }[]) {
   const registry: Record<string, RegisteredVariant[]> = {}
   for (const { file, module } of entries) {

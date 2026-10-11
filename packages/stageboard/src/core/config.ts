@@ -13,8 +13,16 @@ export type AtmosAgentConfig = {
 
 export type ClaudeAgentConfig = {
   provider: "claude"
+  background?: boolean
   model?: string
   permissionMode?: string
+  extraArgs?: string[]
+}
+
+export type CodexAgentConfig = {
+  provider: "codex"
+  model?: string
+  sandbox?: "read-only" | "workspace-write" | "danger-full-access"
   extraArgs?: string[]
 }
 
@@ -23,7 +31,7 @@ export type CommandAgentConfig = {
   command: string
 }
 
-export type AgentConfig = AtmosAgentConfig | ClaudeAgentConfig | CommandAgentConfig
+export type AgentConfig = AtmosAgentConfig | ClaudeAgentConfig | CodexAgentConfig | CommandAgentConfig
 
 export type StageboardConfig = {
   stories: string[]

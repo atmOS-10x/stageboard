@@ -1,6 +1,7 @@
 export { Variant, variant, StageboardVariant, type VariantProps } from "./variant"
 export {
   registerVariants,
+  setVariantOverrides,
   selectVariant,
   submitChangeRequest,
   cancelJob,

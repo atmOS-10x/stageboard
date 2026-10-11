@@ -35,7 +35,7 @@ import { defineConfig } from "stageboard"
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
   preview: "./stageboard.preview.tsx", // global CSS + decorators (providers, mocks)
-  agent: { provider: "claude" },       // or { provider: "atmos", project: "…" } or { provider: "command", command: "…" }
+  agent: { provider: "claude" },       // see "Agents" below
 })
 ```
 
@@ -78,6 +78,17 @@ the bridge.
 export const variant = { of: "landing.hero", label: "Editorial", description: "Serif headline, no gradient." }
 export default function HeroEditorial(props: HeroProps) { /* … */ }
 ```
+
+## Agents
+
+| provider | runs | where it shows up |
+|---|---|---|
+| `claude` | `claude --bg` in your repo (default) | `claude agents` / agent view; `background: false` runs headless `claude -p` instead |
+| `codex` | `codex exec` | Codex's shared background server |
+| `atmos` | `atmos session new` on the current machine | your atmOS sessions; the agent is told to enter the current worktree so variants appear live |
+| `command` | any shell command, prompt in `$STAGEBOARD_PROMPT_FILE` | wherever your tool reports |
+
+Claude Code only starts background sessions in trusted workspaces. Run `claude` once in the repo and accept the trust prompt.
 
 ## Agent protocol
 
