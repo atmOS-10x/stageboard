@@ -15,6 +15,23 @@ type Fiber = {
   _debugSource?: { fileName: string; lineNumber?: number; columnNumber?: number }
 }
 
+const STOP_NAMES = new Set([
+  "LayoutRouterContext",
+  "InnerLayoutRouter",
+  "OuterLayoutRouter",
+  "RenderFromTemplateContext",
+  "TemplateContext",
+  "ScrollAndFocusHandler",
+  "InnerScrollAndFocusHandler",
+  "InnerScrollAndFocusHandlerNew",
+  "ScrollAndMaybeFocusHandler",
+  "AppRouter",
+  "Router",
+  "HotReload",
+  "ClientPageRoot",
+  "ClientSegmentRoot",
+])
+
 const HOST_COMPONENT = 5
 const HOST_ROOT = 3
 
@@ -71,7 +88,8 @@ export function componentName(type: any): string | undefined {
 function isUserComponent(name: string | undefined): name is string {
   if (!name) return false
   if (SKIP_NAMES.has(name) || name.startsWith("Stageboard")) return false
-  if (name.startsWith("_")) return false
+  if (name.startsWith("_") || name.length <= 2) return false
+  if (/(Context|Provider|Boundary|Guard|Adapter)$/.test(name)) return false
   return /^[A-Z]/.test(name)
 }
 
@@ -124,6 +142,7 @@ export function componentChain(el: Element, limit = 12): ComponentFrame[] {
   let fiber = fiberFromElement(el)
   while (fiber && frames.length < limit) {
     const name = componentName(fiber.type)
+    if (name && STOP_NAMES.has(name)) break
     if (isUserComponent(name) && frames[frames.length - 1]?.name !== name) {
       frames.push({ name, source: definitionSource(fiber) })
     }

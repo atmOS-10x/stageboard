@@ -27,9 +27,34 @@ const html = (title: string, entry: string, bodyClass = "") => `<!doctype html>
   </head>
   <body class="${bodyClass}">
     <div id="root"></div>
-    <script type="module">import ${JSON.stringify(entry)}</script>
+    <script type="module">import(${JSON.stringify(entry)}).catch((e) => { window.__STAGEBOARD_ERROR__ = String(e && e.stack || e); console.error(e) })</script>
   </body>
 </html>`
+
+const MIME: Record<string, string> = {
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
+  ".avif": "image/avif", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".mp4": "video/mp4", ".webm": "video/webm",
+  ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf", ".json": "application/json",
+  ".txt": "text/plain; charset=utf-8", ".pdf": "application/pdf", ".css": "text/css", ".js": "text/javascript",
+}
+
+function servePublic(server: ViteDevServer, pathname: string, res: import("node:http").ServerResponse): boolean {
+  const publicDir = server.config.publicDir
+  if (!publicDir || pathname === "/" || pathname.includes("..")) return false
+  const file = path.join(publicDir, decodeURIComponent(pathname))
+  if (!file.startsWith(publicDir)) return false
+  let stat: fs.Stats
+  try {
+    stat = fs.statSync(file)
+  } catch {
+    return false
+  }
+  if (!stat.isFile()) return false
+  res.setHeader("content-type", MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream")
+  res.setHeader("content-length", stat.size)
+  fs.createReadStream(file).pipe(res)
+  return true
+}
 
 export type ServerOptions = {
   port?: number
@@ -96,6 +121,7 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge): Plugin
         const raw = req.originalUrl ?? req.url ?? "/"
         const url = new URL(raw, "http://x")
         let pathname = url.pathname
+        if (!pathname.startsWith(API_BASE) && servePublic(s, pathname, res)) return
         if (!pathname.startsWith(API_BASE)) pathname = API_BASE + (pathname.startsWith("/") ? pathname : `/${pathname}`)
         const sub = pathname.slice(API_BASE.length) || "/"
         if (sub.startsWith("/api/")) {
@@ -190,8 +216,8 @@ export async function createStageboardServer(config: ResolvedConfig, options: Se
     },
     plugins: [stageboardPlugin(config, bridge), ...(hasReact ? [] : await reactPlugin())],
     optimizeDeps: {
-      entries: [],
-      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
+      entries: [...config.stories, ...(config.preview ? [config.preview] : [])],
+      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "stageboard/client", "stageboard/react"],
     },
   }
   const vite = await createServer(mergeConfig(base, userVite))

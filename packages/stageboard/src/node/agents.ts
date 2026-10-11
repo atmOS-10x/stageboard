@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process"
+import { execSync, spawn, type ChildProcess } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -110,12 +110,30 @@ function pick(obj: any, ...keys: string[]): any {
   return undefined
 }
 
+function currentBranch(cwd: string): string | undefined {
+  try {
+    return execSync("git branch --show-current", { cwd, stdio: ["ignore", "pipe", "ignore"] }).toString().trim() || undefined
+  } catch {
+    return undefined
+  }
+}
+
+function worktreePreamble(cwd: string): string {
+  const branch = currentBranch(cwd)
+  return [
+    "## Where to work",
+    `Make every change in the existing git worktree at \`${cwd}\`${branch ? ` (branch \`${branch}\`)` : ""}, not in a new worktree: the user is watching that checkout live.`,
+    branch ? `Before anything else, move into it with the worktree_enter tool (branch \`${branch}\`, create false). If that tool is unavailable, cd there and use absolute paths.` : "cd there and use absolute paths.",
+    "",
+    "",
+  ].join("\n")
+}
+
 function atmosProvider(config: Extract<AgentConfig, { provider: "atmos" }>): AgentProvider {
   return {
     name: "atmos",
     async start(job, prompt, ctx) {
-      const promptFile = path.join(os.tmpdir(), `stageboard-${job.id}.md`)
-      fs.writeFileSync(promptFile, prompt)
+      if (config.sameWorktree !== false) prompt = worktreePreamble(ctx.cwd) + prompt
       const args = [
         "session",
         "new",

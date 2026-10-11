@@ -8,6 +8,7 @@ export type AtmosAgentConfig = {
   harness?: string
   model?: string
   permissionMode?: string
+  sameWorktree?: boolean
 }
 
 export type ClaudeAgentConfig = {

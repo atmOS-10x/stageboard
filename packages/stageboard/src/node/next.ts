@@ -15,12 +15,40 @@ function shim(name: string): string {
   return require.resolve(`stageboard/shims/next/${name}`)
 }
 
+export function stripJsonc(text: string): string {
+  let out = ""
+  let inString = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    const next = text[i + 1]
+    if (inString) {
+      out += c
+      if (c === "\\") out += text[++i] ?? ""
+      else if (c === '"') inString = false
+      continue
+    }
+    if (c === '"') {
+      inString = true
+      out += c
+    } else if (c === "/" && next === "/") {
+      while (i < text.length && text[i] !== "\n") i++
+      out += "\n"
+    } else if (c === "/" && next === "*") {
+      i += 2
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++
+      i++
+    } else {
+      out += c
+    }
+  }
+  return out.replace(/,(\s*[}\]])/g, "$1")
+}
+
 function tsconfigAliases(root: string): Record<string, string> {
   const file = path.join(root, "tsconfig.json")
   if (!fs.existsSync(file)) return {}
   try {
-    const text = fs.readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\/|(^|[^:"])\/\/.*$/gm, "$1").replace(/,(\s*[}\]])/g, "$1")
-    const json = JSON.parse(text)
+    const json = JSON.parse(stripJsonc(fs.readFileSync(file, "utf8")))
     const baseUrl = path.resolve(root, json.compilerOptions?.baseUrl ?? ".")
     const out: Record<string, string> = {}
     for (const [key, targets] of Object.entries<string[]>(json.compilerOptions?.paths ?? {})) {
@@ -74,6 +102,29 @@ function nextFontPlugin(): Plugin {
   }
 }
 
+const INDEX_FILES = ["index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs"]
+
+function sourceDirIndexPlugin(root: string): Plugin {
+  return {
+    name: "stageboard:source-dir-index",
+    enforce: "pre",
+    resolveId(id, importer) {
+      let clean = id.split("?")[0]
+      if (clean.startsWith(".") && importer) clean = path.resolve(path.dirname(importer.split("?")[0]), clean)
+      if (!path.isAbsolute(clean) || clean.includes("node_modules") || !clean.startsWith(root)) return
+      let stat: fs.Stats
+      try {
+        stat = fs.statSync(clean)
+      } catch {
+        return
+      }
+      if (!stat.isDirectory()) return
+      const index = INDEX_FILES.map((f) => path.join(clean, f)).find((f) => fs.existsSync(f))
+      return index
+    },
+  }
+}
+
 export function nextPreset(options: NextPresetOptions = {}): InlineConfig {
   const root = options.root ?? process.cwd()
   const env = { ...loadEnvFiles(root), ...options.env, NODE_ENV: "development" }
@@ -95,7 +146,7 @@ export function nextPreset(options: NextPresetOptions = {}): InlineConfig {
       })),
   ]
   return {
-    plugins: [nextFontPlugin()],
+    plugins: [nextFontPlugin(), sourceDirIndexPlugin(root)],
     resolve: { alias },
     define: {
       "process.env": JSON.stringify(env),

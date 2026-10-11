@@ -93,11 +93,19 @@ export async function shoot(config: ResolvedConfig, options: ShotOptions): Promi
     for (const v of options.variants ?? []) params.append("sb-variant", v.replace("=", ":"))
     if (options.theme) params.set("sb-theme", options.theme)
     await page.goto(`${url}${API_BASE}/frame.html?${params}`, { waitUntil: "load", timeout: options.timeout ?? 120_000 })
-    await page.waitForFunction(
-      () => (window as any).__STAGEBOARD_READY__ === true || (window as any).__STAGEBOARD_ERROR__,
-      undefined,
-      { timeout: options.timeout ?? 120_000 },
-    )
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await page.waitForFunction(
+          () => (window as any).__STAGEBOARD_READY__ === true || (window as any).__STAGEBOARD_ERROR__,
+          undefined,
+          { timeout: options.timeout ?? 120_000 },
+        )
+        break
+      } catch (e) {
+        if (attempt >= 3 || !/context was destroyed|navigation/i.test((e as Error).message)) throw e
+        await page.waitForLoadState("load")
+      }
+    }
     const error = await page.evaluate(() => (window as any).__STAGEBOARD_ERROR__ as string | undefined)
     if (error) throw new Error(`Story ${story.id} failed to render:\n${error}`)
     await page.evaluate(() => document.fonts?.ready)
