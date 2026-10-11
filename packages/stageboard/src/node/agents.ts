@@ -256,8 +256,30 @@ function atmosProvider(config: Extract<AgentConfig, { provider: "atmos" }>): Age
         "-p",
         prompt,
       ]
-      const created = await runJson("atmos", args, ctx.cwd)
-      const id: string | undefined = pick(created, "id", "session.id", "session_id", "data.id")
+      let created: any
+      let child = false
+      try {
+        created = await runJson("atmos", args, ctx.cwd)
+      } catch (e) {
+        if (!/user_credentials_required|requires a user session/.test((e as Error).message)) throw e
+        ctx.log("No atmOS user login here; starting a child session of the current atmOS session instead")
+        child = true
+        created = await runJson(
+          "atmos",
+          [
+            "session",
+            "subagent",
+            "create",
+            "--json",
+            "--subagent",
+            config.harness === "codex_local" ? "codex" : "claude",
+            ...(config.project ? ["--project", config.project] : []),
+            prompt,
+          ],
+          ctx.cwd,
+        )
+      }
+      const id: string | undefined = pick(created, "id", "session.id", "session_id", "child_session_id", "child.id", "data.id")
       if (!id) throw new Error(`atmos did not return a session id: ${JSON.stringify(created).slice(0, 300)}`)
       const url: string | undefined = pick(created, "url", "web_url", "session.url", "links.web")
       ctx.log(`atmOS session ${id}`)
@@ -267,8 +289,8 @@ function atmosProvider(config: Extract<AgentConfig, { provider: "atmos" }>): Age
         await new Promise((r) => setTimeout(r, 4000))
         while (!cancelled) {
           try {
-            const s = await runJson("atmos", ["session", "get", id, "--json"], ctx.cwd)
-            const status = String(pick(s, "status", "session.status", "state", "run_status") ?? "").toLowerCase()
+            const s = await runJson("atmos", child ? ["session", "subagent", "wait", id, "--json", "--max-events", "1"] : ["session", "get", id, "--json"], ctx.cwd)
+            const status = String(pick(s, "status", "session.status", "child.status", "state", "run_status") ?? "").toLowerCase()
             const turnActive = pick(s, "active_turn", "session.active_turn", "turn_active", "is_running")
             if (status !== lastStatus) {
               ctx.log(`atmOS status: ${status}`)
