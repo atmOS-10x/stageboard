@@ -32,7 +32,27 @@ export function findByRoute(nodes: PageNode[], href: string): PageNode | undefin
   return nodes.find((n) => n.page.route === path) ?? nodes.find((n) => routePattern(n.page.route).test(path))
 }
 
+function groupedLayout(nodes: PageNode[]): Record<string, Pos> {
+  const order: string[] = []
+  const groups = new Map<string, PageNode[]>()
+  for (const n of nodes) {
+    const g = n.page.group ?? n.entry.title.split("/")[0]
+    if (!groups.has(g)) {
+      groups.set(g, [])
+      order.push(g)
+    }
+    groups.get(g)!.push(n)
+  }
+  const out: Record<string, Pos> = {}
+  order.forEach((g, col) => {
+    const list = groups.get(g)!.sort((a, b) => a.page.route.length - b.page.route.length || a.page.route.localeCompare(b.page.route))
+    list.forEach((n, row) => (out[n.entry.id] = { x: col * (NODE_W + GAP_X), y: row * (NODE_H + GAP_Y) }))
+  })
+  return out
+}
+
 function autoLayout(nodes: PageNode[]): Record<string, Pos> {
+  if (nodes.some((n) => n.page.group)) return groupedLayout(nodes)
   const byId = new Map(nodes.map((n) => [n.entry.id, n]))
   const depth = new Map<string, number>()
   const roots = nodes.filter((n) => n.page.route === "/" || n.page.route.split("/").filter(Boolean).length === 0)
@@ -77,12 +97,14 @@ function readPositions(): Record<string, Pos> {
 export function Canvas({
   nodes,
   frameUrl,
+  thumbUrl,
   inspecting,
   onOpen,
   registerFrame,
 }: {
   nodes: PageNode[]
   frameUrl: (id: string) => string
+  thumbUrl: (id: string) => string
   inspecting: boolean
   onOpen: (id: string) => void
   registerFrame: (id: string, el: HTMLIFrameElement | null) => void
@@ -194,6 +216,37 @@ export function Canvas({
     window.addEventListener("pointerup", up)
   }
 
+  const liveIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (focus) ids.add(focus)
+    if (!inspecting) return ids
+    const el = ref.current
+    const w = el?.clientWidth ?? 1200
+    const h = el?.clientHeight ?? 800
+    const visible = nodes
+      .map((n) => ({ id: n.entry.id, p: pos(n.entry.id) }))
+      .filter(({ p }) => {
+        const x = p.x * view.k + view.x
+        const y = p.y * view.k + view.y
+        return x + NODE_W * view.k > 0 && y + NODE_H * view.k > 0 && x < w && y < h
+      })
+      .slice(0, 8)
+    for (const v of visible) ids.add(v.id)
+    return ids
+  }, [focus, inspecting, nodes, pos, view])
+  const isLive = (id: string) => liveIds.has(id)
+
+  const groupLabels = useMemo(() => {
+    const seen = new Map<string, Pos>()
+    for (const n of nodes) {
+      if (!n.page.group) continue
+      const p = pos(n.entry.id)
+      const prev = seen.get(n.page.group)
+      if (!prev || p.y < prev.y) seen.set(n.page.group, p)
+    }
+    return [...seen.entries()]
+  }, [nodes, pos])
+
   const edges = nodes.flatMap((n) =>
     (n.page.links ?? [])
       .map((link) => findByRoute(nodes, link))
@@ -240,6 +293,11 @@ export function Canvas({
             <path key={e.key} d={e.d} data-hot={hotEdge === e.key} markerEnd="url(#sbu-arrow)" />
           ))}
         </svg>
+        {groupLabels.map(([group, p]) => (
+          <div key={group} className="sbu-group-label" style={{ left: p.x, top: p.y - 64 }}>
+            {group}
+          </div>
+        ))}
         {nodes.map((n) => {
           const p = pos(n.entry.id)
           return (
@@ -254,15 +312,18 @@ export function Canvas({
                 <span className="sbu-node-route">{n.page.route}</span>
                 <span className="sbu-node-title">{n.page.title ?? n.entry.title}</span>
               </div>
-              <div className="sbu-node-body" data-live={inspecting} style={{ height: BODY_H }}>
-                <iframe
-                  data-node={n.entry.id}
-                  ref={(el) => registerFrame(n.entry.id, el)}
-                  src={frameUrl(n.entry.id)}
-                  loading="lazy"
-                  title={n.entry.id}
-                  style={{ width: FRAME_W, height: FRAME_H, transform: `scale(${SCALE})` }}
-                />
+              <div className="sbu-node-body" data-live={isLive(n.entry.id)} style={{ height: BODY_H }}>
+                {isLive(n.entry.id) ? (
+                  <iframe
+                    data-node={n.entry.id}
+                    ref={(el) => registerFrame(n.entry.id, el)}
+                    src={frameUrl(n.entry.id)}
+                    title={n.entry.id}
+                    style={{ width: FRAME_W, height: FRAME_H, transform: `scale(${SCALE})` }}
+                  />
+                ) : (
+                  <img className="sbu-node-thumb" src={thumbUrl(n.entry.id)} alt="" loading="lazy" draggable={false} />
+                )}
                 {!inspecting && (
                   <div
                     className="sbu-node-shield"

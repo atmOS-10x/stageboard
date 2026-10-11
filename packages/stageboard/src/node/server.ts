@@ -5,6 +5,7 @@ import { API_BASE } from "../core/protocol"
 import { Bridge } from "./bridge"
 import type { ResolvedConfig } from "./config"
 import { buildIndex } from "./indexer"
+import { Thumbnailer } from "./thumbs"
 import { writeVariantsModule } from "./variants"
 
 const BASE = `${API_BASE}/`
@@ -63,7 +64,7 @@ export type ServerOptions = {
   quiet?: boolean
 }
 
-export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge): Plugin {
+export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?: Thumbnailer): Plugin {
   const storyGlobsMatch = (file: string) => /\.stories\.[cm]?[jt]sx?$/.test(file)
   const variantMatch = (file: string) => /\.variant\.[cm]?[jt]sx?$/.test(file)
   let server: ViteDevServer | undefined
@@ -124,6 +125,13 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge): Plugin
         if (!pathname.startsWith(API_BASE) && servePublic(s, pathname, res)) return
         if (!pathname.startsWith(API_BASE)) pathname = API_BASE + (pathname.startsWith("/") ? pathname : `/${pathname}`)
         const sub = pathname.slice(API_BASE.length) || "/"
+        const thumb = /^\/api\/thumb\/([\w.-]+?)\.jpg$/.exec(sub)
+        if (thumb && thumbs) {
+          const index = await buildIndex(config)
+          const entry = index.find((e) => e.id === thumb[1])
+          await thumbs.serve(res, thumb[1], entry?.absFile, url.searchParams.has("refresh"))
+          return
+        }
         if (sub.startsWith("/api/")) {
           if (await bridge.handle(req, res, sub.slice(4))) return
         }
@@ -188,6 +196,8 @@ export type StageboardServer = {
 export async function createStageboardServer(config: ResolvedConfig, options: ServerOptions = {}): Promise<StageboardServer> {
   const { createServer, mergeConfig } = await import("vite")
   const bridge = new Bridge(config)
+  let serverUrl = ""
+  const thumbs = new Thumbnailer(config, () => serverUrl, () => bridge.getState())
   await bridge.refreshVariants()
   const userVite = await resolveUserVite(config)
   const hasReact = (userVite.plugins ?? []).flat().some((p) => p && typeof p === "object" && "name" in p && String(p.name).startsWith("vite:react"))
@@ -214,7 +224,7 @@ export async function createStageboardServer(config: ResolvedConfig, options: Se
       hmr,
       watch: options.watch === false ? null : undefined,
     },
-    plugins: [stageboardPlugin(config, bridge), ...(hasReact ? [] : await reactPlugin())],
+    plugins: [stageboardPlugin(config, bridge, thumbs), ...(hasReact ? [] : await reactPlugin())],
     optimizeDeps: {
       entries: [...config.stories, ...(config.preview ? [config.preview] : [])],
       include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "stageboard/client", "stageboard/react"],
@@ -225,6 +235,7 @@ export async function createStageboardServer(config: ResolvedConfig, options: Se
   const address = vite.httpServer?.address()
   const port = typeof address === "object" && address ? address.port : config.port
   const url = `http://localhost:${port}`
+  serverUrl = `http://127.0.0.1:${port}`
   const rescan = setInterval(() => void bridge.refreshVariants(), 5000)
   const lockFile = path.join(config.stateDir, "server.json")
   if (options.watch !== false) fs.writeFileSync(lockFile, JSON.stringify({ port, pid: process.pid, url }))

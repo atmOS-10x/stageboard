@@ -37,7 +37,7 @@ const CHROME_CANDIDATES = [
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
 ]
 
-async function launchBrowser() {
+export async function launchBrowser() {
   const { chromium } = await import("playwright-core")
   let bundled: string | undefined
   try {

@@ -142,6 +142,12 @@ function App({ index, loaders, base }: UIOptions) {
     [base, theme],
   )
 
+  const selectionKey = useStageboard((s) => JSON.stringify(s.selections))
+  const thumbUrl = useCallback(
+    (id: string) => `${base}/api/thumb/${id}.jpg?s=${encodeURIComponent(selectionKey).slice(0, 200)}`,
+    [base, selectionKey],
+  )
+
   const allFrames = useCallback(() => {
     const list = [...frames.current.values()]
     if (storyFrame.current) list.push(storyFrame.current)
@@ -207,6 +213,7 @@ function App({ index, loaders, base }: UIOptions) {
             <Canvas
               nodes={pages}
               frameUrl={frameUrl}
+              thumbUrl={thumbUrl}
               inspecting={inspecting}
               onOpen={(id) => go({ view: "story", id })}
               registerFrame={(id, el) => (el ? frames.current.set(id, el) : frames.current.delete(id))}
