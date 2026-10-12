@@ -19,6 +19,8 @@ export class Thumbnailer {
   private inflight = new Map<string, Promise<string>>()
   private idleTimer?: ReturnType<typeof setTimeout>
   private dir: string
+  private usedFile: string
+  private used: Record<string, string[]>
 
   constructor(
     private config: ResolvedConfig,
@@ -27,10 +29,19 @@ export class Thumbnailer {
   ) {
     this.dir = path.join(config.stateDir, "thumbs")
     fs.mkdirSync(this.dir, { recursive: true })
+    this.usedFile = path.join(this.dir, "used-variants.json")
+    try {
+      this.used = JSON.parse(fs.readFileSync(this.usedFile, "utf8"))
+    } catch {
+      this.used = {}
+    }
   }
 
-  private cacheKey(storyFile: string | undefined): string {
-    const { selections, variants } = this.state()
+  private cacheKey(id: string, storyFile: string | undefined): string {
+    const state = this.state()
+    const used = this.used[id]
+    const selections = used ? Object.fromEntries(used.map((v) => [v, state.selections[v] ?? "original"])) : state.selections
+    const variants = used ? state.variants.filter((v) => used.includes(v.of)) : state.variants
     const mtimes = [storyFile, this.config.variantsFile, ...variants.map((v) => path.join(this.config.root, v.file))]
       .filter((f): f is string => Boolean(f))
       .map((f) => {
@@ -86,6 +97,9 @@ export class Thumbnailer {
               .waitForFunction(() => (window as any).__STAGEBOARD_READY__ === true || (window as any).__STAGEBOARD_ERROR__, undefined, { timeout: 45_000 })
               .catch(() => {})
             await page.screenshot({ path: file, type: "jpeg", quality: 72 })
+            const usedIds = await page.evaluate(() => Array.from(((globalThis as any).__STAGEBOARD_USED__ as Set<string>) ?? []))
+            this.used[id] = usedIds.sort()
+            fs.writeFileSync(this.usedFile, JSON.stringify(this.used))
             resolve(file)
           } finally {
             await page.close().catch(() => {})
@@ -98,18 +112,25 @@ export class Thumbnailer {
     })
   }
 
-  async serve(res: ServerResponse, id: string, storyFile: string | undefined, refresh: boolean) {
-    const key = this.cacheKey(storyFile)
+  private ensure(id: string, storyFile: string | undefined, refresh = false): Promise<string> {
+    const key = this.cacheKey(id, storyFile)
     const file = path.join(this.dir, `${id.replace(/[^\w.-]/g, "_")}.${key}.jpg`)
+    if (!refresh && fs.existsSync(file)) return Promise.resolve(file)
+    let pending = this.inflight.get(file)
+    if (!pending) {
+      pending = this.render(id, file).finally(() => this.inflight.delete(file))
+      this.inflight.set(file, pending)
+    }
+    return pending
+  }
+
+  warm(stories: { id: string; absFile: string }[]) {
+    for (const s of stories) this.ensure(s.id, s.absFile).catch(() => {})
+  }
+
+  async serve(res: ServerResponse, id: string, storyFile: string | undefined, refresh: boolean) {
     try {
-      if (refresh || !fs.existsSync(file)) {
-        let pending = this.inflight.get(file)
-        if (!pending) {
-          pending = this.render(id, file).finally(() => this.inflight.delete(file))
-          this.inflight.set(file, pending)
-        }
-        await pending
-      }
+      const file = await this.ensure(id, storyFile, refresh)
       res.setHeader("content-type", "image/jpeg")
       res.setHeader("cache-control", "no-cache")
       fs.createReadStream(file).pipe(res)

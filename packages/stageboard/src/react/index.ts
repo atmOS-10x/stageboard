@@ -14,5 +14,5 @@ export {
 } from "./store"
 export { StageboardDevtools, mountDevtools, describeElement, type DevtoolsOptions } from "./devtools/devtools"
 export { Panel } from "./devtools/panel"
-export { componentChain, nearestVariant } from "./fiber"
+export { componentChain, nearestVariant, describeRegion, variantBoundaryRects } from "./fiber"
 export { devtoolsCss } from "./devtools/styles"

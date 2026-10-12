@@ -1,6 +1,7 @@
 import fs from "node:fs"
+import compression from "compression"
 import path from "node:path"
-import type { Plugin, ViteDevServer, InlineConfig } from "vite"
+import type { Connect, Plugin, ViteDevServer, InlineConfig } from "vite"
 import { API_BASE } from "../core/protocol"
 import { Bridge } from "./bridge"
 import type { ResolvedConfig } from "./config"
@@ -27,8 +28,30 @@ const html = (title: string, entry: string, bodyClass = "") => `<!doctype html>
     <title>${title}</title>
   </head>
   <body class="${bodyClass}">
-    <div id="root"></div>
-    <script type="module">import(${JSON.stringify(entry)}).catch((e) => { window.__STAGEBOARD_ERROR__ = String(e && e.stack || e); console.error(e) })</script>
+    <div id="root"><div id="sb-boot" style="position:fixed;inset:0;display:grid;place-items:center;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;color:#8a8a93;background:#fafafa">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div style="width:22px;height:22px;border-radius:999px;border:2px solid #e4e4e7;border-top-color:#71717a;animation:sbspin .8s linear infinite"></div>
+        <div id="sb-boot-text">Loading…</div>
+      </div>
+      <style>@keyframes sbspin{to{transform:rotate(360deg)}}</style>
+    </div></div>
+    <script>
+      (function () {
+        var start = Date.now()
+        var t = setInterval(function () {
+          var el = document.getElementById("sb-boot-text")
+          if (!el) return clearInterval(t)
+          var n = performance.getEntriesByType("resource").length
+          el.textContent = "Loading… " + n + " modules · " + Math.round((Date.now() - start) / 1000) + "s"
+        }, 500)
+      })()
+    </script>
+    <script type="module">import(${JSON.stringify(entry)}).catch((e) => {
+      window.__STAGEBOARD_ERROR__ = String(e && e.stack || e); console.error(e)
+      var root = document.getElementById("root")
+      if (root) root.innerHTML = '<pre style="margin:16px;padding:16px;border-radius:8px;background:#2a1215;color:#ffb4a8;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap"></pre>'
+      if (root && root.firstChild) root.firstChild.textContent = "Failed to load this story:\\n\\n" + window.__STAGEBOARD_ERROR__
+    })</script>
   </body>
 </html>`
 
@@ -118,6 +141,16 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
     },
     configureServer(s) {
       server = s
+      s.middlewares.use(
+        compression({
+          threshold: 1024,
+          filter: (req, res) => {
+            const type = String(res.getHeader("content-type") ?? "")
+            if (type.includes("event-stream") || req.headers.upgrade) return false
+            return compression.filter(req, res)
+          },
+        }) as unknown as Connect.NextHandleFunction,
+      )
       s.middlewares.use(async (req, res, next) => {
         const raw = req.originalUrl ?? req.url ?? "/"
         const url = new URL(raw, "http://x")
@@ -237,6 +270,13 @@ export async function createStageboardServer(config: ResolvedConfig, options: Se
   const url = `http://localhost:${port}`
   serverUrl = `http://127.0.0.1:${port}`
   const rescan = setInterval(() => void bridge.refreshVariants(), 5000)
+  if (options.watch !== false) {
+    setTimeout(() => {
+      buildIndex(config)
+        .then((index) => thumbs.warm(index.filter((s) => s.hasPage)))
+        .catch(() => {})
+    }, 3000)
+  }
   const lockFile = path.join(config.stateDir, "server.json")
   if (options.watch !== false) fs.writeFileSync(lockFile, JSON.stringify({ port, pid: process.pid, url }))
   return {

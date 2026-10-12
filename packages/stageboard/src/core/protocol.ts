@@ -5,6 +5,8 @@ export type ComponentFrame = {
   source?: { file: string; line?: number; column?: number }
 }
 
+export type Region = { x: number; y: number; width: number; height: number }
+
 export type ElementTarget = {
   url: string
   title?: string
@@ -17,7 +19,19 @@ export type ElementTarget = {
   variantId?: string
   variantKey?: string
   storyId?: string
+  region?: Region
+  variantKeys?: Record<string, string>
 }
+
+export type RegionDescription = {
+  components: ComponentFrame[]
+  variantIds: string[]
+  selector?: string
+  tag?: string
+  text?: string
+}
+
+export type Upload = { id: string; name: string; type: string; url: string; path: string }
 
 export type ChangeRequestKind = "variants" | "edit" | "adopt"
 
@@ -27,7 +41,8 @@ export type ChangeRequest = {
   count?: number
   target: ElementTarget
   adoptKey?: string
-  screenshot?: string
+  attachments?: string[]
+  showVariants?: boolean
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled"
@@ -48,6 +63,8 @@ export type Job = {
   producedFiles: string[]
   log: string[]
   error?: string
+  attachments?: Upload[]
+  selectionImage?: string
 }
 
 export type VariantMeta = {

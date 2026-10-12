@@ -242,3 +242,25 @@ export function cssPath(el: Element): string {
   }
   return parts.join(" > ")
 }
+
+export function describeRegion(rect: { x: number; y: number; width: number; height: number }) {
+  const cx = rect.x + rect.width / 2
+  const cy = rect.y + rect.height / 2
+  const own = (el: Element) => Boolean(el.closest?.("[data-stageboard-devtools]"))
+  const candidates = document.elementsFromPoint(cx, cy).filter((el) => !own(el) && el !== document.documentElement && el !== document.body)
+  const fitting = candidates.find((el) => {
+    const r = el.getBoundingClientRect()
+    return r.width >= rect.width * 0.6 && r.height >= rect.height * 0.6
+  }) ?? candidates[0]
+  const used = Array.from(((globalThis as Record<string, unknown>).__STAGEBOARD_USED__ as Set<string> | undefined) ?? [])
+  const variantIds = used.filter((id) =>
+    variantBoundaryRects(id).some((r) => r.right > rect.x && r.left < rect.x + rect.width && r.bottom > rect.y && r.top < rect.y + rect.height),
+  )
+  return {
+    components: fitting ? componentChain(fitting) : [],
+    variantIds,
+    selector: fitting ? cssPath(fitting) : undefined,
+    tag: fitting?.tagName.toLowerCase(),
+    text: fitting ? (fitting.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 240) || undefined : undefined,
+  }
+}

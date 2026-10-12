@@ -11,7 +11,9 @@ function isProduction(): boolean {
   }
 }
 
-export function StageboardVariant({ children }: { id: string; active: string; children?: ReactNode }) {
+export function StageboardVariant({ id, children }: { id: string; active: string; children?: ReactNode }) {
+  const used = ((globalThis as Record<string, unknown>).__STAGEBOARD_USED__ ??= new Set<string>()) as Set<string>
+  used.add(id)
   return children
 }
 ;(StageboardVariant as unknown as Record<string, unknown>)[VARIANT_MARKER] = true

@@ -1,6 +1,6 @@
 import { Component, createElement, useEffect, type ComponentType, type CSSProperties, type ReactNode } from "react"
 import { createRoot } from "react-dom/client"
-import { mountDevtools, setVariantOverrides, startBridge } from "stageboard/react"
+import { describeRegion, mountDevtools, setVariantOverrides, startBridge } from "stageboard/react"
 import type { Decorator, StoryContext } from "stageboard"
 import { resolveStory, type ClientEntry, type Loaders, type PreviewModule, type StoryModule } from "./types"
 
@@ -62,7 +62,8 @@ function StageboardReady({ children }: { children: ReactNode }) {
       await new Promise((r) => setTimeout(r, 120))
       if (cancelled) return
       w.__STAGEBOARD_READY__ = true
-      window.parent?.postMessage({ source: "stageboard", type: "ready", height: document.documentElement.scrollHeight }, "*")
+      const usedVariants = Array.from(((globalThis as Record<string, unknown>).__STAGEBOARD_USED__ as Set<string> | undefined) ?? [])
+      window.parent?.postMessage({ source: "stageboard", type: "ready", height: document.documentElement.scrollHeight, usedVariants }, "*")
     }
     void settle()
     return () => {
@@ -86,6 +87,8 @@ const LAYOUT_STYLE: Record<string, CSSProperties> = {
   padded: { padding: 24, boxSizing: "border-box" },
   fullscreen: {},
 }
+
+;(window as unknown as Record<string, unknown>).__stageboard_describeRegion = describeRegion
 
 export async function renderFrame(container: HTMLElement | null, options: FrameOptions) {
   if (!container) return

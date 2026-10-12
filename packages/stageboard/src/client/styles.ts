@@ -46,7 +46,10 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-node-body iframe { border: 0; transform-origin: 0 0; position: absolute; left: 0; top: 0; pointer-events: none; }
 .sbu-node-body[data-live="true"] iframe { pointer-events: auto; }
 .sbu-group-label { position: absolute; font-size: 28px; font-weight: 600; letter-spacing: -.01em; color: #a7a7b3; text-transform: capitalize; white-space: nowrap; pointer-events: none; }
-.sbu-node-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; background: #f4f4f5; }
+.sbu-node-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.sbu-node-body:has(.sbu-node-thumb) { background: linear-gradient(100deg, #ececef 30%, #f7f7f8 50%, #ececef 70%); background-size: 300% 100%; animation: sbu-shimmer 1.6s ease-in-out infinite; }
+@keyframes sbu-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .sbu-node-body:has(.sbu-node-thumb) { animation: none; } }
 .sbu-node-shield { position: absolute; inset: 0; cursor: zoom-in; }
 .sbu-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .sbu-edges path { fill: none; stroke: rgba(185,168,255,.45); stroke-width: 2; }

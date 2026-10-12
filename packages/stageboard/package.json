@@ -51,16 +51,18 @@
     }
   },
   "dependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
     "cac": "^7.0.1",
     "chokidar": "^5.0.0",
+    "compression": "^1.8.2",
     "es-module-lexer": "^1.7.0",
     "fast-glob": "^3.3.3",
     "jiti": "^2.6.1",
     "picocolors": "^1.1.1",
-    "playwright-core": "^1.64.0",
-    "@vitejs/plugin-react": "^6.1.2"
+    "playwright-core": "^1.64.0"
   },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/node": "^24.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
