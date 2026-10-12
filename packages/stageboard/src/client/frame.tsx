@@ -90,6 +90,20 @@ const LAYOUT_STYLE: Record<string, CSSProperties> = {
 
 ;(window as unknown as Record<string, unknown>).__stageboard_describeRegion = describeRegion
 
+let forwarding = false
+
+function forwardShortcuts() {
+  if (forwarding) return
+  forwarding = true
+  window.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
+    const el = e.target as HTMLElement | null
+    if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return
+    if (e.key !== "a" && e.key !== "A" && e.key !== "Escape") return
+    window.parent?.postMessage({ source: "stageboard", type: "key", key: e.key }, "*")
+  })
+}
+
 export async function renderFrame(container: HTMLElement | null, options: FrameOptions) {
   if (!container) return
   const params = new URLSearchParams(location.search)
@@ -100,6 +114,7 @@ export async function renderFrame(container: HTMLElement | null, options: FrameO
   if (!shot) {
     startBridge(options.base)
     mountDevtools({ base: options.base, embedded: params.has("sb-embed") })
+    if (params.has("sb-embed")) forwardShortcuts()
   }
   const entry = options.index.find((s) => s.id === id)
   if (!entry) {

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react"
 import type { PageParameters } from "stageboard"
+import { AnnotationLayer, type Surface } from "./annotate"
+import { storyUrl } from "./api"
+import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
 
 export type PageNode = { entry: ClientEntry; page: PageParameters }
@@ -17,6 +20,11 @@ const NODE_H = BODY_H + HEAD_H
 const GAP_X = 160
 const GAP_Y = 90
 const STORAGE = "stageboard:canvas:positions"
+const FRAME = { width: FRAME_W, height: FRAME_H }
+
+function frameOf(id: string): HTMLIFrameElement | null {
+  return document.querySelector<HTMLIFrameElement>(`iframe[data-node="${CSS.escape(id)}"]`)
+}
 
 function routePattern(route: string): RegExp {
   const escaped = route
@@ -99,6 +107,7 @@ export function Canvas({
   frameUrl,
   thumbUrl,
   inspecting,
+  annotating,
   onOpen,
   registerFrame,
 }: {
@@ -106,6 +115,7 @@ export function Canvas({
   frameUrl: (id: string) => string
   thumbUrl: (id: string) => string
   inspecting: boolean
+  annotating: boolean
   onOpen: (id: string) => void
   registerFrame: (id: string, el: HTMLIFrameElement | null) => void
 }) {
@@ -116,6 +126,7 @@ export function Canvas({
   const [flash, setFlash] = useState<string>()
   const [hotEdge, setHotEdge] = useState<string>()
   const [panning, setPanning] = useState(false)
+  const [ready, setReady] = useState<Set<string>>(() => new Set())
   const auto = useMemo(() => autoLayout(nodes), [nodes])
   const pos = useCallback((id: string) => saved[id] ?? auto[id] ?? { x: 0, y: 0 }, [saved, auto])
 
@@ -152,8 +163,12 @@ export function Canvas({
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
+      if (e.data?.source === "stageboard" && e.data.type === "ready") {
+        const node = nodes.find((n) => frameOf(n.entry.id)?.contentWindow === e.source)
+        if (node) setReady((r) => (r.has(node.entry.id) ? r : new Set(r).add(node.entry.id)))
+      }
       if (e.data?.source !== "stageboard" || e.data.type !== "navigate") return
-      const from = nodes.find((n) => document.querySelector<HTMLIFrameElement>(`iframe[data-node="${n.entry.id}"]`)?.contentWindow === e.source)
+      const from = nodes.find((n) => frameOf(n.entry.id)?.contentWindow === e.source)
       const target = findByRoute(nodes, String(e.data.href))
       if (!target) return
       setFlash(target.entry.id)
@@ -187,6 +202,16 @@ export function Canvas({
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => el.removeEventListener("wheel", onWheel)
   }, [])
+
+  const zoomBy = (factor: number) => {
+    const el = ref.current
+    const cx = (el?.clientWidth ?? 0) / 2
+    const cy = (el?.clientHeight ?? 0) / 2
+    setView((v) => {
+      const k = Math.min(4, Math.max(0.08, v.k * factor))
+      return { k, x: cx - ((cx - v.x) * k) / v.k, y: cy - ((cy - v.y) * k) / v.k }
+    })
+  }
 
   const onBackgroundDown = (e: RPointerEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget && !(e.target as Element).classList.contains("sbu-world")) return
@@ -236,6 +261,30 @@ export function Canvas({
   }, [focus, inspecting, nodes, pos, view])
   const isLive = (id: string) => liveIds.has(id)
 
+  useEffect(() => {
+    setReady((r) => {
+      const next = new Set([...r].filter((id) => liveIds.has(id)))
+      return next.size === r.size ? r : next
+    })
+  }, [liveIds])
+
+  const surfaces = useMemo(
+    () =>
+      new Map(
+        nodes.map((n): [string, Surface] => [
+          n.entry.id,
+          {
+            key: `map:${n.entry.id}`,
+            storyId: n.entry.id,
+            title: n.page.title ?? `${n.entry.title} / ${n.entry.name}`,
+            url: storyUrl(frameUrl(n.entry.id)),
+            frame: () => frameOf(n.entry.id),
+          },
+        ]),
+      ),
+    [nodes, frameUrl],
+  )
+
   const groupLabels = useMemo(() => {
     const seen = new Map<string, Pos>()
     for (const n of nodes) {
@@ -282,7 +331,10 @@ export function Canvas({
       onPointerDown={onBackgroundDown}
       style={{ backgroundSize: `${22 * view.k}px ${22 * view.k}px`, backgroundPosition: `${view.x}px ${view.y}px` }}
     >
-      <div className="sbu-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
+      <div
+        className="sbu-world"
+        style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, ["--sbu-k" as string]: view.k }}
+      >
         <svg className="sbu-edges" width="1" height="1">
           <defs>
             <marker id="sbu-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -313,18 +365,18 @@ export function Canvas({
                 <span className="sbu-node-title">{n.page.title ?? n.entry.title}</span>
               </div>
               <div className="sbu-node-body" data-live={isLive(n.entry.id)} style={{ height: BODY_H }}>
-                {isLive(n.entry.id) ? (
+                <Thumb src={thumbUrl(n.entry.id)} />
+                {isLive(n.entry.id) && (
                   <iframe
                     data-node={n.entry.id}
+                    data-ready={ready.has(n.entry.id)}
                     ref={(el) => registerFrame(n.entry.id, el)}
                     src={frameUrl(n.entry.id)}
                     title={n.entry.id}
                     style={{ width: FRAME_W, height: FRAME_H, transform: `scale(${SCALE})` }}
                   />
-                ) : (
-                  <img className="sbu-node-thumb" src={thumbUrl(n.entry.id)} alt="" loading="lazy" draggable={false} />
                 )}
-                {!inspecting && (
+                {!inspecting && !annotating && (
                   <div
                     className="sbu-node-shield"
                     onClick={() => {
@@ -335,20 +387,25 @@ export function Canvas({
                   />
                 )}
               </div>
+              <AnnotationLayer
+                surface={surfaces.get(n.entry.id)!}
+                viewport={FRAME}
+                style={{ top: HEAD_H, height: BODY_H, bottom: "auto" }}
+              />
             </div>
           )
         })}
       </div>
       <div className="sbu-hud" onPointerDown={(e) => e.stopPropagation()}>
         <button onClick={fit}>Fit</button>
-        <button onClick={() => setView((v) => ({ ...v, k: Math.min(4, v.k * 1.25) }))}>+</button>
-        <button onClick={() => setView((v) => ({ ...v, k: Math.max(0.08, v.k / 1.25) }))}>−</button>
+        <button onClick={() => zoomBy(1.25)}>+</button>
+        <button onClick={() => zoomBy(1 / 1.25)}>−</button>
         <button onClick={() => setSaved({})}>Auto layout</button>
         <span className="sbu-dim" style={{ padding: "0 6px" }}>
           {Math.round(view.k * 100)}%
         </span>
       </div>
-      <div className="sbu-hint">Scroll to pan · ⌘/Ctrl + scroll to zoom · double-click a page to dive in</div>
+      {!annotating && <div className="sbu-hint">Scroll to pan · ⌘/Ctrl + scroll to zoom · double-click a page to dive in</div>}
     </div>
   )
 }

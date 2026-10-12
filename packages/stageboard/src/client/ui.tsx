@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { devtoolsCss, Panel, startBridge, useStageboard } from "stageboard/react"
 import type { ElementTarget } from "stageboard"
+import { AnnotateProvider, AnnotationLayer, useDismissedPins, type Draft, type Surface } from "./annotate"
+import { fetchUsedVariants, storyUrl } from "./api"
 import { Canvas, type PageNode } from "./canvas"
+import { Composer } from "./composer"
+import { Gallery } from "./gallery"
+import { AnnotateIcon, InspectIcon, LayersIcon } from "./icons"
+import { PinDetails } from "./pins"
 import { uiCss } from "./styles"
 import { resolveStory, type ClientEntry, type Loaders, type StoryModule } from "./types"
 
@@ -81,6 +87,11 @@ function Mark() {
   )
 }
 
+function isEditable(el: EventTarget | null): boolean {
+  const node = el as HTMLElement | null
+  return Boolean(node && (node.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName)))
+}
+
 function Sidebar({ index, active, onPick }: { index: ClientEntry[]; active?: string; onPick: (id: string) => void }) {
   const [q, setQ] = useState("")
   const groups = useMemo(() => {
@@ -125,13 +136,57 @@ function App({ index, loaders, base }: UIOptions) {
   const [route, go] = useRoute()
   const [width, setWidth] = useState<number | undefined>()
   const [theme, setTheme] = useState<"light" | "dark" | undefined>()
-  const [inspecting, setInspecting] = useState(false)
+  const [inspecting, setInspectingState] = useState(false)
+  const [annotating, setAnnotatingState] = useState(false)
+  const [draft, setDraft] = useState<Draft>()
+  const [openPin, setOpenPin] = useState<string>()
+  const [dismissed, dismiss] = useDismissedPins()
+  const [gallery, setGallery] = useState(false)
+  const [used, setUsed] = useState<Record<string, string[]>>({})
   const [target, setTarget] = useState<ElementTarget>()
   const frames = useRef(new Map<string, HTMLIFrameElement>())
   const storyFrame = useRef<HTMLIFrameElement>(null)
   const pages = usePages(index, loaders)
   const activeJobs = useStageboard((s) => s.jobs.filter((j) => j.status === "running" || j.status === "queued").length)
   const connected = useStageboard((s) => s.connected)
+  const variantFiles = useStageboard((s) => s.serverVariants)
+  const openJob = useStageboard((s) => (openPin ? s.jobs.find((j) => j.id === openPin) : undefined))
+
+  const setInspecting = useCallback((next: boolean | ((v: boolean) => boolean)) => {
+    setInspectingState((v) => {
+      const on = typeof next === "function" ? next(v) : next
+      if (on) setAnnotatingState(false)
+      return on
+    })
+  }, [])
+
+  const setAnnotating = useCallback((next: boolean | ((v: boolean) => boolean)) => {
+    setAnnotatingState((v) => {
+      const on = typeof next === "function" ? next(v) : next
+      if (on) setInspectingState(false)
+      else setDraft(undefined)
+      return on
+    })
+  }, [])
+
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+
+  const keyAction = useCallback(
+    (key: string) => {
+      if (draftRef.current) {
+        if (key === "Escape") setDraft(undefined)
+        else document.querySelector<HTMLTextAreaElement>(".sbu-composer-input")?.focus()
+        return
+      }
+      if (key === "a" || key === "A") setAnnotating((v) => !v)
+      if (key === "Escape") {
+        setInspecting(false)
+        setAnnotating(false)
+      }
+    },
+    [setAnnotating, setInspecting],
+  )
 
   const frameUrl = useCallback(
     (id: string) => {
@@ -166,21 +221,53 @@ function App({ index, loaders, base }: UIOptions) {
         setInspecting(false)
       }
       if (e.data.type === "pick-ended") setInspecting(false)
+      if (e.data.type === "key") keyAction(String(e.data.key))
+      if (e.data.type === "ready" && e.source && e.source === storyFrame.current?.contentWindow) {
+        const id = new URLSearchParams(storyFrame.current.src.split("?")[1]).get("story")
+        if (id) setUsed((u) => ({ ...u, [id]: (e.data.usedVariants as string[] | undefined) ?? [] }))
+      }
     }
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)
-  }, [])
+  }, [keyAction, setInspecting])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.code === "KeyC") setInspecting((v) => !v)
-      if (e.key === "Escape") setInspecting(false)
+      if (e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return
+      if (e.key === "a" || e.key === "A" || e.key === "Escape") keyAction(e.key)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [keyAction, setInspecting])
+
+  useEffect(() => {
+    fetchUsedVariants(base).then((known) => setUsed((u) => ({ ...known, ...u })))
+  }, [base])
+
+  useEffect(() => {
+    setDraft(undefined)
+    setOpenPin(undefined)
+  }, [route])
+
+  const onSent = useCallback(() => setDraft(undefined), [])
 
   const current = route.view === "story" ? index.find((s) => s.id === route.id) : undefined
+  const storySurface = useMemo<Surface | undefined>(
+    () =>
+      current && {
+        key: `story:${current.id}`,
+        storyId: current.id,
+        title: `${current.title.split("/").pop()} / ${current.name}`,
+        url: storyUrl(frameUrl(current.id)),
+        frame: () => storyFrame.current,
+        scrollsFrame: true,
+      },
+    [current, frameUrl],
+  )
+  const galleryRows = current
+    ? (used[current.id] ?? []).filter((id) => variantFiles.some((v) => v.of === id)).length
+    : 0
 
   return (
     <div className="sbu">
@@ -198,8 +285,14 @@ function App({ index, loaders, base }: UIOptions) {
         </div>
         <div className="sbu-spacer" />
         {activeJobs > 0 && <span className="sbu-dim">{activeJobs} agent{activeJobs === 1 ? "" : "s"} working…</span>}
-        <button className="sbu-btn" data-on={inspecting} onClick={() => setInspecting((v) => !v)} title="Alt+Shift+C">
+        <button className="sbu-btn" data-on={inspecting} onClick={() => setInspecting((v) => !v)} title="Inspect an element · Alt+Shift+C">
+          <InspectIcon size={13} />
           Inspect
+        </button>
+        <button className="sbu-btn" data-on={annotating} aria-pressed={annotating} onClick={() => setAnnotating((v) => !v)} title="Drag over a page to annotate · A">
+          <AnnotateIcon size={13} />
+          Annotate
+          <span className="sbu-key">A</span>
         </button>
         <button className="sbu-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}>
           Theme: {theme ?? "story"}
@@ -207,7 +300,8 @@ function App({ index, loaders, base }: UIOptions) {
         <span title={connected ? "Bridge connected" : "Bridge offline"} style={{ width: 8, height: 8, borderRadius: 99, background: connected ? "#2fb585" : "#6f6f7a" }} />
       </header>
       <Sidebar index={index} active={current?.id} onPick={(id) => go({ view: "story", id })} />
-      <main className="sbu-main">
+      <AnnotateProvider base={base} active={annotating} draft={draft} onBegin={setDraft} openPin={openPin} onTogglePin={setOpenPin} dismissed={dismissed}>
+      <main className="sbu-main" data-annotating={annotating}>
         {route.view === "canvas" &&
           (pages.length ? (
             <Canvas
@@ -215,6 +309,7 @@ function App({ index, loaders, base }: UIOptions) {
               frameUrl={frameUrl}
               thumbUrl={thumbUrl}
               inspecting={inspecting}
+              annotating={annotating}
               onOpen={(id) => go({ view: "story", id })}
               registerFrame={(id, el) => (el ? frames.current.set(id, el) : frames.current.delete(id))}
             />
@@ -234,7 +329,13 @@ function App({ index, loaders, base }: UIOptions) {
               <span className="sbu-title">{current.title}</span>
               <span className="sbu-dim">/ {current.name}</span>
               <span className="sbu-spacer" />
-              {WIDTHS.map((w) => (
+              <button className="sbu-btn" data-on={gallery} aria-pressed={gallery} onClick={() => setGallery((v) => !v)} title="Show every variant side by side">
+                <LayersIcon size={13} />
+                Show variants
+                {galleryRows > 0 && <span className="sbu-count">{galleryRows}</span>}
+              </button>
+              <span className="sbu-tool-gap" />
+              {!gallery && WIDTHS.map((w) => (
                 <button key={w.label} className="sbu-btn" data-on={width === w.value} onClick={() => setWidth(w.value)}>
                   {w.label}
                 </button>
@@ -250,21 +351,50 @@ function App({ index, loaders, base }: UIOptions) {
                 Copy shot cmd
               </button>
             </div>
-            <div className="sbu-stage">
-              <iframe
-                key={`${current.id}-${theme}`}
-                ref={storyFrame}
-                className="sbu-frame"
-                src={frameUrl(current.id)}
-                title={current.id}
-                style={{ width: width ?? "100%" }}
-                onLoad={() => storyFrame.current?.contentWindow?.postMessage({ source: "stageboard", type: "pick", on: inspecting }, "*")}
-              />
+            <div className="sbu-stage" data-hidden={gallery}>
+              <div className="sbu-frame-wrap" style={{ width: width ?? "100%" }}>
+                <iframe
+                  key={`${current.id}-${theme}`}
+                  ref={storyFrame}
+                  className="sbu-frame"
+                  src={frameUrl(current.id)}
+                  title={current.id}
+                  onLoad={() => storyFrame.current?.contentWindow?.postMessage({ source: "stageboard", type: "pick", on: inspecting }, "*")}
+                />
+                {storySurface && !gallery && <AnnotationLayer surface={storySurface} />}
+              </div>
             </div>
+            {gallery && storySurface && (
+              <Gallery
+                storyId={current.id}
+                title={storySurface.title}
+                used={used[current.id]}
+                base={base}
+                frameUrl={storySurface.url}
+                selectionKey={selectionKey}
+              />
+            )}
           </div>
         )}
         {route.view === "story" && !current && <div className="sbu-empty">Pick a story on the left.</div>}
+        {annotating && !draft && (
+          <div className="sbu-annot-hint" role="status">
+            Drag over {route.view === "canvas" ? "a page" : gallery ? "any variant" : "the story"} to annotate, or click a spot
+            <span className="sbu-key">esc</span>
+          </div>
+        )}
       </main>
+      {draft && <Composer key={draft.surface.key} draft={draft} onClose={() => setDraft(undefined)} onSent={onSent} />}
+      {openJob && (
+        <PinDetails
+          key={openJob.id}
+          job={openJob}
+          onClose={() => setOpenPin(undefined)}
+          onDismiss={dismiss}
+          onShowVariants={route.view === "story" ? () => (setGallery(true), setOpenPin(undefined)) : undefined}
+        />
+      )}
+      </AnnotateProvider>
       <aside className="sbu-inspector">
         {target && (
           <div className="sb-root">
