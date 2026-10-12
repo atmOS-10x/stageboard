@@ -245,24 +245,24 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
     >
       <div className="sbu-composer-ctx">
         <div className="sbu-ctx-list">
-          <span className="sbu-ctx" title={surface.storyId}>
-            {surface.title}
+          <span className="sbu-ctx" title={`${surface.title} · ${surface.storyId}`}>
+            <span>{surface.title}</span>
           </span>
           {surface.variant && (
             <span className="sbu-ctx" title={`${surface.variant.id}:${surface.variant.key}`}>
               <LayersIcon size={11} />
-              {surface.variant.label ?? surface.variant.key}
+              <span>{surface.variant.label ?? surface.variant.key}</span>
             </span>
           )}
           {component && (
             <span className="sbu-ctx sbu-ctx-mono" title={description?.components.map((c) => c.name).join(" ‹ ")}>
-              {component}
+              <span>{component}</span>
             </span>
           )}
           {variantIds.map((id) => (
             <span key={id} className="sbu-ctx" title="Variant boundary under the selection">
               <LayersIcon size={11} />
-              {id}
+              <span>{id}</span>
             </span>
           ))}
         </div>

@@ -258,7 +258,7 @@ function App({ index, loaders, base }: UIOptions) {
       current && {
         key: `story:${current.id}`,
         storyId: current.id,
-        title: `${current.title.split("/").pop()} / ${current.name}`,
+        title: current.name,
         url: storyUrl(frameUrl(current.id)),
         frame: () => storyFrame.current,
         scrollsFrame: true,
@@ -297,7 +297,7 @@ function App({ index, loaders, base }: UIOptions) {
         <button className="sbu-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}>
           Theme: {theme ?? "story"}
         </button>
-        <span title={connected ? "Bridge connected" : "Bridge offline"} style={{ width: 8, height: 8, borderRadius: 99, background: connected ? "#2fb585" : "#6f6f7a" }} />
+        {!connected && <span className="sbu-dim" title="Start it with stageboard dev">Bridge offline</span>}
       </header>
       <Sidebar index={index} active={current?.id} onPick={(id) => go({ view: "story", id })} />
       <AnnotateProvider base={base} active={annotating} draft={draft} onBegin={setDraft} openPin={openPin} onTogglePin={setOpenPin} dismissed={dismissed}>

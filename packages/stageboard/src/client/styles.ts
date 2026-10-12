@@ -26,7 +26,7 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-story { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: #a0a0aa; padding: 4px 8px 4px 22px; border-radius: 6px; font: inherit; cursor: pointer; }
 .sbu-story:hover { background: rgba(255,255,255,.04); color: #fff; }
 .sbu-story[data-on="true"] { background: rgba(124,108,255,.16); color: #fff; }
-.sbu-badge { font-size: 10px; color: #b9a8ff; border: 1px solid rgba(124,108,255,.4); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+.sbu-badge { font-size: 10px; color: #7d7d88; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
 .sbu-main { position: relative; overflow: hidden; background: #0b0b0d; }
 .sbu-inspector { width: 380px; border-left: 1px solid rgba(255,255,255,.08); overflow: auto; background: #111114; }
 .sbu-inspector:empty { display: none; }
@@ -145,11 +145,12 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-ctx-list { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; padding-top: 1px; }
 .sbu-composer-ctx .sbu-icon { width: 22px; height: 22px; }
 .sbu-ctx {
-  display: inline-flex; align-items: center; gap: 4px; height: 20px; max-width: 180px; padding: 0 7px; border-radius: 6px;
-  background: rgba(255,255,255,.05); color: #9d9da8; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; height: 20px; max-width: 100%; padding: 0 7px; border-radius: 6px;
+  background: rgba(255,255,255,.05); color: #9d9da8; font-size: 11.5px; white-space: nowrap; overflow: hidden;
   animation: sbu-fade .22s ease both;
 }
 .sbu-ctx svg { flex: none; color: #7f7f8a; }
+.sbu-ctx > span { overflow: hidden; text-overflow: ellipsis; }
 .sbu-ctx-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: #b9b9c3; }
 .sbu-composer-input {
   display: block; width: 100%; min-height: 30px; max-height: 240px; margin: 2px 0 0; padding: 5px 6px;
