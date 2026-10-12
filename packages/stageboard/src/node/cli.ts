@@ -76,6 +76,12 @@ cli
     for (const s of index) console.log(`${pc.cyan(s.id.padEnd(48))} ${pc.dim(s.file)}${s.hasPage ? pc.magenta(" page") : ""}`)
   })
 
+cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, list_variants, compare_variants, select_variant)").action(async (opts) => {
+  const config = await loadConfig(process.cwd(), opts.config)
+  const { runMcpServer } = await import("./mcp")
+  await runMcpServer(config)
+})
+
 cli.command("variants", "Regenerate the variants registry file").action(async (opts) => {
   const config = await loadConfig(process.cwd(), opts.config)
   const { changed, variants } = await writeVariantsModule(config)

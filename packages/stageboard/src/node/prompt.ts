@@ -51,6 +51,41 @@ export default function HeroEditorial(props: HeroProps) {
 
 stageboard picks the file up automatically and the user sees it live in the variant picker. Do not edit the generated registry file.`
 
+function contextSection(job: Job, request: ChangeRequest): string {
+  const t = request.target
+  const lines: string[] = []
+  if (t.region && t.storyId) {
+    lines.push(
+      "## What the user marked",
+      `They dragged a rectangle over story \`${t.storyId}\` at x=${Math.round(t.region.x)}, y=${Math.round(t.region.y)}, ${Math.round(t.region.width)}×${Math.round(t.region.height)} px in a ${t.viewport.width}×${t.viewport.height} viewport.`,
+    )
+    if (job.selectionImage) lines.push(`A screenshot of exactly that area (with a little margin) is at \`${job.selectionImage}\`. Open it before you start.`)
+    if (t.components.length) lines.push(`Components under the selection, innermost first: ${t.components.map((c) => c.name).join(" ← ")}.`)
+  }
+  if (job.attachments?.length) {
+    lines.push("", "## Reference images from the user")
+    for (const a of job.attachments) lines.push(`- \`${a.path}\` (${a.name})`)
+    lines.push("Look at each one; they show what the user has in mind.")
+  }
+  const keys = Object.entries(t.variantKeys ?? {})
+  if (request.showVariants || keys.length) {
+    lines.push("", "## Variants in view")
+    if (keys.length) lines.push(`The user was looking at ${keys.map(([id, key]) => `variant \`${key}\` of \`${id}\``).join(", ")} in the variants gallery, so the note is about that variant.`)
+    lines.push(
+      "Compare it with its siblings before changing anything (stageboard MCP `compare_variants`, or one `npx stageboard shot` per variant).",
+      request.kind === "edit"
+        ? "Edit that variant's own `*.variant.tsx` file; leave the original and the other variants alone unless the note says otherwise."
+        : "New variants should build on the one the user pointed at.",
+    )
+  }
+  return lines.join("\n")
+}
+
+const MCP_HINT = [
+  "## stageboard tools",
+  "If the `stageboard` MCP server is connected, use its tools: `list_stories`, `screenshot` (story, optional variants, region or full page), `list_variants`, `compare_variants` and `select_variant`. They work without the app running. Otherwise use the `npx stageboard` CLI described below.",
+].join("\n")
+
 export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest): string {
   const target = request.target
   const top = target.components[0]
@@ -91,6 +126,9 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     )
   }
 
+  const context = contextSection(job, request)
+  if (context) lines.push("", context)
+  lines.push("", MCP_HINT)
   lines.push("", shotHint(config, job, request))
   lines.push(
     "",

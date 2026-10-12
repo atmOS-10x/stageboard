@@ -4,9 +4,12 @@ import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
 import type { BridgeState, ChangeRequest, Job, VariantFile } from "../core/protocol"
-import { createProvider, type AgentProvider, type AgentRun } from "./agents"
+import { createRequire } from "node:module"
+import { createProvider, type AgentProvider, type AgentRun, type McpLaunch } from "./agents"
 import type { ResolvedConfig } from "./config"
 import { buildPrompt } from "./prompt"
+import type { Thumbnailer } from "./thumbs"
+import { readUpload, writeUpload } from "./uploads"
 import { scanVariants, writeVariantsModule } from "./variants"
 
 type Persisted = { selections: Record<string, string>; jobs: Job[] }
@@ -29,6 +32,7 @@ export class Bridge {
   private stateFile: string
   private rescanTimer?: ReturnType<typeof setTimeout>
   private listeners = new Set<() => void>()
+  private renderer?: Thumbnailer
   readonly agentCwd: string
 
   constructor(private config: ResolvedConfig) {
@@ -64,6 +68,22 @@ export class Bridge {
     this.state.version++
     this.save()
     this.listeners.forEach((l) => l())
+  }
+
+  private mcpLaunch(): McpLaunch | undefined {
+    try {
+      const require = createRequire(import.meta.url)
+      const pkg = require.resolve("stageboard/package.json")
+      const cli = path.join(path.dirname(pkg), "dist", "node", "cli.js")
+      if (!fs.existsSync(cli)) return undefined
+      return { command: process.execPath, args: [cli, "mcp", "--config", this.config.configFile] }
+    } catch {
+      return undefined
+    }
+  }
+
+  setRenderer(renderer: Thumbnailer) {
+    this.renderer = renderer
   }
 
   onChange(listener: () => void) {
@@ -143,13 +163,47 @@ export class Bridge {
     return job
   }
 
+  private async enrich(job: Job, request: ChangeRequest) {
+    job.attachments = (request.attachments ?? []).map((id) => readUpload(this.config, id)).filter((u): u is NonNullable<typeof u> => Boolean(u))
+    const target = request.target
+    if (!this.renderer || !target.storyId || !target.region) return
+    const variants = target.variantKeys ?? {}
+    const viewport = target.viewport?.width ? { width: target.viewport.width, height: target.viewport.height } : {}
+    try {
+      const description = await this.renderer.describe(target.storyId, target.region, { variants, ...viewport })
+      if (!target.components?.length) target.components = description.components
+      if (!target.selector) target.selector = description.selector ?? ""
+      if (!target.text) target.text = description.text
+      if (!target.variantId && description.variantIds.length === 1) target.variantId = description.variantIds[0]
+      if (!job.variantId) job.variantId = target.variantId
+      if (description.variantIds.length) this.log(job, `Variant boundaries in selection: ${description.variantIds.join(", ")}`)
+    } catch (e) {
+      this.log(job, `Could not describe selection: ${(e as Error).message.slice(0, 160)}`)
+    }
+    try {
+      const pad = 24
+      const r = target.region
+      const png = await this.renderer.shot(target.storyId, {
+        variants,
+        ...viewport,
+        region: { x: Math.max(0, r.x - pad), y: Math.max(0, r.y - pad), width: r.width + pad * 2, height: r.height + pad * 2 },
+      })
+      const upload = writeUpload(this.config, png, "image/png", `selection-${job.id}.png`)
+      job.selectionImage = upload.path
+    } catch (e) {
+      this.log(job, `Could not capture selection: ${(e as Error).message.slice(0, 160)}`)
+    }
+    this.bump()
+  }
+
   private async run(job: Job, request: ChangeRequest) {
+    await this.enrich(job, request)
     const prompt = buildPrompt(this.config, job, request)
     fs.writeFileSync(path.join(this.config.stateDir, `prompt-${job.id}.md`), prompt)
     try {
       job.status = "running"
       this.bump()
-      const run = await this.provider.start(job, prompt, { cwd: this.agentCwd, log: (l) => this.log(job, l) })
+      const run = await this.provider.start(job, prompt, { cwd: this.agentCwd, log: (l) => this.log(job, l), mcp: this.mcpLaunch() })
       this.runs.set(job.id, run)
       job.externalId = run.externalId
       job.externalUrl = run.externalUrl

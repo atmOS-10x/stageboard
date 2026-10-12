@@ -51,6 +51,7 @@
     }
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@vitejs/plugin-react": "^6.1.2",
     "cac": "^7.0.1",
     "chokidar": "^5.0.0",
@@ -59,7 +60,8 @@
     "fast-glob": "^3.3.3",
     "jiti": "^2.6.1",
     "picocolors": "^1.1.1",
-    "playwright-core": "^1.64.0"
+    "playwright-core": "^1.64.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",

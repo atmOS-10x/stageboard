@@ -12,9 +12,12 @@ export type AgentRun = {
   cancel: () => void
 }
 
+export type McpLaunch = { command: string; args: string[] }
+
 export type AgentContext = {
   cwd: string
   log: (line: string) => void
+  mcp?: McpLaunch
 }
 
 export type AgentProvider = {
@@ -55,6 +58,7 @@ function claudeHeadless(config: Extract<AgentConfig, { provider: "claude" }>, pr
     "--output-format",
     "stream-json",
     "--verbose",
+    ...claudeMcpArgs(ctx.mcp),
     ...(config.model ? ["--model", config.model] : []),
     ...(config.extraArgs ?? []),
   ]
@@ -73,6 +77,16 @@ function claudeHeadless(config: Extract<AgentConfig, { provider: "claude" }>, pr
     }
   })
   return { done: exitPromise(child), cancel: () => child.kill("SIGTERM") }
+}
+
+function claudeMcpArgs(mcp: McpLaunch | undefined): string[] {
+  if (!mcp) return []
+  return ["--mcp-config", JSON.stringify({ mcpServers: { stageboard: { command: mcp.command, args: mcp.args } } })]
+}
+
+function codexMcpArgs(mcp: McpLaunch | undefined): string[] {
+  if (!mcp) return []
+  return ["-c", `mcp_servers.stageboard.command=${JSON.stringify(mcp.command)}`, "-c", `mcp_servers.stageboard.args=${JSON.stringify(mcp.args)}`]
 }
 
 function runText(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
@@ -101,6 +115,7 @@ async function claudeBackground(
     name,
     "--permission-mode",
     config.permissionMode ?? "acceptEdits",
+    ...claudeMcpArgs(ctx.mcp),
     ...(config.model ? ["--model", config.model] : []),
     ...(config.extraArgs ?? []),
     prompt,
@@ -163,6 +178,7 @@ function codexProvider(config: Extract<AgentConfig, { provider: "codex" }>): Age
         ctx.cwd,
         "--sandbox",
         config.sandbox ?? "workspace-write",
+        ...codexMcpArgs(ctx.mcp),
         ...(config.model ? ["-m", config.model] : []),
         ...(config.extraArgs ?? []),
         prompt,

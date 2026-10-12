@@ -6,7 +6,8 @@ import { API_BASE } from "../core/protocol"
 import { Bridge } from "./bridge"
 import type { ResolvedConfig } from "./config"
 import { buildIndex } from "./indexer"
-import { Thumbnailer } from "./thumbs"
+import { parseVariantParam, Thumbnailer } from "./thumbs"
+import { readUpload, saveUpload } from "./uploads"
 import { writeVariantsModule } from "./variants"
 
 const BASE = `${API_BASE}/`
@@ -162,7 +163,78 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
         if (thumb && thumbs) {
           const index = await buildIndex(config)
           const entry = index.find((e) => e.id === thumb[1])
-          await thumbs.serve(res, thumb[1], entry?.absFile, url.searchParams.has("refresh"))
+          await thumbs.serve(res, thumb[1], entry?.absFile, url.searchParams.has("refresh"), parseVariantParam(url.searchParams.get("variant")))
+          return
+        }
+        if (sub === "/api/shot" && thumbs) {
+          const q = url.searchParams
+          const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined)
+          const region = q.get("rw") ? { x: num("x") ?? 0, y: num("y") ?? 0, width: num("rw")!, height: num("rh") ?? 1 } : undefined
+          try {
+            const png = await thumbs.shot(q.get("story") ?? "", {
+              variants: parseVariantParam(q.get("variant")),
+              width: num("w"),
+              height: num("h"),
+              full: q.has("full"),
+              region,
+            })
+            res.setHeader("content-type", "image/png")
+            res.end(png)
+          } catch (e) {
+            res.statusCode = 500
+            res.end((e as Error).message)
+          }
+          return
+        }
+        if (sub === "/api/describe" && thumbs) {
+          const q = url.searchParams
+          const n = (k: string) => Number(q.get(k) ?? 0)
+          try {
+            const description = await thumbs.describe(
+              q.get("story") ?? "",
+              { x: n("x"), y: n("y"), width: n("w") || 1, height: n("h") || 1 },
+              { variants: parseVariantParam(q.get("variant")), width: q.get("vw") ? n("vw") : undefined, height: q.get("vh") ? n("vh") : undefined },
+            )
+            res.setHeader("content-type", "application/json")
+            res.end(JSON.stringify(description))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: (e as Error).message }))
+          }
+          return
+        }
+        if (sub === "/api/used-variants" && thumbs) {
+          const index = await buildIndex(config)
+          const map: Record<string, string[]> = {}
+          for (const e of index) {
+            const used = thumbs.usedVariants(e.id)
+            if (used) map[e.id] = used
+          }
+          res.setHeader("content-type", "application/json")
+          res.end(JSON.stringify(map))
+          return
+        }
+        if (sub === "/api/uploads" && req.method === "POST") {
+          try {
+            const upload = await saveUpload(config, req)
+            res.setHeader("content-type", "application/json")
+            res.end(JSON.stringify(upload))
+          } catch (e) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ error: (e as Error).message }))
+          }
+          return
+        }
+        const uploadGet = /^\/api\/uploads\/([\w.-]+)$/.exec(sub)
+        if (uploadGet && req.method === "GET") {
+          const found = readUpload(config, uploadGet[1])
+          if (!found) {
+            res.statusCode = 404
+            res.end()
+            return
+          }
+          res.setHeader("content-type", found.type)
+          fs.createReadStream(found.path).pipe(res)
           return
         }
         if (sub.startsWith("/api/")) {
@@ -231,6 +303,7 @@ export async function createStageboardServer(config: ResolvedConfig, options: Se
   const bridge = new Bridge(config)
   let serverUrl = ""
   const thumbs = new Thumbnailer(config, () => serverUrl, () => bridge.getState())
+  bridge.setRenderer(thumbs)
   await bridge.refreshVariants()
   const userVite = await resolveUserVite(config)
   const hasReact = (userVite.plugins ?? []).flat().some((p) => p && typeof p === "object" && "name" in p && String(p.name).startsWith("vite:react"))
