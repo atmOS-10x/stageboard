@@ -83,6 +83,7 @@ function contextSection(job: Job, request: ChangeRequest): string {
 
 const MCP_HINT = [
   "## stageboard tools",
+  "If a `stageboard` skill is installed (.claude/skills or .agents/skills), follow it.",
   "If the `stageboard` MCP server is connected, use its tools: `list_stories`, `screenshot` (story, optional variants, region or full page), `list_variants`, `compare_variants` and `select_variant`. They work without the app running. Otherwise use the `npx stageboard` CLI described below.",
 ].join("\n")
 

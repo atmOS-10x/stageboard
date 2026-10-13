@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { cac } from "cac"
 import pc from "picocolors"
 import { API_BASE } from "../core/protocol"
@@ -81,6 +82,24 @@ cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories,
   const { runMcpServer } = await import("./mcp")
   await runMcpServer(config)
 })
+
+cli
+  .command("skill [dir]", "Install the stageboard agent skill into .claude/skills and .agents/skills")
+  .option("--claude", "Only .claude/skills")
+  .option("--codex", "Only .agents/skills")
+  .action((dir: string | undefined, opts) => {
+    const source = fileURLToPath(new URL("../../skills/stageboard", import.meta.url))
+    const root = path.resolve(dir ?? process.cwd())
+    const targets = [
+      ...(opts.codex ? [] : [path.join(root, ".claude", "skills", "stageboard")]),
+      ...(opts.claude ? [] : [path.join(root, ".agents", "skills", "stageboard")]),
+    ]
+    for (const target of targets) {
+      fs.rmSync(target, { recursive: true, force: true })
+      fs.cpSync(source, target, { recursive: true })
+      console.log(`installed ${path.relative(process.cwd(), target) || target}`)
+    }
+  })
 
 cli.command("variants", "Regenerate the variants registry file").action(async (opts) => {
   const config = await loadConfig(process.cwd(), opts.config)

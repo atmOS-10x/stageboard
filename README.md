@@ -22,6 +22,17 @@
   <img src=".github/assets/annotate.png" alt="Drag over a section, describe the change, send it to an agent" width="880" />
 </p>
 
+## Get started: paste this into your agent
+
+```text
+Set up stageboard in this repo. Run `npm i -D stageboard` (use this repo's package manager), then
+`npx stageboard skill` to install the stageboard skill, and follow it: write the config and a preview
+with mock providers, add stories for the main components, put every page on the site map with realistic
+mock data, and check each one with `npx stageboard shot`. Finish by listing the stories that look weak.
+```
+
+Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or `.agents/skills`.
+
 ## What it does
 
 - **Stories with mock data.** A Storybook-compatible `*.stories.tsx` format. Pages are stories too, so no backend or login is needed.
@@ -79,6 +90,7 @@ To get the inspector bubble in your running app, render `<StageboardDevtools />`
 | `stageboard shot <story> [--variant id=key] [--width 1440] [--full]` | PNG of a story, no app needed |
 | `stageboard list [filter]` | story ids |
 | `stageboard mcp` | MCP server on stdio |
+| `stageboard skill` | install the agent skill into `.claude/skills` and `.agents/skills` |
 | `stageboard variants` | regenerate the variants registry |
 
 ## Agents
