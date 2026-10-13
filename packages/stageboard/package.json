@@ -74,5 +74,11 @@
     "typescript": "~5.9.3",
     "vite": "^8.3.4",
     "vitest": "^4.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atmOS-10x/stageboard.git",
+    "directory": "packages/stageboard"
+  },
+  "homepage": "https://github.com/atmOS-10x/stageboard#readme"
 }

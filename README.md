@@ -1,103 +1,97 @@
-# stageboard
+<p align="center">
+  <img src=".github/assets/icon.svg" width="88" height="88" alt="stageboard" />
+</p>
 
-Every component and page of your app on one board. Render anything in isolation with mock data,
-see your whole product as a live site map, point at any element and ask an agent for variants,
-then pick the one you like. Variants show up live while the agent works.
+<h1 align="center">stageboard</h1>
 
-- **Stories**: a small, Storybook-compatible story format (`*.stories.tsx`). Pages are stories with
-  `parameters.page = { route, links }`, which places them on the site map with UX-flow edges.
-- **`stageboard shot <story>`**: a headless screenshot of one story, with no app or backend running.
-  Agents use it to look at their own work.
-- **Variants**: wrap any component with `variant("landing.hero", Hero)`, or any JSX with
-  `<Variant id="landing.hero">…</Variant>`. Each alternative is a single `*.variant.tsx` file, and a
-  generated registry picks it up, so many agents can add variants in parallel without conflicts.
-  Production renders the original with no overhead.
-- **Inspector**: `<StageboardDevtools />` adds a bubble to your real app. You pick an element, see
-  its component chain and source file, switch between variants, or request a change.
-- **Bridge + agents**: change requests become jobs that run an agent (atmOS, Claude Code, or any
-  CLI). While a job runs, the targeted component animates and "Generating…" slots fill in as
-  variant files land.
+<p align="center">
+  Your whole app on one board. Point at anything, ask an agent for variants, watch them appear live.
+</p>
 
-The core is framework-agnostic. The first renderer is React (it works with Next.js via a preset
-that shims `next/*`).
+<p align="center">
+  <img alt="status" src="https://img.shields.io/badge/status-early-a99cff?style=flat-square" />
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-3f3f46?style=flat-square" />
+  <img alt="typescript" src="https://img.shields.io/badge/TypeScript-5.9-3f3f46?style=flat-square&logo=typescript&logoColor=white" />
+  <img alt="react" src="https://img.shields.io/badge/React-18%20%7C%2019-3f3f46?style=flat-square&logo=react&logoColor=white" />
+  <img alt="vite" src="https://img.shields.io/badge/Vite-6%2B-3f3f46?style=flat-square&logo=vite&logoColor=white" />
+  <img alt="next.js" src="https://img.shields.io/badge/Next.js-preset-3f3f46?style=flat-square&logo=nextdotjs&logoColor=white" />
+  <img alt="mcp" src="https://img.shields.io/badge/MCP-server-3f3f46?style=flat-square" />
+</p>
+
+<p align="center">
+  <img src=".github/assets/annotate.png" alt="Drag over a section, describe the change, send it to an agent" width="880" />
+</p>
+
+## What it does
+
+- **Stories with mock data.** A Storybook-compatible `*.stories.tsx` format. Pages are stories too, so no backend or login is needed.
+- **Site map.** Every page on a pan-and-zoom canvas with UX-flow edges, using cached thumbnails until you focus a page.
+- **Annotate.** Drag over anything in the site map, a story or the variants gallery. Write a note, paste reference images, and send it to an agent.
+- **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Production renders the original.
+- **`stageboard shot`.** A headless screenshot of any story, variant or region. Agents use it to check their own work.
+- **MCP server.** `list_stories`, `screenshot`, `list_variants`, `compare_variants` and `select_variant`, attached to Claude and Codex agents automatically.
+
+<p align="center">
+  <img src=".github/assets/variants.png" alt="Variants gallery" width="880" />
+</p>
 
 ## Quick start
 
 ```bash
 npm i -D stageboard
-npx stageboard init
+npx stageboard init        # writes stageboard.config.ts
+npx stageboard dev         # catalog, site map and agent bridge on :6060/__stageboard/
 ```
 
 ```ts
 // stageboard.config.ts
 import { defineConfig } from "stageboard"
+import { nextPreset } from "stageboard/next" // only for Next.js apps
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
-  preview: "./stageboard.preview.tsx", // global CSS + decorators (providers, mocks)
-  agent: { provider: "claude" },       // see "Agents" below
+  preview: "./stageboard.preview.tsx", // global CSS, providers, mocks
+  vite: () => nextPreset({ root: __dirname }),
+  agent: { provider: "claude" },
 })
 ```
 
 ```tsx
 // hero.stories.tsx
-import type { Meta, Story } from "stageboard"
-import { Hero } from "./hero"
-
-export default { title: "Marketing/Hero", component: Hero, args: { title: "Hello" } } satisfies Meta<typeof Hero>
-export const Default: Story<typeof Hero> = {}
-export const Page: Story = { render: () => <HomePage />, parameters: { page: { route: "/", links: ["/pricing"] } } }
+export default { title: "Marketing/Hero", component: Hero } satisfies Meta<typeof Hero>
+export const Default: Story<typeof Hero> = { args: { title: "Hello" } }
+export const Home: Story = { render: () => <HomePage />, parameters: { page: { route: "/", links: ["/pricing"] } } }
 ```
-
-```bash
-npx stageboard dev                      # catalog + site map + bridge at http://localhost:6060/__stageboard/
-npx stageboard shot marketing-hero--default --width 1440 --out hero.png
-npx stageboard shot marketing-hero--default --variant landing.hero=hero.editorial
-npx stageboard list
-```
-
-### In your running app
 
 ```tsx
-// dev only, e.g. loaded with next/dynamic from the root layout
-import { StageboardDevtools } from "stageboard/react"
-import "./stageboard.variants" // generated registry
-
-export default function Dev() {
-  return <StageboardDevtools base="/__stageboard" />
-}
+// hero.calm.variant.tsx, written by you or by an agent
+export const variant = { of: "landing.hero", label: "Calm", description: "Serif headline, ink button." }
+export default function HeroCalm(props: HeroProps) { /* … */ }
 ```
 
-Proxy `/__stageboard/api/*` from your dev server to the stageboard server so the bubble can reach
-the bridge.
+To get the inspector bubble in your running app, render `<StageboardDevtools />` in development and proxy `/__stageboard/*` to the stageboard server.
 
-### Variant files
+## CLI
 
-```tsx
-// hero.editorial.variant.tsx
-export const variant = { of: "landing.hero", label: "Editorial", description: "Serif headline, no gradient." }
-export default function HeroEditorial(props: HeroProps) { /* … */ }
-```
+| command | |
+|---|---|
+| `stageboard dev` | catalog, site map, annotation bridge |
+| `stageboard shot <story> [--variant id=key] [--width 1440] [--full]` | PNG of a story, no app needed |
+| `stageboard list [filter]` | story ids |
+| `stageboard mcp` | MCP server on stdio |
+| `stageboard variants` | regenerate the variants registry |
 
 ## Agents
 
-| provider | runs | where it shows up |
+| provider | runs | shows up in |
 |---|---|---|
-| `claude` | `claude --bg` in your repo (default) | `claude agents` / agent view; `background: false` runs headless `claude -p` instead |
-| `codex` | `codex exec` | Codex's shared background server |
-| `atmos` | `atmos session new` on the current machine | your atmOS sessions; the agent is told to enter the current worktree so variants appear live |
-| `command` | any shell command, prompt in `$STAGEBOARD_PROMPT_FILE` | wherever your tool reports |
+| `claude` | `claude --bg` | `claude agents` |
+| `codex` | `codex exec` | Codex |
+| `atmos` | `atmos session new`, in the same worktree | atmOS sessions |
+| `command` | any CLI; the prompt is in `$STAGEBOARD_PROMPT_FILE` | your tool |
 
-Claude Code only starts background sessions in trusted workspaces. Run `claude` once in the repo and accept the trust prompt.
+Every request includes the marked region, a cropped screenshot, the component chain with source paths, your reference images and the variants in view. The prompt ends with a `Page context (JSON):` block, using the same convention as the atmOS browser extension.
 
-## Agent protocol
+## License
 
-A change request carries the selected element: its URL, CSS selector, component chain with
-source locations, rect, viewport, the variant boundary and the story id. It is sent to the agent as
-a prompt that ends with a `Page context (JSON):` block, which is the same convention the atmOS
-browser extension uses. The prompt tells the agent the variant file format and how to screenshot
-its results with `stageboard shot`.
-
-## Status
-
-Early. The API will move.
+MIT
