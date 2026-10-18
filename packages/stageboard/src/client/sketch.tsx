@@ -141,10 +141,12 @@ export function SketchLayer({
   }
 
   const point = (clientX: number, clientY: number) => {
-    const r = frame()!.getBoundingClientRect()
+    const el = frame()!
+    const r = el.getBoundingClientRect()
     const w = win()
-    const cx = clientX - r.left
-    const cy = clientY - r.top
+    const s = el.offsetWidth ? r.width / el.offsetWidth : 1
+    const cx = (clientX - r.left) / s
+    const cy = (clientY - r.top) / s
     return { cx, cy, x: Math.round(cx + (w?.scrollX ?? 0)), y: Math.round(cy + (w?.scrollY ?? 0)) }
   }
 
@@ -323,7 +325,7 @@ export function SketchLayer({
     const w = win()
     const r = frame()!.getBoundingClientRect()
     const cx = clientX ?? r.left + r.width / 2
-    const cy = clientY ?? r.top + Math.min(r.height, w?.innerHeight ?? r.height) / 2
+    const cy = clientY ?? r.top + r.height / 2
     const p = point(cx, cy)
     const rect = { x: p.x - COMPONENT_SIZE.width / 2, y: p.y - COMPONENT_SIZE.height / 2, ...COMPONENT_SIZE }
     commit([...opsRef.current, { type: "component", rect, storyId: entry.id, title: `${entry.title} / ${entry.name}` }])

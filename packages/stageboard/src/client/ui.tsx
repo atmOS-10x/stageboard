@@ -8,6 +8,7 @@ import { componentGroup, Grid, groupBy, ScreenCard, screenGroup, screenTitle, dr
 import { Composer } from "./composer"
 import { clearDraft, readDraft, type StoredDraft } from "./draft-store"
 import { FlowsView } from "./flows"
+import { FlowViewer } from "./viewer"
 import { Gallery } from "./gallery"
 import { AnnotateIcon, InspectIcon, LayersIcon, PlusIcon, SketchIcon } from "./icons"
 import { clearSketch, SketchLayer } from "./sketch"
@@ -20,7 +21,7 @@ import { WaveCanvas } from "./waves"
 type UIOptions = { index: ClientEntry[]; loaders: Loaders; base: string }
 
 type Tab = "screens" | "flows" | "components"
-type Route = { view: Tab; focus?: string } | { view: "story"; id: string; from: Tab }
+type Route = { view: Tab; focus?: string; step?: number } | { view: "story"; id: string; from: Tab }
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "screens", label: "Screens" },
@@ -32,8 +33,8 @@ const DEVICE_KEY = "stageboard:device"
 function parseHash(): Route {
   const story = /^#\/story\/([^?]+)(?:\?from=(\w+))?$/.exec(location.hash)
   if (story) return { view: "story", id: decodeURIComponent(story[1]), from: (TABS.find((t) => t.id === story[2])?.id ?? "screens") as Tab }
-  const tab = /^#\/(screens|flows|components)(?:\/(.+))?$/.exec(location.hash)
-  if (tab) return { view: tab[1] as Tab, focus: tab[2] ? decodeURIComponent(tab[2]) : undefined }
+  const tab = /^#\/(screens|flows|components)(?:\/([^/]+))?(?:\/(\d+))?$/.exec(location.hash)
+  if (tab) return { view: tab[1] as Tab, focus: tab[2] ? decodeURIComponent(tab[2]) : undefined, step: tab[3] ? Number(tab[3]) : undefined }
   return { view: "screens" }
 }
 
@@ -45,7 +46,10 @@ function useRoute(): [Route, (r: Route) => void] {
     return () => window.removeEventListener("hashchange", on)
   }, [])
   const go = useCallback((r: Route) => {
-    location.hash = r.view === "story" ? `#/story/${encodeURIComponent(r.id)}?from=${r.from}` : `#/${r.view}${r.focus ? `/${encodeURIComponent(r.focus)}` : ""}`
+    location.hash =
+      r.view === "story"
+        ? `#/story/${encodeURIComponent(r.id)}?from=${r.from}`
+        : `#/${r.view}${r.focus ? `/${encodeURIComponent(r.focus)}` : ""}${r.focus && r.step !== undefined ? `/${r.step}` : ""}`
   }, [])
   return [route, go]
 }
@@ -398,6 +402,7 @@ function App({ index, loaders, base }: UIOptions) {
     if (sent?.sketch) {
       clearSketch(sent.surface.storyId)
       setSketching(false)
+      window.dispatchEvent(new Event("stageboard:sketch-sent"))
     }
     setDraft(undefined)
   }, [])
@@ -427,6 +432,8 @@ function App({ index, loaders, base }: UIOptions) {
   )
   const componentSurfaces = useSurfaces(componentStories, "component", (e) => `${e.title} / ${e.name}`, storyUrlOf)
   const frameSize = DEVICES[device]
+  const flows = useStageboard((s) => s.flows)
+  const viewerFlow = route.view === "flows" && route.step !== undefined ? flows.find((f) => f.id === route.focus) : undefined
   const galleryRows = current
     ? (used[current.id] ?? []).filter((id) => variantFiles.some((v) => v.of === id)).length
     : 0
@@ -507,10 +514,34 @@ function App({ index, loaders, base }: UIOptions) {
           ))}
         {route.view === "flows" && (
           <FlowsView
-            ctx={{ device, screens: pages, index, thumbUrl, frameUrl, onOpen: openStory }}
+            ctx={{ device, screens: pages, index, thumbUrl, frameUrl, onOpen: openStory, onStep: (flowId, step) => go({ view: "flows", focus: flowId, step }) }}
             focus={route.focus}
             composing={composingFlow}
             onCompose={setComposingFlow}
+          />
+        )}
+        {viewerFlow && route.view === "flows" && route.step !== undefined && (
+          <FlowViewer
+            key={viewerFlow.id}
+            flow={viewerFlow}
+            step={Math.min(route.step, Math.max(0, viewerFlow.steps.length - 1))}
+            device={device}
+            screens={pages}
+            index={index}
+            components={componentStories}
+            frameUrl={frameUrl}
+            thumbUrl={thumbUrl}
+            annotating={annotating}
+            onAnnotate={(on) => setAnnotating(on)}
+            draftOpen={Boolean(draft)}
+            onDraft={(next) => {
+              setAnnotatingState(false)
+              setDraft(next)
+            }}
+            onStep={(step) => go({ view: "flows", focus: viewerFlow.id, step })}
+            onFlow={(flowId, step) => go({ view: "flows", focus: flowId, step })}
+            onOpenScreen={(id) => go({ view: "story", id, from: "flows" })}
+            onClose={() => go({ view: "flows", focus: viewerFlow.id })}
           />
         )}
         {route.view === "components" && (

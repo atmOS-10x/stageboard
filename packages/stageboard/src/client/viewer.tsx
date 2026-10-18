@@ -1,0 +1,279 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent as RWheelEvent } from "react"
+import { useStageboard } from "stageboard/react"
+import { DEVICES, type Device, type Flow, type Region, type Sketch } from "stageboard"
+import { AnnotationLayer, type Draft, type Surface } from "./annotate"
+import { storyUrl } from "./api"
+import { screenTitle, type ScreenNode } from "./browse"
+import { AnnotateIcon, CloseIcon, SketchIcon } from "./icons"
+import { SketchLayer } from "./sketch"
+import { Thumb } from "./thumb"
+import type { ClientEntry } from "./types"
+
+const SWIPE = 70
+
+export function FlowViewer({
+  flow,
+  step,
+  device,
+  screens,
+  index,
+  components,
+  frameUrl,
+  thumbUrl,
+  annotating,
+  onAnnotate,
+  draftOpen,
+  onDraft,
+  onStep,
+  onFlow,
+  onOpenScreen,
+  onClose,
+}: {
+  flow: Flow
+  step: number
+  device: Device
+  screens: ScreenNode[]
+  index: ClientEntry[]
+  components: ClientEntry[]
+  frameUrl: (id: string) => string
+  thumbUrl: (id: string) => string
+  annotating: boolean
+  onAnnotate: (on: boolean) => void
+  draftOpen: boolean
+  onDraft: (draft: Draft) => void
+  onStep: (index: number) => void
+  onFlow: (flowId: string, index: number) => void
+  onOpenScreen: (storyId: string) => void
+  onClose: () => void
+}) {
+  const flows = useStageboard((s) => s.flows)
+  const dreams = useStageboard((s) => s.dreams)
+  const d = DEVICES[device]
+  const stage = useRef<HTMLDivElement>(null)
+  const frame = useRef<HTMLIFrameElement>(null)
+  const [box, setBox] = useState({ width: 0, height: 0 })
+  const [sketching, setSketching] = useState(false)
+  const [info, setInfo] = useState(false)
+
+  const storyOf = useCallback(
+    (i: number) => {
+      const s = flow.steps[i]
+      if (!s) return undefined
+      return s.storyId ?? (s.dream ? screens.find((x) => x.page.dream === s.dream)?.entry.id ?? dreams.find((x) => x.id === s.dream)?.storyId : undefined)
+    },
+    [flow.steps, screens, dreams],
+  )
+  const storyId = storyOf(step)
+  const entry = storyId ? index.find((e) => e.id === storyId) : undefined
+  const screen = storyId ? screens.find((s) => s.entry.id === storyId) : undefined
+  const count = flow.steps.length
+  const prev = step > 0 ? storyOf(step - 1) : undefined
+  const next = step < count - 1 ? storyOf(step + 1) : undefined
+  const busy = annotating || sketching || draftOpen
+
+  useLayoutEffect(() => {
+    const el = stage.current
+    if (!el) return
+    const measure = () => setBox({ width: el.clientWidth, height: el.clientHeight })
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const scale = box.width ? Math.min(1, (box.width * 0.72) / d.width, (box.height - 8) / d.height) : 0
+  const w = d.width * scale
+  const h = d.height * scale
+
+  const go = useCallback((delta: number) => onStep(Math.max(0, Math.min(count - 1, step + delta))), [onStep, count, step])
+
+  useEffect(() => {
+    setSketching(false)
+    setInfo(false)
+  }, [step, flow.id])
+
+  useEffect(() => {
+    const onSent = () => setSketching(false)
+    window.addEventListener("stageboard:sketch-sent", onSent)
+    return () => window.removeEventListener("stageboard:sketch-sent", onSent)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return
+      if (busy) return
+      if (e.key === "ArrowRight") go(1)
+      else if (e.key === "ArrowLeft") go(-1)
+      else if (e.key === "Escape") onClose()
+      else if (e.key === "s" || e.key === "S") setSketching(true)
+      else return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [busy, go, onClose])
+
+  // Trackpad swipe: horizontal wheel travel past a threshold moves one screen.
+  const wheel = useRef({ dx: 0, at: 0 })
+  const onWheel = (e: RWheelEvent) => {
+    if (busy || Math.abs(e.deltaX) < Math.abs(e.deltaY)) return
+    const now = Date.now()
+    if (now - wheel.current.at > 400) wheel.current.dx = 0
+    wheel.current.at = now
+    wheel.current.dx += e.deltaX
+    if (Math.abs(wheel.current.dx) > SWIPE * 2) {
+      go(wheel.current.dx > 0 ? 1 : -1)
+      wheel.current = { dx: 0, at: now + 400 }
+    }
+  }
+  const touch = useRef<number | undefined>(undefined)
+
+  const surface = useMemo<Surface | undefined>(
+    () =>
+      entry && {
+        key: `viewer:${entry.id}`,
+        storyId: entry.id,
+        title: screenTitle(screen, entry),
+        url: storyUrl(frameUrl(entry.id)),
+        frame: () => frame.current,
+        scrollsFrame: true,
+      },
+    [entry, screen, frameUrl],
+  )
+  const also = flows
+    .filter((f) => f.id !== flow.id)
+    .flatMap((f) => {
+      const i = f.steps.findIndex((s) => s.storyId === storyId)
+      return i >= 0 ? [{ flow: f, index: i }] : []
+    })
+
+  return (
+    <div className="sbu-viewer" role="dialog" aria-label={`${flow.name}, screen ${step + 1} of ${count}`}>
+      <header className="sbu-viewer-head">
+        <h1 className="sbu-viewer-title">{flow.name}</h1>
+        <span className="sbu-spacer" />
+        <span className="sbu-viewer-count sbu-tnum">
+          {count ? step + 1 : 0} / {count}
+        </span>
+        <span className="sbu-spacer" />
+        <button type="button" className="sbu-viewer-round" onClick={onClose} aria-label="Close" title="Close · Esc">
+          <CloseIcon size={14} />
+        </button>
+      </header>
+      <div
+        ref={stage}
+        className="sbu-viewer-stage"
+        onWheel={onWheel}
+        onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
+        onTouchEnd={(e) => {
+          const start = touch.current
+          touch.current = undefined
+          if (start === undefined || busy) return
+          const dx = e.changedTouches[0].clientX - start
+          if (Math.abs(dx) > SWIPE) go(dx < 0 ? 1 : -1)
+        }}
+      >
+        {scale > 0 && (
+          <div className="sbu-viewer-track" style={{ height: h }}>
+            <Peek id={prev} side="prev" w={w} h={h} thumbUrl={thumbUrl} onClick={() => go(-1)} />
+            <div className="sbu-viewer-current" style={{ width: w, height: h }}>
+              {entry && surface ? (
+                <div className="sbu-viewer-scale" style={{ width: d.width, height: d.height, transform: `scale(${scale})` }}>
+                  <iframe key={`${entry.id}-${device}`} ref={frame} className="sbu-viewer-frame" src={frameUrl(entry.id)} title={surface.title} />
+                  <AnnotationLayer surface={surface} viewport={{ width: d.width, height: d.height }} />
+                  {sketching && (
+                    <SketchLayer
+                      key={entry.id}
+                      surface={surface}
+                      components={components}
+                      paused={draftOpen}
+                      onExit={() => setSketching(false)}
+                      onReconcile={(sketch: Sketch, region: Region) => onDraft({ surface, region, viewport: sketch.viewport, scroll: sketch.scroll, sketch })}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="sbu-viewer-missing">This screen isn’t built yet</div>
+              )}
+            </div>
+            <Peek id={next} side="next" w={w} h={h} thumbUrl={thumbUrl} onClick={() => go(1)} />
+          </div>
+        )}
+      </div>
+      <footer className="sbu-viewer-foot">
+        <span className="sbu-viewer-device">
+          {d.label} ({d.width}×{d.height})
+        </span>
+        <div className="sbu-viewer-actions">
+          <button type="button" className="sbu-viewer-pill" data-on={annotating} onClick={() => onAnnotate(!annotating)} disabled={!entry}>
+            <AnnotateIcon size={14} /> Annotate <span className="sbu-key">A</span>
+          </button>
+          <button
+            type="button"
+            className="sbu-viewer-pill"
+            data-on={sketching}
+            onClick={() => {
+              onAnnotate(false)
+              setSketching((v) => !v)
+            }}
+            disabled={!entry}
+          >
+            <SketchIcon size={14} /> Sketch <span className="sbu-key">S</span>
+          </button>
+          {entry && (
+            <button type="button" className="sbu-viewer-pill" data-quiet="true" onClick={() => onOpenScreen(entry.id)} title="Open the full screen view: variants, inspect, sizes">
+              Open screen
+            </button>
+          )}
+        </div>
+        <div className="sbu-viewer-info">
+          <button type="button" className="sbu-viewer-more" onClick={() => setInfo((v) => !v)} aria-expanded={info}>
+            More info
+          </button>
+          {info && (
+            <div className="sbu-viewer-popover" role="dialog" aria-label="Screen info">
+              <div className="sbu-viewer-pop-row">
+                <div>
+                  <div className="sbu-viewer-pop-label">Screen</div>
+                  <div className="sbu-viewer-pop-value">{entry ? screenTitle(screen, entry) : "Not built yet"}</div>
+                </div>
+                {screen?.page.route && (
+                  <div>
+                    <div className="sbu-viewer-pop-label">Route</div>
+                    <div className="sbu-viewer-pop-value sbu-mono">{screen.page.route}</div>
+                  </div>
+                )}
+              </div>
+              <div className="sbu-viewer-pop-label">Also in</div>
+              <div className="sbu-viewer-chips">
+                {also.length ? (
+                  also.map(({ flow: f, index: i }) => (
+                    <button key={f.id} type="button" className="sbu-viewer-chip" onClick={() => onFlow(f.id, i)}>
+                      {f.name}
+                    </button>
+                  ))
+                ) : (
+                  <span className="sbu-dim">No other flows</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+function Peek({ id, side, w, h, thumbUrl, onClick }: { id?: string; side: "prev" | "next"; w: number; h: number; thumbUrl: (id: string) => string; onClick: () => void }) {
+  if (!id) return <div className="sbu-viewer-peek" data-side={side} data-empty="true" style={{ width: w, height: h }} />
+  return (
+    <button type="button" className="sbu-viewer-peek" data-side={side} style={{ width: w, height: h }} onClick={onClick} aria-label={side === "next" ? "Next screen" : "Previous screen"}>
+      <Thumb src={thumbUrl(id)} />
+      <span className="sbu-viewer-arrow" aria-hidden="true">
+        {side === "next" ? "→" : "←"}
+      </span>
+    </button>
+  )
+}

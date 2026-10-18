@@ -19,11 +19,14 @@ type Ctx = {
   thumbUrl: (id: string) => string
   frameUrl: (id: string) => string
   onOpen: (id: string) => void
+  onStep: (flowId: string, index: number) => void
 }
 
 function newId() {
   return Math.random().toString(36).slice(2, 10)
 }
+
+export type FlowCtx = Ctx
 
 export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focus?: string; composing: boolean; onCompose: (on: boolean) => void }) {
   const flows = useStageboard((s) => s.flows)
@@ -178,7 +181,54 @@ function FlowStrip({ flow, ctx, focused }: { flow: Flow; ctx: Ctx; focused: bool
 
   return (
     <section id={`flow-${flow.id}`} className="sbu-flow" data-focus={focused}>
-      <div className="sbu-flow-head">
+      <div className="sbu-flow-row" onDragLeave={() => setOver(undefined)}>
+        {steps.map((step, i) => (
+          <div key={step.id} className="sbu-flow-cell" data-over={over === i} onDragOver={allow(i)} onDrop={onDrop(i)}>
+            <StepCard flow={flow} step={step} index={i} ctx={ctx} onRemove={() => setSteps(steps.filter((s) => s.id !== step.id))} />
+          </div>
+        ))}
+        {assembling && !steps.length &&
+          [0, 1, 2].map((i) => (
+            <div key={`ph-${i}`} className="sbu-flow-cell">
+              <div className="sbu-step">
+                <div className="sbu-shot" style={{ aspectRatio: `${DEVICES[ctx.device].width} / ${DEVICES[ctx.device].height}` }}>
+                  <WaveCanvas mode="render" fps={30} />
+                </div>
+              </div>
+            </div>
+          ))}
+        <div className="sbu-flow-cell" data-over={over === steps.length} onDragOver={allow(steps.length)} onDrop={onDrop(steps.length)}>
+          <div className="sbu-step sbu-step-add">
+            <button
+              type="button"
+              className="sbu-shot sbu-add-shot"
+              style={{ aspectRatio: `${DEVICES[ctx.device].width} / ${DEVICES[ctx.device].height}` }}
+              onClick={() => setAdding(adding === undefined ? steps.length : undefined)}
+              aria-label="Add a screen"
+              title="Add a screen, or drop one here"
+            >
+              <PlusIcon size={18} />
+            </button>
+            {adding !== undefined && (
+              <AddStep
+                ctx={ctx}
+                onClose={() => setAdding(undefined)}
+                onPick={(storyId) => {
+                  insertAt(adding, { id: newId(), storyId })
+                  setAdding(undefined)
+                }}
+                onNew={async (prompt) => {
+                  const parent = [...steps.slice(0, adding)].reverse().find((s) => s.storyId)?.storyId
+                  const dream = await createDream({ prompt, parent, flow: { id: flow.id, index: adding } })
+                  markReveal(dream.id, true)
+                  setAdding(undefined)
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="sbu-flow-foot">
         {renaming ? (
           <input
             className="sbu-flow-rename"
@@ -198,70 +248,22 @@ function FlowStrip({ flow, ctx, focused }: { flow: Flow; ctx: Ctx; focused: bool
             {flow.name}
           </h2>
         )}
-        <span className="sbu-dim">
-          {steps.length} screen{steps.length === 1 ? "" : "s"}
-        </span>
-        {flow.group && <span className="sbu-chip">{flow.group}</span>}
-        {assembling && (
-          <span className="sbu-chip" data-tone="busy">
-            <span className="sbu-spin" /> Assembling
-          </span>
-        )}
-        {flow.status === "failed" && <span className="sbu-chip" data-tone="warn">Didn’t finish</span>}
-        <span className="sbu-spacer" />
-        <button type="button" className="sbu-icon" onClick={() => confirm(`Delete the flow “${flow.name}”? Its screens stay.`) && void removeFlow(flow.id)} aria-label="Delete flow" title="Delete flow">
-          <CloseIcon size={13} />
-        </button>
-      </div>
-      {flow.description && <p className="sbu-flow-desc">{flow.description}</p>}
-      <div className="sbu-flow-row" onDragLeave={() => setOver(undefined)}>
-        {steps.map((step, i) => (
-          <div key={step.id} className="sbu-flow-cell" data-over={over === i} onDragOver={allow(i)} onDrop={onDrop(i)}>
-            {i > 0 && <span className="sbu-flow-arrow" aria-hidden="true" />}
-            <StepCard flow={flow} step={step} index={i} ctx={ctx} onRemove={() => setSteps(steps.filter((s) => s.id !== step.id))} />
-          </div>
-        ))}
-        {assembling && !steps.length &&
-          [0, 1, 2].map((i) => (
-            <div key={`ph-${i}`} className="sbu-flow-cell">
-              {i > 0 && <span className="sbu-flow-arrow" aria-hidden="true" />}
-              <div className="sbu-step">
-                <div className="sbu-shot" style={{ aspectRatio: `${DEVICES[ctx.device].width} / ${DEVICES[ctx.device].height}` }}>
-                  <WaveCanvas mode="render" fps={30} />
-                </div>
-              </div>
-            </div>
-          ))}
-        <div className="sbu-flow-cell" data-over={over === steps.length} onDragOver={allow(steps.length)} onDrop={onDrop(steps.length)}>
-          {steps.length > 0 && <span className="sbu-flow-arrow" data-ghost="true" aria-hidden="true" />}
-          <div className="sbu-step sbu-step-add">
-            <button
-              type="button"
-              className="sbu-shot sbu-add-shot"
-              style={{ aspectRatio: `${DEVICES[ctx.device].width} / ${DEVICES[ctx.device].height}` }}
-              onClick={() => setAdding(adding === undefined ? steps.length : undefined)}
-            >
-              <PlusIcon size={18} />
-              <span>Add a screen</span>
-              <span className="sbu-dim">or drop one here</span>
-            </button>
-            {adding !== undefined && (
-              <AddStep
-                ctx={ctx}
-                onClose={() => setAdding(undefined)}
-                onPick={(storyId) => {
-                  insertAt(adding, { id: newId(), storyId })
-                  setAdding(undefined)
-                }}
-                onNew={async (prompt) => {
-                  const parent = [...steps.slice(0, adding)].reverse().find((s) => s.storyId)?.storyId
-                  const dream = await createDream({ prompt, parent, flow: { id: flow.id, index: adding } })
-                  markReveal(dream.id, true)
-                  setAdding(undefined)
-                }}
-              />
-            )}
-          </div>
+        <div className="sbu-flow-count">
+          {assembling ? (
+            <Shimmer>Assembling…</Shimmer>
+          ) : flow.status === "failed" ? (
+            <>
+              Didn’t finish ·{" "}
+              <button type="button" className="sbu-link" onClick={() => void updateFlow(flow.id, { retry: true })}>
+                Try again
+              </button>
+            </>
+          ) : (
+            `${steps.length} screen${steps.length === 1 ? "" : "s"}`
+          )}
+          <button type="button" className="sbu-link sbu-flow-delete" onClick={() => confirm(`Delete the flow “${flow.name}”? Its screens stay.`) && void removeFlow(flow.id)}>
+            Delete
+          </button>
         </div>
       </div>
     </section>
@@ -297,7 +299,7 @@ function StepCard({ flow, step, index, ctx, onRemove }: { flow: Flow; step: Flow
         e.dataTransfer.effectAllowed = "move"
       }}
     >
-      <div className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }} onClick={() => entry && ctx.onOpen(entry.id)} data-missing={!entry && !waiting}>
+      <div className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }} onClick={() => entry && ctx.onStep(flow.id, index)} data-missing={!entry && !waiting} aria-label={title} role="button">
         {entry && <Thumb src={ctx.thumbUrl(entry.id)} />}
         {waiting && <WaveCanvas mode="render" fps={30} />}
         {reveal && (
@@ -319,11 +321,6 @@ function StepCard({ flow, step, index, ctx, onRemove }: { flow: Flow; step: Flow
           <CloseIcon size={10} />
         </button>
       </div>
-      <div className="sbu-card-caption">
-        <span className="sbu-step-n sbu-tnum">{index + 1}</span>
-        <span className="sbu-card-title">{title}</span>
-      </div>
-      {step.note && <div className="sbu-card-sub">{step.note}</div>}
     </div>
   )
 }
