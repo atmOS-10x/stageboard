@@ -3,7 +3,8 @@ import { cancelJob } from "stageboard/react"
 import type { Job } from "stageboard"
 import { belowAnchor, isActive, useAnchored, useAnnotate, useOutsidePointer } from "./annotate"
 import { uploadUrl } from "./api"
-import { AlertIcon, CheckIcon, CloseIcon } from "./icons"
+import { AlertIcon, CheckIcon, CloseIcon, ExternalIcon, LayersIcon } from "./icons"
+import { Button, IconButton } from "./kit"
 
 function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? "" : "s"}`
@@ -146,9 +147,7 @@ export function PinDetails({
         {status.detail && <span className="sbu-dim">{status.detail}</span>}
         <span className="sbu-dim sbu-tnum">{elapsed(job, now)}</span>
         <span className="sbu-spacer" />
-        <button type="button" className="sbu-icon" onClick={onClose} aria-label="Close">
-          <CloseIcon size={13} />
-        </button>
+        <IconButton size="sm" variant="ghost" icon={<CloseIcon size={14} />} label="Close" onClick={onClose} />
       </div>
       <p className="sbu-details-note">{job.note}</p>
       {job.summary && <p className="sbu-details-note sbu-dim">{job.summary}</p>}
@@ -168,20 +167,19 @@ export function PinDetails({
       )}
       <div className="sbu-details-foot">
         {job.externalUrl && (
-          <a className="sbu-ghost" href={job.externalUrl} target="_blank" rel="noreferrer">
+          <Button size="sm" variant="ghost" icon={<ExternalIcon size={13} />} onClick={() => window.open(job.externalUrl, "_blank", "noreferrer")}>
             Open agent
-          </a>
+          </Button>
         )}
         {!active && job.kind === "variants" && job.status === "done" && onShowVariants && (
-          <button type="button" className="sbu-ghost" onClick={onShowVariants}>
+          <Button size="sm" icon={<LayersIcon size={13} />} onClick={onShowVariants}>
             Show variants
-          </button>
+          </Button>
         )}
         <span className="sbu-spacer" />
         {active ? (
-          <button
-            type="button"
-            className="sbu-ghost"
+          <Button
+            size="sm"
             disabled={stopping}
             onClick={async () => {
               setStopping(true)
@@ -190,18 +188,17 @@ export function PinDetails({
             }}
           >
             {stopping ? "Stopping…" : "Stop"}
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            className="sbu-ghost"
+          <Button
+            size="sm"
             onClick={() => {
               onDismiss(job.id)
               onClose()
             }}
           >
             Dismiss
-          </button>
+          </Button>
         )}
       </div>
     </div>

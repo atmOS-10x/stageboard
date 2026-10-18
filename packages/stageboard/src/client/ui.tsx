@@ -10,10 +10,12 @@ import { clearDraft, readDraft, readPrefs, savePrefs, type StoredDraft } from ".
 import { FlowsView } from "./flows"
 import { FlowViewer } from "./viewer"
 import { VariantLayer } from "./variant-layer"
-import { AnnotateIcon, InspectIcon, LayersIcon, PlusIcon, SketchIcon } from "./icons"
+import { AnnotateIcon, CopyIcon, ExternalIcon, InspectIcon, LayersIcon, MonitorIcon, MoonIcon, PlusIcon, PrevIcon, SketchIcon, SunIcon } from "./icons"
+import { Button, IconButton, Input, Segmented, Tabs } from "./kit"
+import { Shimmer } from "./shimmer"
 import { clearSketch, SketchLayer } from "./sketch"
 import { PinDetails } from "./pins"
-import { Toasts, useJobToasts } from "./toasts"
+import { pushToast, Toasts, useJobToasts } from "./toasts"
 import { uiCss } from "./styles"
 import { resolveStory, type ClientEntry, type Loaders, type StoryModule } from "./types"
 import { WaveCanvas } from "./waves"
@@ -166,7 +168,7 @@ function Sidebar({
   const placeholder = tab === "flows" ? "Search flows" : tab === "components" ? "Search components" : "Search screens"
   return (
     <aside className="sbu-side">
-      <input className="sbu-search" placeholder={placeholder} value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input className="sbu-side-search" placeholder={placeholder} value={q} onChange={(e) => setQ(e.target.value)} />
       {tab === "screens" &&
         groupBy(
           screens.filter((s) => match(`${s.page.title ?? ""} ${s.entry.title} ${s.entry.name} ${s.page.route}`)),
@@ -175,18 +177,17 @@ function Sidebar({
           <div className="sbu-group" key={group}>
             <div className="sbu-group-title">{group.replaceAll("/", " / ")}</div>
             {list.map((s) => (
-              <button key={s.entry.id} className="sbu-story" data-on={active === s.entry.id} onClick={() => onPick(s.entry.id)} draggable onDragStart={dragStory(s.entry.id)}>
+              <button key={s.entry.id} className="sbu-story" data-on={active === s.entry.id} onClick={() => onPick(s.entry.id)} draggable onDragStart={dragStory(s.entry.id)} title={s.page.route}>
                 {screenTitle(s)}
-                <span className="sbu-badge">{s.page.route}</span>
               </button>
             ))}
           </div>
         ))}
       {tab === "flows" && (
         <>
-          <button className="sbu-story sbu-side-action" onClick={onNewFlow}>
-            <PlusIcon size={12} /> New flow
-          </button>
+          <Button size="sm" variant="ghost" icon={<PlusIcon size={14} />} className="sbu-side-action" onClick={onNewFlow}>
+            New flow
+          </Button>
           {groupBy(
             flows.filter((f) => match(`${f.name} ${f.group ?? ""} ${f.description ?? ""}`)),
             (f) => f.group ?? "Flows",
@@ -194,16 +195,15 @@ function Sidebar({
             <div className="sbu-group" key={group}>
               <div className="sbu-group-title">{group.replaceAll("/", " / ")}</div>
               {list.map((f) => (
-                <button key={f.id} className="sbu-story" onClick={() => onFlow(f.id)}>
+                <button key={f.id} className="sbu-story" onClick={() => onFlow(f.id)} title={`${f.steps.length} screens`}>
                   {f.name}
-                  <span className="sbu-badge">{f.steps.length}</span>
                 </button>
               ))}
             </div>
           ))}
           {!flows.length && <p className="sbu-dim" style={{ padding: 8 }}>No flows yet.</p>}
           <div className="sbu-group">
-            <div className="sbu-group-title">Screens · drag into a flow</div>
+            <div className="sbu-group-title" title="Drag a screen into a flow">Screens</div>
             {screens
               .filter((s) => match(`${s.page.title ?? ""} ${s.entry.name} ${s.page.route}`))
               .map((s) => (
@@ -463,37 +463,31 @@ function App({ index, loaders, base }: UIOptions) {
         <div className="sbu-brand">
           <Mark /> stageboard
         </div>
-        <nav className="sbu-nav" aria-label="Browse">
-          {TABS.map((t) => (
-            <button key={t.id} data-on={tab === t.id} onClick={() => go({ view: t.id })}>
-              {t.label}
-            </button>
-          ))}
-        </nav>
-        <div className="sbu-tabs sbu-devices" role="radiogroup" aria-label="Device">
-          {(Object.keys(DEVICES) as Device[]).map((d) => (
-            <button key={d} role="radio" aria-checked={device === d} data-on={device === d} onClick={() => setDevice(d)} title={`${DEVICES[d].width}×${DEVICES[d].height}`}>
-              {DEVICES[d].label}
-            </button>
-          ))}
-        </div>
+        <Tabs label="Browse" tabs={TABS.map((t) => ({ value: t.id, label: t.label }))} value={tab} onChange={(t) => go({ view: t })} />
         <div className="sbu-spacer" />
-        {activeJobs > 0 && <span className="sbu-dim">{activeJobs} agent{activeJobs === 1 ? "" : "s"} working…</span>}
-        {route.view === "story" && (
-          <button className="sbu-btn" data-on={inspecting} onClick={() => setInspecting((v) => !v)} title="Inspect an element · Alt+Shift+C">
-            <InspectIcon size={13} />
-            Inspect
-          </button>
+        {activeJobs > 0 && (
+          <span className="sbu-working">
+            <Shimmer>{`${activeJobs} agent${activeJobs === 1 ? "" : "s"} working`}</Shimmer>
+          </span>
         )}
-        <button className="sbu-btn" data-on={annotating} aria-pressed={annotating} onClick={() => setAnnotating((v) => !v)} title="Drag over a screen to annotate · A">
-          <AnnotateIcon size={13} />
+        <Segmented
+          label="Device"
+          size="sm"
+          value={device}
+          onChange={setDevice}
+          options={(Object.keys(DEVICES) as Device[]).map((d) => ({ value: d, label: DEVICES[d].label, title: `${DEVICES[d].width}×${DEVICES[d].height}` }))}
+        />
+        <Button size="sm" icon={<AnnotateIcon size={14} />} on={annotating} onClick={() => setAnnotating((v) => !v)} title="Drag over a screen to annotate · A">
           Annotate
-          <span className="sbu-key">A</span>
-        </button>
-        <button className="sbu-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}>
-          Theme: {theme ?? "system"}
-        </button>
-        {!connected && <span className="sbu-dim" title="Start it with stageboard dev">Bridge offline</span>}
+        </Button>
+        <IconButton
+          size="sm"
+          variant="ghost"
+          icon={theme === "dark" ? <MoonIcon size={14} /> : theme === "light" ? <SunIcon size={14} /> : <MonitorIcon size={14} />}
+          label={`Screens in ${theme ?? "system"} theme`}
+          onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}
+        />
+        {!connected && <span className="sbu-offline" title="The stageboard bridge is offline: start it with stageboard dev" />}
       </header>
       <Sidebar
         tab={tab}
@@ -518,7 +512,7 @@ function App({ index, loaders, base }: UIOptions) {
               sections={groupBy(pages, screenGroup).map(([g, list]) => [g, list.map((p) => p.entry)])}
               render={(e) => {
                 const s = pages.find((p) => p.entry.id === e.id)
-                return <ScreenCard key={e.id} entry={e} title={screenTitle(s)} subtitle={s?.page.route} device={device} thumbUrl={thumbUrl} surface={screenSurfaces.get(e.id)!} onOpen={() => openStory(e.id)} />
+                return <ScreenCard key={e.id} entry={e} title={screenTitle(s)} device={device} thumbUrl={thumbUrl} surface={screenSurfaces.get(e.id)!} onOpen={() => openStory(e.id)} />
               }}
             />
           ) : (
@@ -575,52 +569,49 @@ function App({ index, loaders, base }: UIOptions) {
         {route.view === "story" && current && (
           <div className="sbu-story-view">
             <div className="sbu-toolbar">
-              <button className="sbu-btn" onClick={() => go({ view: route.from })}>
-                ← {TABS.find((t) => t.id === route.from)?.label}
-              </button>
-              <span className="sbu-title">{current.title}</span>
-              <span className="sbu-dim">/ {current.name}</span>
+              <Button size="sm" variant="ghost" icon={<PrevIcon size={14} />} onClick={() => go({ view: route.from })}>
+                {TABS.find((t) => t.id === route.from)?.label}
+              </Button>
+              <span className="sbu-title" title={`${current.title} / ${current.name}`}>
+                {pages.find((p) => p.entry.id === current.id)?.page.title ?? current.name}
+              </span>
               <span className="sbu-spacer" />
-              <button
-                className="sbu-btn"
-                data-on={showVariants}
-                aria-pressed={showVariants}
+              <IconButton size="sm" icon={<InspectIcon size={14} />} label="Inspect an element · Alt+Shift+C" on={inspecting} onClick={() => setInspecting((v) => !v)} />
+              <Button
+                size="sm"
+                icon={<LayersIcon size={14} />}
+                on={showVariants}
+                count={variantCount}
                 disabled={!variantCount && !showVariants}
                 onClick={() => setShowVariants((v) => !v)}
                 title={variantCount ? "Outline the parts of this screen that have variants, then click one to switch" : "No variants on this screen yet: annotate a part and ask for Variants"}
               >
-                <LayersIcon size={13} />
                 Variants
-                {variantCount > 0 && <span className="sbu-count">{variantCount}</span>}
-              </button>
-              {(
-                <button
-                  className="sbu-btn"
-                  data-on={sketching}
-                  aria-pressed={sketching}
-                  onClick={() => {
-                    setAnnotatingState(false)
-                    setDraft(undefined)
-                    setSketching((v) => !v)
-                  }}
-                  title="Move, resize and retype things, draw, drop in components, then let the agent build it · S"
-                >
-                  <SketchIcon size={13} />
-                  Sketch
-                  <span className="sbu-key">S</span>
-                </button>
-              )}
-              <span className="sbu-tool-gap" />
-              <button className="sbu-btn" onClick={() => window.open(frameUrl(current.id).replace("sb-embed=1&", ""), "_blank")}>
-                Open
-              </button>
-              <button
-                className="sbu-btn"
-                title="Copy screenshot command"
-                onClick={() => navigator.clipboard?.writeText(`npx stageboard shot ${current.id} --width ${frameSize.width} --height ${frameSize.height}`)}
+              </Button>
+              <Button
+                size="sm"
+                icon={<SketchIcon size={14} />}
+                on={sketching}
+                onClick={() => {
+                  setAnnotatingState(false)
+                  setDraft(undefined)
+                  setSketching((v) => !v)
+                }}
+                title="Move, resize and retype things, draw, drop in components, then let the agent build it · S"
               >
-                Copy shot cmd
-              </button>
+                Sketch
+              </Button>
+              <IconButton size="sm" variant="ghost" icon={<ExternalIcon size={14} />} label="Open in a new tab" onClick={() => window.open(frameUrl(current.id).replace("sb-embed=1&", ""), "_blank")} />
+              <IconButton
+                size="sm"
+                variant="ghost"
+                icon={<CopyIcon size={14} />}
+                label="Copy the screenshot command"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(`npx stageboard shot ${current.id} --width ${frameSize.width} --height ${frameSize.height}`)
+                  pushToast({ tone: "info", title: "Copied the screenshot command" })
+                }}
+              />
             </div>
             <div className="sbu-stage">
               <div className="sbu-frame-wrap" data-device={device} style={device === "desktop" ? { width: "100%" } : { width: frameSize.width, height: Math.min(frameSize.height, 2000), flex: "none" }}>
@@ -660,8 +651,7 @@ function App({ index, loaders, base }: UIOptions) {
         {route.view === "story" && !current && <div className="sbu-empty">Pick a story on the left.</div>}
         {annotating && !draft && (
           <div className="sbu-annot-hint" role="status">
-            Drag over {route.view === "story" ? "the screen" : "any screen"} to annotate, or click a spot
-            <span className="sbu-key">esc</span>
+            Drag over any part of {route.view === "story" ? "the screen" : "a screen"}
           </div>
         )}
       </main>

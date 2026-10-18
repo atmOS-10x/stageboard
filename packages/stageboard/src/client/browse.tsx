@@ -44,7 +44,7 @@ export function ScreenCard({
   const d = DEVICES[device]
   return (
     <div className="sbu-card-screen" data-device={device}>
-      <div className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }} onClick={onOpen} draggable onDragStart={dragStory(entry.id)} title="Open · drag into a flow">
+      <div className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }} onClick={onOpen} draggable onDragStart={dragStory(entry.id)} title={subtitle ? `${subtitle} · drag into a flow` : "Open · drag into a flow"}>
         <Thumb src={thumbUrl(entry.id)} />
         <AnnotationLayer surface={surface} viewport={{ width: d.width, height: d.height }} />
         {overlay}

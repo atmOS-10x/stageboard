@@ -4,6 +4,7 @@ import type { ChangeRequest, Job, Upload } from "stageboard"
 import { useAnnotate, useComposerPlacement, useOutsidePointer, type Draft } from "./annotate"
 import { withQuery } from "./api"
 import { readPrefs, saveDraft, savePrefs, type ComposerMode } from "./draft-store"
+import { Segmented } from "./kit"
 import { PromptInput } from "./prompt-input"
 
 const EXIT_MS = 140
@@ -126,23 +127,20 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
             mode === "variants" ? `${sketched}${sketched ? "anything the variants should explore?" : "What should the variants explore?"}` : `${sketched}${sketched ? "anything to add? (optional)" : "What should change here?"}`
           }
           head={
-            <div className="sbu-seg" role="radiogroup" aria-label="Request kind">
-              {(["edit", "variants"] as ComposerMode[]).map((m) => (
-                <button key={m} type="button" role="radio" aria-checked={mode === m} data-on={mode === m} onClick={() => setPref({ mode: m })}>
-                  {m === "variants" ? "Variants" : "Edit"}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              label="Request kind"
+              size="sm"
+              value={mode}
+              onChange={(m: ComposerMode) => setPref({ mode: m })}
+              options={[
+                { value: "edit", label: "Edit" },
+                { value: "variants", label: "Variants" },
+              ]}
+            />
           }
           bar={
             mode === "variants" && (
-              <div className="sbu-seg sbu-seg-count" role="radiogroup" aria-label="How many variants">
-                {[1, 2, 3, 4].map((n) => (
-                  <button key={n} type="button" role="radio" aria-checked={count === n} data-on={count === n} onClick={() => setPref({ count: n })}>
-                    {n}
-                  </button>
-                ))}
-              </div>
+              <Segmented label="How many variants" size="sm" value={count} onChange={(n: number) => setPref({ count: n })} options={[1, 2, 3, 4].map((n) => ({ value: n, label: n }))} />
             )
           }
         />

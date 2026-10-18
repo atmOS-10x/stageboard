@@ -4,6 +4,7 @@ import { selectVariant, useStageboard, type SketchApi } from "stageboard/react"
 import { ORIGINAL, type Region } from "stageboard"
 import { useScrollSync, type Surface } from "./annotate"
 import { CheckIcon, PlusIcon } from "./icons"
+import { Button } from "./kit"
 import { Shimmer } from "./shimmer"
 
 type Box = { id: string; rect: Region }
@@ -147,7 +148,7 @@ function VariantMenu({
   const top = below + 320 > innerHeight ? Math.max(12, anchor.top - 8 - 320) : below
   const all = [{ key: ORIGINAL, label: "Original", description: "What’s in the code today" }, ...options]
   return (
-    <div ref={ref} className="sbu-vmenu" style={{ left, top, width }} role="menu" aria-label={`Variants of ${id}`}>
+    <div ref={ref} className="sbu-vmenu sbu-panel" style={{ left, top, width }} role="menu" aria-label={`Variants of ${id}`}>
       <div className="sbu-vmenu-head">{id}</div>
       {all.map((o) => (
         <button key={o.key} type="button" role="menuitemradio" aria-checked={selected === o.key} className="sbu-vmenu-item" data-on={selected === o.key} onClick={() => onPick(o.key)}>
@@ -164,9 +165,9 @@ function VariantMenu({
         </div>
       )}
       {onAskMore && (
-        <button type="button" className="sbu-vmenu-more" onClick={onAskMore}>
-          <PlusIcon size={13} /> Ask for more variants
-        </button>
+        <Button size="sm" variant="ghost" icon={<PlusIcon size={13} />} className="sbu-vmenu-more" onClick={onAskMore}>
+          Ask for more variants
+        </Button>
       )}
     </div>
   )

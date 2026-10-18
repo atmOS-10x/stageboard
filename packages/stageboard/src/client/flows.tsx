@@ -4,9 +4,10 @@ import { createDream, createFlow, removeFlow, submitChangeRequest, updateFlow, u
 import { DEVICES, type Device, type Flow, type FlowStep } from "stageboard"
 import { groupBy, screenGroup, STORY_MIME, screenTitle, type ScreenNode } from "./browse"
 import { markReveal, pendingReveals } from "./dreams"
-import { ArrowUpIcon, CloseIcon, PlusIcon } from "./icons"
+import { CloseIcon, FlowNoteIcon, PlusIcon, PrevIcon } from "./icons"
 import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
+import { Button, IconButton, Input } from "./kit"
 import { PromptInput } from "./prompt-input"
 import { Shimmer } from "./shimmer"
 import { errorText, pushToast } from "./toasts"
@@ -47,13 +48,13 @@ export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focu
         <span className="sbu-dim">{flows.length}</span>
         <span className="sbu-spacer" />
         {flows.length > 0 && (
-          <button className="sbu-btn" disabled={suggesting} onClick={suggest} title="Let the agent propose more flows from your screens">
+          <Button size="sm" variant="ghost" disabled={suggesting} onClick={suggest} title="Let the agent propose more flows from your screens">
             {suggesting ? "Suggesting…" : "Suggest flows"}
-          </button>
+          </Button>
         )}
-        <button className="sbu-btn" data-on={composing} onClick={() => onCompose(!composing)}>
-          <PlusIcon size={13} /> New flow
-        </button>
+        <Button size="sm" icon={<PlusIcon size={14} />} on={composing} onClick={() => onCompose(!composing)}>
+          New flow
+        </Button>
       </div>
       {composing && <NewFlow base={ctx.base} onClose={() => onCompose(false)} />}
       {!flows.length && !composing && (
@@ -72,12 +73,12 @@ export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focu
                 <>
                   <p className="sbu-flows-hero-title">No flows yet</p>
                   <p>The agent reads your screens and routes and lays out the main journeys through the app, building screens that are missing.</p>
-                  <button type="button" className="sbu-flows-hero-go" onClick={suggest}>
+                  <Button size="lg" variant="solid" className="sbu-flows-hero-go" onClick={suggest}>
                     Suggest flows
-                  </button>
-                  <button type="button" className="sbu-flows-hero-alt" onClick={() => onCompose(true)}>
+                  </Button>
+                  <Button variant="link" onClick={() => onCompose(true)}>
                     or describe one yourself
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -106,9 +107,8 @@ function NewFlow({ base, onClose }: { base: string; onClose: () => void }) {
         head={<input className="sbu-prompt-title" placeholder="New flow" value={name} onChange={(e) => setName(e.target.value)} aria-label="Flow name (optional)" />}
         bar={
           name.trim() && !description.trim() ? (
-            <button
-              type="button"
-              className="sbu-ghost sbu-ghost-sm"
+            <Button
+              size="sm"
               onClick={() =>
                 void createFlow({ name })
                   .then(onClose)
@@ -116,7 +116,7 @@ function NewFlow({ base, onClose }: { base: string; onClose: () => void }) {
               }
             >
               Create empty, I’ll add screens
-            </button>
+            </Button>
           ) : null
         }
         onSubmit={async (uploads) => {
@@ -282,19 +282,21 @@ function FlowStrip({ flow, ctx, focused }: { flow: Flow; ctx: Ctx; focused: bool
           ) : flow.status === "failed" ? (
             <>
               Didn’t finish ·{" "}
-              <button type="button" className="sbu-link" onClick={() => void updateFlow(flow.id, { retry: true })}>
+              <Button variant="link" onClick={() => void updateFlow(flow.id, { retry: true })}>
                 Try again
-              </button>
+              </Button>
             </>
           ) : (
             `${steps.length} screen${steps.length === 1 ? "" : "s"}`
           )}
-          <button type="button" className="sbu-link sbu-flow-delete" onClick={() => setNoting(true)}>
-            Note on flow
-          </button>
-          <button type="button" className="sbu-link sbu-flow-delete" onClick={() => confirm(`Delete the flow “${flow.name}”? Its screens stay.`) && void removeFlow(flow.id)}>
-            Delete
-          </button>
+          <span className="sbu-flow-actions">
+            <Button size="sm" variant="ghost" icon={<FlowNoteIcon size={13} />} onClick={() => setNoting(true)}>
+              Note on flow
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => confirm(`Delete the flow “${flow.name}”? Its screens stay.`) && void removeFlow(flow.id)}>
+              Delete
+            </Button>
+          </span>
         </div>
       </div>
     </section>
@@ -380,13 +382,13 @@ function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => voi
 
   return createPortal(
     <div className="sbu-picker-scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sbu-picker" role="dialog" aria-label="Add a screen to the flow" data-device={ctx.device}>
+      <div className="sbu-picker sbu-panel" role="dialog" aria-label="Add a screen to the flow" data-device={ctx.device}>
         <div className="sbu-picker-head">
           {describing ? (
             <span className="sbu-picker-title">New screen</span>
           ) : (
-            <input
-              className="sbu-picker-search"
+            <Input
+              size="lg"
               placeholder="Find a screen"
               value={q}
               autoFocus
@@ -396,9 +398,7 @@ function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => voi
               }}
             />
           )}
-          <button type="button" className="sbu-viewer-round" onClick={onClose} aria-label="Close" title="Close · Esc">
-            <CloseIcon size={14} />
-          </button>
+          <IconButton variant="ghost" icon={<CloseIcon size={16} />} label="Close · Esc" onClick={onClose} />
         </div>
         {describing ? (
           <div className="sbu-picker-describe">
@@ -411,9 +411,9 @@ function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => voi
               label="Describe the new screen"
               placeholder="What should this screen show? The agent builds it next to the screen before it in the flow."
               head={
-                <button type="button" className="sbu-ghost sbu-ghost-sm" onClick={() => setDescribing(false)}>
-                  ← Back to screens
-                </button>
+                <Button size="sm" variant="ghost" icon={<PrevIcon size={14} />} onClick={() => setDescribing(false)}>
+                  Screens
+                </Button>
               }
               onSubmit={(uploads) => onNew(prompt, uploads.map((u) => u.id))}
             />

@@ -3,6 +3,7 @@ import { useStageboard } from "stageboard/react"
 import type { Upload } from "stageboard"
 import { uploadImage, uploadUrl } from "./api"
 import { ArrowUpIcon, CloseIcon, PlusIcon } from "./icons"
+import { IconButton } from "./kit"
 
 type Attachment = {
   localId: string
@@ -227,11 +228,7 @@ export function PromptInput({
         <div className="sbu-composer-head">
           {head}
           <span className="sbu-spacer" />
-          {onClose && (
-            <button type="button" className="sbu-icon" onClick={onClose} aria-label="Close">
-              <CloseIcon size={13} />
-            </button>
-          )}
+          {onClose && <IconButton size="sm" variant="ghost" icon={<CloseIcon size={14} />} label="Close · Esc" onClick={onClose} />}
         </div>
       )}
       <div className="sbu-composer-card">
@@ -271,9 +268,7 @@ export function PromptInput({
         {error && <div className="sbu-composer-error">{error}</div>}
         {!connected && <div className="sbu-composer-error">Bridge offline · start it with stageboard dev</div>}
         <div className="sbu-composer-bar">
-          <button type="button" className="sbu-icon" onClick={() => fileInput.current?.click()} aria-label="Attach reference images" title="Attach reference images · or paste, or drop">
-            <PlusIcon size={15} />
-          </button>
+          <IconButton size="sm" variant="ghost" icon={<PlusIcon size={16} />} label="Attach reference images · or paste, or drop" onClick={() => fileInput.current?.click()} />
           <input
             ref={fileInput}
             type="file"
@@ -287,9 +282,7 @@ export function PromptInput({
           />
           {bar}
           <span className="sbu-spacer" />
-          <button type="button" className="sbu-send" disabled={!canSend} onClick={() => void send()} aria-label="Send" title="Send · Enter">
-            {sending ? <span className="sbu-spin" /> : <ArrowUpIcon size={14} />}
-          </button>
+          <IconButton variant="solid" icon={sending ? <span className="sbu-spin" /> : <ArrowUpIcon size={15} />} label="Send · Enter" disabled={!canSend} onClick={() => void send()} />
         </div>
       </div>
       {dropping && <div className="sbu-drop">Drop images to attach</div>}

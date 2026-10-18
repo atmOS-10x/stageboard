@@ -2,6 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react"
 import { createFlow, updateDream, updateFlow, useStageboard } from "stageboard/react"
 import type { Job } from "stageboard"
 import { AlertIcon, CloseIcon } from "./icons"
+import { Button, IconButton } from "./kit"
 
 type Action = { label: string; run: () => void }
 export type Toast = { id: string; tone: "error" | "info"; title: string; body?: string; actions?: Action[] }
@@ -71,7 +72,7 @@ export function Toasts() {
   return (
     <div className="sbu-toasts" role="region" aria-label="Notifications">
       {list.map((t) => (
-        <div key={t.id} className="sbu-toast" data-tone={t.tone} role={t.tone === "error" ? "alert" : "status"}>
+        <div key={t.id} className="sbu-toast sbu-panel" data-tone={t.tone} role={t.tone === "error" ? "alert" : "status"}>
           {t.tone === "error" && <AlertIcon size={14} />}
           <div className="sbu-toast-text">
             <div className="sbu-toast-title">{t.title}</div>
@@ -79,24 +80,21 @@ export function Toasts() {
             {t.actions && (
               <div className="sbu-toast-actions">
                 {t.actions.map((a) => (
-                  <button
+                  <Button
                     key={a.label}
-                    type="button"
-                    className="sbu-ghost sbu-ghost-sm"
+                    size="sm"
                     onClick={() => {
                       a.run()
                       if (a.label !== "Copy log") dismissToast(t.id)
                     }}
                   >
                     {a.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
           </div>
-          <button type="button" className="sbu-icon" onClick={() => dismissToast(t.id)} aria-label="Dismiss">
-            <CloseIcon size={12} />
-          </button>
+          <IconButton size="sm" variant="ghost" icon={<CloseIcon size={14} />} label="Dismiss" onClick={() => dismissToast(t.id)} />
         </div>
       ))}
     </div>

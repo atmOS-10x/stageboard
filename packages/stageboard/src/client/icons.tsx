@@ -5,7 +5,14 @@ import {
   ChevronRight,
   CircleAlert,
   Component,
+  Copy,
+  Ellipsis,
+  ExternalLink,
+  Monitor,
+  Moon,
+  Sun,
   Image,
+  Info,
   Layers,
   MessageSquarePlus,
   MessagesSquare,
@@ -48,3 +55,10 @@ export const SketchIcon = icon(PencilLine)
 export const PrevIcon = icon(ChevronLeft, 2)
 export const NextIcon = icon(ChevronRight, 2)
 export const FlowNoteIcon = icon(MessagesSquare)
+export const CopyIcon = icon(Copy)
+export const MoreIcon = icon(Ellipsis)
+export const ExternalIcon = icon(ExternalLink)
+export const MonitorIcon = icon(Monitor)
+export const MoonIcon = icon(Moon)
+export const SunIcon = icon(Sun)
+export const InfoIcon = icon(Info)

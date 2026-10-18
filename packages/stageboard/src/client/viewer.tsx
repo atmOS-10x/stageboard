@@ -5,10 +5,11 @@ import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { screenTitle, type ScreenNode } from "./browse"
 import { FlowNote } from "./flows"
-import { AnnotateIcon, CloseIcon, FlowNoteIcon, LayersIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
+import { AnnotateIcon, CloseIcon, ExternalIcon, FlowNoteIcon, InfoIcon, LayersIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
 import { Shimmer } from "./shimmer"
 import { WaveCanvas } from "./waves"
 import { readPrefs, savePrefs } from "./draft-store"
+import { Button, IconButton } from "./kit"
 import { SketchLayer } from "./sketch"
 import { VariantLayer } from "./variant-layer"
 import type { ClientEntry } from "./types"
@@ -204,9 +205,7 @@ export function FlowViewer({
           {count ? step + 1 : 0} / {count}
         </span>
         <span className="sbu-spacer" />
-        <button type="button" className="sbu-viewer-round" onClick={onClose} aria-label="Close" title="Close · Esc">
-          <CloseIcon size={14} />
-        </button>
+        <IconButton variant="ghost" icon={<CloseIcon size={18} />} label="Close · Esc" onClick={onClose} />
       </header>
       <div
         ref={stage}
@@ -298,23 +297,17 @@ export function FlowViewer({
               )
             })}
             {step > 0 && (
-              <button type="button" className="sbu-viewer-nav" data-side="prev" style={{ transform: `translateX(calc(-50% - ${w / 2 + GAP / 2}px))` }} onClick={() => go(-1)} aria-label="Previous screen" title="Previous · ←">
-                <PrevIcon size={22} />
-              </button>
+              <IconButton size="lg" className="sbu-viewer-nav" style={{ transform: `translateX(calc(-50% - ${w / 2 + GAP / 2}px))` }} icon={<PrevIcon size={22} />} label="Previous · ←" onClick={() => go(-1)} />
             )}
             {step < count - 1 && (
-              <button type="button" className="sbu-viewer-nav" data-side="next" style={{ transform: `translateX(calc(-50% + ${w / 2 + GAP / 2}px))` }} onClick={() => go(1)} aria-label="Next screen" title="Next · →">
-                <NextIcon size={22} />
-              </button>
+              <IconButton size="lg" className="sbu-viewer-nav" style={{ transform: `translateX(calc(-50% + ${w / 2 + GAP / 2}px))` }} icon={<NextIcon size={22} />} label="Next · →" onClick={() => go(1)} />
             )}
           </div>
         )}
       </div>
       <div ref={setTools} className="sbu-viewer-tools">
         {annotating && !sketching && !draftOpen && (
-          <div className="sbu-viewer-hint">
-            Drag over the screen to annotate, or click a spot <span className="sbu-key">esc</span>
-          </div>
+          <div className="sbu-viewer-hint">Drag over any part of the screen</div>
         )}
       </div>
       {noting && <FlowNote flow={flow} base={base} onClose={() => setNoting(false)} />}
@@ -323,38 +316,40 @@ export function FlowViewer({
           {d.label} ({d.width}×{d.height})
         </span>
         <div className="sbu-viewer-actions">
-          <button type="button" className="sbu-viewer-pill" data-on={annotating} onClick={() => onAnnotate(!annotating)} disabled={!entry}>
-            <AnnotateIcon size={14} /> Annotate <span className="sbu-key">A</span>
-          </button>
-          <button
-            type="button"
-            className="sbu-viewer-pill"
-            data-on={sketching}
+          <Button size="lg" icon={<AnnotateIcon size={16} />} on={annotating} onClick={() => onAnnotate(!annotating)} disabled={!entry} title="Drag over the screen to annotate · A">
+            Annotate
+          </Button>
+          <Button
+            size="lg"
+            icon={<SketchIcon size={16} />}
+            on={sketching}
             onClick={() => {
               onAnnotate(false)
               setSketching((v) => !v)
             }}
             disabled={!entry}
+            title="Move, resize and retype things, draw, drop in components · S"
           >
-            <SketchIcon size={14} /> Sketch <span className="sbu-key">S</span>
-          </button>
+            Sketch
+          </Button>
           {(variantCount > 0 || variantsOn) && (
-            <button
-              type="button"
-              className="sbu-viewer-pill"
-              data-on={variantsOn}
+            <Button
+              size="lg"
+              icon={<LayersIcon size={16} />}
+              on={variantsOn}
+              count={variantCount}
               onClick={() => {
                 setSketching(false)
                 setVariantsOn((v) => !v)
               }}
               title="Outline the parts of this screen that have variants, then click one to switch"
             >
-              <LayersIcon size={14} /> Variants <span className="sbu-count">{variantCount}</span>
-            </button>
+              Variants
+            </Button>
           )}
-          <button
-            type="button"
-            className="sbu-viewer-pill"
+          <Button
+            size="lg"
+            icon={<FlowNoteIcon size={16} />}
             onClick={() => {
               onAnnotate(false)
               setSketching(false)
@@ -362,20 +357,16 @@ export function FlowViewer({
             }}
             title="A note about the whole flow, for every screen in it"
           >
-            <FlowNoteIcon size={14} /> Note on flow
-          </button>
+            Note on flow
+          </Button>
           {entry && (
-            <button type="button" className="sbu-viewer-pill" data-quiet="true" onClick={() => onOpenScreen(entry.id)} title="Open the full screen view: variants, inspect, sizes">
-              Open screen
-            </button>
+            <IconButton size="lg" variant="ghost" icon={<ExternalIcon size={16} />} label="Open the full screen view" onClick={() => onOpenScreen(entry.id)} />
           )}
         </div>
         <div className="sbu-viewer-info">
-          <button type="button" className="sbu-viewer-more" onClick={() => setInfo((v) => !v)} aria-expanded={info}>
-            More info
-          </button>
+          <IconButton size="lg" variant="ghost" icon={<InfoIcon size={18} />} label="Screen info and other flows" on={info} onClick={() => setInfo((v) => !v)} aria-expanded={info} />
           {info && (
-            <div className="sbu-viewer-popover" role="dialog" aria-label="Screen info">
+            <div className="sbu-viewer-popover sbu-panel" role="dialog" aria-label="Screen info">
               <div className="sbu-viewer-pop-row">
                 <div>
                   <div className="sbu-viewer-pop-label">Screen</div>
@@ -392,9 +383,9 @@ export function FlowViewer({
               <div className="sbu-viewer-chips">
                 {also.length ? (
                   also.map(({ flow: f, index: i }) => (
-                    <button key={f.id} type="button" className="sbu-viewer-chip" onClick={() => onFlow(f.id, i)}>
+                    <Button key={f.id} size="sm" onClick={() => onFlow(f.id, i)}>
                       {f.name}
-                    </button>
+                    </Button>
                   ))
                 ) : (
                   <span className="sbu-dim">No other flows</span>

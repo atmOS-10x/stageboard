@@ -3,7 +3,8 @@ import { createPortal } from "react-dom"
 import type { SketchApi, SketchTarget } from "stageboard/react"
 import type { Region, Sketch, SketchOp } from "stageboard"
 import { useScrollSync, type Surface } from "./annotate"
-import { ArrowUpIcon, CloseIcon, ComponentIcon, PenIcon, PointerIcon, SquareIcon, UndoIcon } from "./icons"
+import { CloseIcon, ComponentIcon, PenIcon, PointerIcon, SquareIcon, UndoIcon } from "./icons"
+import { Button, IconButton, Input } from "./kit"
 import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
 
@@ -408,7 +409,7 @@ export function SketchLayer({
   }
 
   const bar = (
-      <div className="sbu-sketch-bar" data-docked={Boolean(toolbarHost)} role="toolbar" aria-label="Sketch tools" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="sbu-sketch-bar sbu-panel" data-docked={Boolean(toolbarHost)} role="toolbar" aria-label="Sketch tools" onPointerDown={(e) => e.stopPropagation()}>
         <ToolButton on={tool === "select"} onClick={() => setTool("select")} label="Select, move and resize · V · double-click text to edit">
           <PointerIcon size={15} />
         </ToolButton>
@@ -428,10 +429,10 @@ export function SketchLayer({
         <ToolButton on={false} onClick={() => (commit([]), setSelection(undefined))} label="Clear the sketch" disabled={!ops.length}>
           <CloseIcon size={13} />
         </ToolButton>
-        <span className="sbu-sketch-count sbu-tnum">{ops.length ? `${ops.length} change${ops.length === 1 ? "" : "s"}` : "Move things, draw, drop components"}</span>
-        <button type="button" className="sbu-sketch-go" disabled={!ops.length} onClick={reconcile} title="Send the sketch to the agent · Enter">
-          Reconcile <ArrowUpIcon size={13} />
-        </button>
+        <span className="sbu-sketch-sep" />
+        <Button variant="solid" disabled={!ops.length} onClick={reconcile} title="Send the sketch to the agent · Enter" count={ops.length}>
+          Reconcile
+        </Button>
       </div>
   )
 
@@ -502,9 +503,9 @@ export function SketchLayer({
       </div>
 
       {palette && (
-        <div className="sbu-sketch-palette" onPointerDown={(e) => e.stopPropagation()}>
-          <input
-            className="sbu-sketch-filter"
+        <div className="sbu-sketch-palette sbu-panel" onPointerDown={(e) => e.stopPropagation()}>
+          <Input
+            className="sbu-palette-filter"
             placeholder="Find a component"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -555,9 +556,5 @@ export function SketchLayer({
 }
 
 function ToolButton({ on, onClick, label, disabled, children }: { on: boolean; onClick: () => void; label: string; disabled?: boolean; children: ReactNode }) {
-  return (
-    <button type="button" className="sbu-sketch-tool" data-on={on} aria-pressed={on} aria-label={label} title={label} onClick={onClick} disabled={disabled}>
-      {children}
-    </button>
-  )
+  return <IconButton variant="ghost" icon={children} label={label} on={on} onClick={onClick} disabled={disabled} />
 }
