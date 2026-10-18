@@ -392,4 +392,58 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
   .sbu-shimmer, .sbu-float[data-placed="true"], .sbu-float[data-phase="leaving"], .sbu-composer[data-placed="true"], .sbu-composer[data-phase="leaving"], .sbu-focus, .sbu-pin, .sbu-imgchip, .sbu-sel, .sbu-annot-hint, .sbu-thumb-img, .sbu-drop { animation: none; }
   .sbu-frame-wrap, .sbu-sel[data-pin] { transition: none; }
 }
+
+.sbu-menu-btn, .sbu-side-phone, .sbu-scrim { display: none !important; }
+@media (hover: none) {
+  .sbu-flow-actions, .sbu-step-x, .sbu-step-add { opacity: 1 !important; }
+}
+@media (pointer: coarse) {
+  .sbu-input, .sbu-composer-input, .sbu-prompt-title, .sbu-sketch-edit, .sb-textarea { font-size: 16px !important; }
+}
+@media (max-width: 760px) {
+  .sbu { grid-template-columns: 1fr; grid-template-rows: 52px 1fr; height: 100dvh; }
+  .sbu-top { gap: 6px; padding: 0 8px; }
+  .sbu-menu-btn { display: inline-flex !important; }
+  .sbu-brand { width: auto; font-size: 0; gap: 0; }
+  .sbu-nav { gap: 16px; margin-left: 6px; overflow-x: auto; scrollbar-width: none; }
+  .sbu-nav button { font-size: 13.5px; }
+  .sbu-hide-phone, .sbu-working { display: none !important; }
+  .sbu-b[data-has-icon="true"] { width: 32px; padding: 0; gap: 0; }
+  .sbu-b[data-has-icon="true"][data-size="sm"] { width: 30px; height: 30px; }
+  .sbu-b[data-has-icon="true"][data-size="lg"] { width: 44px; height: 44px; }
+  .sbu-b[data-has-icon="true"] .sbu-b-text, .sbu-b[data-has-icon="true"] .sbu-b-count { display: none; }
+  .sbu-b.sbu-flows-hero-go .sbu-b-text { display: inline; }
+  .sbu-side { position: fixed; top: 52px; left: 0; bottom: 0; z-index: 40; width: min(320px, 86vw); padding: 12px 10px 32px; transform: translateX(-100%); transition: transform .24s cubic-bezier(.32,.72,0,1); box-shadow: 20px 0 60px rgba(0,0,0,.5); }
+  .sbu-side[data-open="true"] { transform: none; }
+  .sbu-side-phone { display: flex !important; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px; }
+  .sbu-scrim { display: block !important; position: fixed; inset: 52px 0 0; z-index: 39; background: rgba(0,0,0,.5); animation: sbu-fade .15s ease both; }
+  .sbu-story { padding: 9px 10px 9px 18px; font-size: 14.5px; }
+  .sbu-group-title { padding: 6px 10px; }
+  .sbu-inspector { position: fixed; inset: auto 0 0 0; z-index: 45; width: auto; max-height: 70dvh; border: 0; border-top: 1px solid rgba(255,255,255,.1); border-radius: 16px 16px 0 0; }
+  .sbu-browse, .sbu-flows { padding: 16px 14px 48px; }
+  .sbu-browse[data-device="desktop"], .sbu-flows[data-device="desktop"] { --step-w: 260px; }
+  .sbu-grid { grid-template-columns: repeat(auto-fill, minmax(min(var(--step-w), 100%), 1fr)); gap: 20px 12px; }
+  .sbu-browse[data-device="mobile"] .sbu-grid, .sbu-browse[data-device="tablet"] .sbu-grid { grid-template-columns: 1fr 1fr; }
+  .sbu-flows-head h1 { font-size: 17px; }
+  .sbu-newflow { max-width: none; }
+  .sbu-toolbar { padding: 0 6px; gap: 4px; }
+  .sbu-stage { padding: 8px; }
+  .sbu-frame-wrap { max-width: 100%; }
+  .sbu-viewer-head { padding: 12px 12px 6px; }
+  .sbu-viewer-title { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sbu-viewer-foot { grid-template-columns: 1fr auto; padding: 8px 12px calc(14px + env(safe-area-inset-bottom)); }
+  .sbu-viewer-device { display: none; }
+  .sbu-viewer-actions { justify-content: flex-start; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  .sbu-viewer-popover { width: min(360px, calc(100vw - 24px)); }
+  .sbu-b.sbu-viewer-nav { display: none; }
+  .sbu-picker-scrim { padding: 0; }
+  .sbu-picker { width: 100%; max-height: 100%; height: 100%; border-radius: 0; --pick-w: 150px; }
+  .sbu-picker[data-device="mobile"], .sbu-picker[data-device="tablet"] { --pick-w: 110px; }
+  .sbu-picker-new { width: var(--pick-w); }
+  .sbu-note-dialog { width: 100%; }
+  .sbu-sketch-palette { left: 8px; right: 8px; width: auto; top: 8px; bottom: 64px; }
+  .sbu-sketch-bar { bottom: 8px; max-width: calc(100% - 16px); overflow-x: auto; }
+  .sbu-toasts { left: 12px; right: 12px; width: auto; bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .sbu-annot-hint { bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
 `

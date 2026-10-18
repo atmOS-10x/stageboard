@@ -25,11 +25,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       data-variant={variant}
       data-size={size}
       data-on={on || undefined}
+      data-has-icon={icon && children ? "true" : undefined}
       aria-pressed={on === undefined ? undefined : on}
       {...rest}
     >
       {icon}
-      {children}
+      {icon && children ? <span className="sbu-b-text">{children}</span> : children}
       {count !== undefined && count > 0 && <span className="sbu-b-count">{count}</span>}
     </button>
   )
@@ -48,7 +49,9 @@ export function Segmented<T extends string | number>({
   onChange,
   label,
   size = "md",
+  className,
 }: {
+  className?: string
   options: { value: T; label: ReactNode; title?: string }[]
   value: T
   onChange: (value: T) => void
@@ -56,7 +59,7 @@ export function Segmented<T extends string | number>({
   size?: "sm" | "md"
 }) {
   return (
-    <div className="sbu-seg" data-size={size} role="radiogroup" aria-label={label}>
+    <div className={`sbu-seg${className ? ` ${className}` : ""}`} data-size={size} role="radiogroup" aria-label={label}>
       {options.map((o) => (
         <button key={String(o.value)} type="button" role="radio" aria-checked={value === o.value} data-on={value === o.value} title={o.title} onClick={() => onChange(o.value)}>
           {o.label}

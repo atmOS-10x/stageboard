@@ -97,7 +97,7 @@ export function FlowViewer({
     return () => ro.disconnect()
   }, [])
 
-  const scale = box.width ? Math.min(1, (box.width * 0.72) / d.width, (box.height - 8) / d.height) : 0
+  const scale = box.width ? Math.min(1, (box.width * (box.width < 760 ? 0.9 : 0.72)) / d.width, (box.height - 8) / d.height) : 0
   const w = d.width * scale
   const h = d.height * scale
 

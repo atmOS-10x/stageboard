@@ -14,6 +14,7 @@ import {
   Image,
   Info,
   Layers,
+  Menu,
   MessageSquarePlus,
   MessagesSquare,
   MousePointer2,
@@ -62,3 +63,4 @@ export const MonitorIcon = icon(Monitor)
 export const MoonIcon = icon(Moon)
 export const SunIcon = icon(Sun)
 export const InfoIcon = icon(Info)
+export const MenuIcon = icon(Menu)

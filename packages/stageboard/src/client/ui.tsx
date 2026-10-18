@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createRoot } from "react-dom/client"
 import { devtoolsCss, Panel, startBridge, useStageboard } from "stageboard/react"
 import { DEVICES, type Device, type ElementTarget, type Region } from "stageboard"
@@ -10,7 +10,7 @@ import { clearDraft, readDraft, readPrefs, savePrefs, type StoredDraft } from ".
 import { FlowsView } from "./flows"
 import { FlowViewer } from "./viewer"
 import { VariantLayer } from "./variant-layer"
-import { AnnotateIcon, CopyIcon, ExternalIcon, InspectIcon, LayersIcon, MonitorIcon, MoonIcon, PlusIcon, PrevIcon, SketchIcon, SunIcon } from "./icons"
+import { AnnotateIcon, MenuIcon, CopyIcon, ExternalIcon, InspectIcon, LayersIcon, MonitorIcon, MoonIcon, PlusIcon, PrevIcon, SketchIcon, SunIcon } from "./icons"
 import { Button, IconButton, Input, Segmented, Tabs } from "./kit"
 import { Shimmer } from "./shimmer"
 import { clearSketch, SketchLayer } from "./sketch"
@@ -146,6 +146,9 @@ function isEditable(el: EventTarget | null): boolean {
 }
 
 function Sidebar({
+  open,
+  onNavigate,
+  extra,
   tab,
   screens,
   components,
@@ -154,6 +157,9 @@ function Sidebar({
   onFlow,
   onNewFlow,
 }: {
+  open: boolean
+  onNavigate: () => void
+  extra?: ReactNode
   tab: Tab
   screens: ScreenNode[]
   components: ClientEntry[]
@@ -167,7 +173,8 @@ function Sidebar({
   const match = (text: string) => !q || text.toLowerCase().includes(q.toLowerCase())
   const placeholder = tab === "flows" ? "Search flows" : tab === "components" ? "Search components" : "Search screens"
   return (
-    <aside className="sbu-side">
+    <aside className="sbu-side" data-open={open} onClick={(e) => (e.target as HTMLElement).closest("button.sbu-story") && onNavigate()}>
+      {extra}
       <Input className="sbu-side-search" placeholder={placeholder} value={q} onChange={(e) => setQ(e.target.value)} />
       {tab === "screens" &&
         groupBy(
@@ -231,12 +238,13 @@ function Sidebar({
 
 function App({ index, loaders, base }: UIOptions) {
   const [route, go] = useRoute()
-  const [device, setDeviceState] = useState<Device>(() => (localStorage.getItem(DEVICE_KEY) as Device | null) ?? "desktop")
+  const [device, setDeviceState] = useState<Device>(() => (localStorage.getItem(DEVICE_KEY) as Device | null) ?? (matchMedia("(max-width: 760px)").matches ? "mobile" : "desktop"))
   const setDevice = (d: Device) => {
     localStorage.setItem(DEVICE_KEY, d)
     setDeviceState(d)
   }
   const [composingFlow, setComposingFlow] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const scheme = useSystemScheme()
   useJobToasts()
   const [theme, setTheme] = useState<"light" | "dark" | undefined>()
@@ -381,6 +389,7 @@ function App({ index, loaders, base }: UIOptions) {
     setOpenPin(undefined)
     setSketching(false)
     setShowVariants(false)
+    setMenuOpen(false)
   }, [routeKey])
 
   const begin = useCallback((next: Draft) => {
@@ -460,6 +469,7 @@ function App({ index, loaders, base }: UIOptions) {
   return (
     <div className="sbu">
       <header className="sbu-top">
+        <IconButton size="sm" variant="ghost" className="sbu-menu-btn" icon={<MenuIcon size={18} />} label="Menu" on={menuOpen} onClick={() => setMenuOpen((v) => !v)} />
         <div className="sbu-brand">
           <Mark /> stageboard
         </div>
@@ -471,6 +481,7 @@ function App({ index, loaders, base }: UIOptions) {
           </span>
         )}
         <Segmented
+          className="sbu-hide-phone"
           label="Device"
           size="sm"
           value={device}
@@ -483,13 +494,35 @@ function App({ index, loaders, base }: UIOptions) {
         <IconButton
           size="sm"
           variant="ghost"
+          className="sbu-hide-phone"
           icon={theme === "dark" ? <MoonIcon size={14} /> : theme === "light" ? <SunIcon size={14} /> : <MonitorIcon size={14} />}
           label={`Screens in ${theme ?? "system"} theme`}
           onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}
         />
         {!connected && <span className="sbu-offline" title="The stageboard bridge is offline: start it with stageboard dev" />}
       </header>
+      {menuOpen && <div className="sbu-scrim" onClick={() => setMenuOpen(false)} />}
       <Sidebar
+        open={menuOpen}
+        onNavigate={() => setMenuOpen(false)}
+        extra={
+          <div className="sbu-side-phone">
+            <Segmented
+              label="Device"
+              size="sm"
+              value={device}
+              onChange={setDevice}
+              options={(Object.keys(DEVICES) as Device[]).map((d) => ({ value: d, label: DEVICES[d].label }))}
+            />
+            <IconButton
+              size="sm"
+              variant="ghost"
+              icon={theme === "dark" ? <MoonIcon size={14} /> : theme === "light" ? <SunIcon size={14} /> : <MonitorIcon size={14} />}
+              label={`Screens in ${theme ?? "system"} theme`}
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}
+            />
+          </div>
+        }
         tab={tab}
         screens={pages}
         components={componentStories}
