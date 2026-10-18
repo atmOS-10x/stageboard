@@ -10,7 +10,7 @@ import { clearDraft, readDraft, readPrefs, savePrefs, type StoredDraft } from ".
 import { FlowsView } from "./flows"
 import { FlowViewer } from "./viewer"
 import { VariantLayer } from "./variant-layer"
-import { AnnotateIcon, MenuIcon, CopyIcon, ExternalIcon, InspectIcon, LayersIcon, MonitorIcon, MoonIcon, PlusIcon, PrevIcon, SketchIcon, SunIcon } from "./icons"
+import { AnnotateIcon, MenuIcon, CopyIcon, ExternalIcon, InspectIcon, LayersIcon, MonitorIcon, MoonIcon, PlusIcon, PrevIcon, SearchIcon, SunIcon } from "./icons"
 import { Button, IconButton, Input, Segmented, Tabs } from "./kit"
 import { Shimmer } from "./shimmer"
 import { clearSketch, SketchLayer } from "./sketch"
@@ -175,7 +175,7 @@ function Sidebar({
   return (
     <aside className="sbu-side" data-open={open} onClick={(e) => (e.target as HTMLElement).closest("button.sbu-story") && onNavigate()}>
       {extra}
-      <Input className="sbu-side-search" placeholder={placeholder} value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input className="sbu-side-search" icon={<SearchIcon size={15} />} placeholder={placeholder} aria-label={placeholder} value={q} onChange={(e) => setQ(e.target.value)} />
       {tab === "screens" &&
         groupBy(
           screens.filter((s) => match(`${s.page.title ?? ""} ${s.entry.title} ${s.entry.name} ${s.page.route}`)),
@@ -250,7 +250,6 @@ function App({ index, loaders, base }: UIOptions) {
   const [theme, setTheme] = useState<"light" | "dark" | undefined>()
   const [inspecting, setInspectingState] = useState(false)
   const [annotating, setAnnotatingState] = useState(false)
-  const [sketching, setSketching] = useState(false)
   const [draft, setDraft] = useState<Draft>()
   const [restore, setRestore] = useState<StoredDraft | undefined>(readDraft)
   const [openPin, setOpenPin] = useState<string>()
@@ -278,10 +277,8 @@ function App({ index, loaders, base }: UIOptions) {
   const setAnnotating = useCallback((next: boolean | ((v: boolean) => boolean)) => {
     setAnnotatingState((v) => {
       const on = typeof next === "function" ? next(v) : next
-      if (on) {
-        setInspectingState(false)
-        setSketching(false)
-      } else setDraft(undefined)
+      if (on) setInspectingState(false)
+      else setDraft(undefined)
       return on
     })
   }, [])
@@ -297,10 +294,6 @@ function App({ index, loaders, base }: UIOptions) {
         return
       }
       if (key === "a" || key === "A") setAnnotating((v) => !v)
-      if ((key === "s" || key === "S") && parseHash().view === "story") {
-        setAnnotatingState(false)
-        setSketching((v) => !v)
-      }
       if (key === "Escape") {
         setInspecting(false)
         setAnnotating(false)
@@ -369,11 +362,11 @@ function App({ index, loaders, base }: UIOptions) {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.code === "KeyC") setInspecting((v) => !v)
       if (e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return
-      if (["a", "A", "s", "S"].includes(e.key) || (e.key === "Escape" && !sketching)) keyAction(e.key)
+      if (["a", "A", "Escape"].includes(e.key)) keyAction(e.key)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [keyAction, setInspecting, sketching])
+  }, [keyAction, setInspecting])
 
   useEffect(() => {
     fetchUsedVariants(base).then((known) => setUsed((u) => ({ ...known, ...u })))
@@ -387,7 +380,6 @@ function App({ index, loaders, base }: UIOptions) {
     setRestore(undefined)
     setDraft(undefined)
     setOpenPin(undefined)
-    setSketching(false)
     setShowVariants(false)
     setMenuOpen(false)
   }, [routeKey])
@@ -420,8 +412,7 @@ function App({ index, loaders, base }: UIOptions) {
     const sent = draftRef.current
     if (sent?.sketch) {
       clearSketch(sent.surface.storyId)
-      setSketching(false)
-      window.dispatchEvent(new Event("stageboard:sketch-sent"))
+      setAnnotatingState(false)
     }
     setDraft(undefined)
   }, [])
@@ -488,7 +479,7 @@ function App({ index, loaders, base }: UIOptions) {
           onChange={setDevice}
           options={(Object.keys(DEVICES) as Device[]).map((d) => ({ value: d, label: DEVICES[d].label, title: `${DEVICES[d].width}×${DEVICES[d].height}` }))}
         />
-        <Button size="sm" icon={<AnnotateIcon size={14} />} on={annotating} onClick={() => setAnnotating((v) => !v)} title="Drag over a screen to annotate · A">
+        <Button size="sm" icon={<AnnotateIcon size={14} />} on={annotating} onClick={() => setAnnotating((v) => !v)} title="Comment on any part of a screen; on a single screen, also move, retype and draw · A">
           Annotate
         </Button>
         <IconButton
@@ -582,10 +573,7 @@ function App({ index, loaders, base }: UIOptions) {
             annotating={annotating}
             onAnnotate={(on) => setAnnotating(on)}
             draftOpen={Boolean(draft)}
-            onDraft={(next) => {
-              setAnnotatingState(false)
-              setDraft(next)
-            }}
+            onDraft={setDraft}
             onStep={(step) => go({ view: "flows", focus: viewerFlow.id, step })}
             onFlow={(flowId, step) => go({ view: "flows", focus: flowId, step })}
             onOpenScreen={(id) => go({ view: "story", id, from: "flows" })}
@@ -621,19 +609,6 @@ function App({ index, loaders, base }: UIOptions) {
               >
                 Variants
               </Button>
-              <Button
-                size="sm"
-                icon={<SketchIcon size={14} />}
-                on={sketching}
-                onClick={() => {
-                  setAnnotatingState(false)
-                  setDraft(undefined)
-                  setSketching((v) => !v)
-                }}
-                title="Move, resize and retype things, draw, drop in components, then let the agent build it · S"
-              >
-                Sketch
-              </Button>
               <IconButton size="sm" variant="ghost" icon={<ExternalIcon size={14} />} label="Open in a new tab" onClick={() => window.open(frameUrl(current.id).replace("sb-embed=1&", ""), "_blank")} />
               <IconButton
                 size="sm"
@@ -661,19 +636,19 @@ function App({ index, loaders, base }: UIOptions) {
                   <VariantLayer
                     key={`v-${current.id}`}
                     surface={storySurface}
-                    visible={showVariants && !sketching}
+                    visible={showVariants && !annotating}
                     onCount={setVariantCount}
                     onAskMore={(box) => askMoreVariants(storyFrame.current, storySurface, box)}
                   />
                 )}
-                {storySurface && sketching && (
+                {storySurface && annotating && (
                   <SketchLayer
                     key={current.id}
                     surface={storySurface}
                     components={componentStories}
                     componentThumb={componentThumb}
                     paused={Boolean(draft)}
-                    onExit={() => setSketching(false)}
+                    onExit={() => setAnnotating(false)}
                     onReconcile={(sketch, region) => setDraft({ surface: storySurface, region, viewport: sketch.viewport, scroll: sketch.scroll, sketch })}
                   />
                 )}
@@ -682,9 +657,9 @@ function App({ index, loaders, base }: UIOptions) {
           </div>
         )}
         {route.view === "story" && !current && <div className="sbu-empty">Pick a story on the left.</div>}
-        {annotating && !draft && (
+        {annotating && !draft && !viewerFlow && route.view !== "story" && (
           <div className="sbu-annot-hint" role="status">
-            Drag over any part of {route.view === "story" ? "the screen" : "a screen"}
+            Drag over any part of a screen
           </div>
         )}
       </main>

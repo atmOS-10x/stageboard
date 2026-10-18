@@ -81,9 +81,18 @@ export function Tabs<T extends string>({ tabs, value, onChange, label }: { tabs:
   )
 }
 
-export const Input = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & { size?: "md" | "lg" }>(function Input(
-  { size = "md", className, ...rest },
+// With an icon the input becomes an input group: the icon sits inside the field, and className goes on the group.
+export const Input = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & { size?: "md" | "lg"; icon?: ReactNode }>(function Input(
+  { size = "md", icon, className, ...rest },
   ref,
 ) {
-  return <input ref={ref} className={`sbu-input${className ? ` ${className}` : ""}`} data-size={size} {...rest} />
+  if (!icon) return <input ref={ref} className={`sbu-input${className ? ` ${className}` : ""}`} data-size={size} {...rest} />
+  return (
+    <div className={`sbu-input-group${className ? ` ${className}` : ""}`} data-size={size}>
+      <span className="sbu-input-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <input ref={ref} className="sbu-input" data-size={size} {...rest} />
+    </div>
+  )
 })

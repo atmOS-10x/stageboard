@@ -3,12 +3,12 @@ import { createPortal } from "react-dom"
 import type { SketchApi, SketchTarget } from "stageboard/react"
 import type { Region, Sketch, SketchOp } from "stageboard"
 import { useScrollSync, type Surface } from "./annotate"
-import { CloseIcon, ComponentIcon, PenIcon, PointerIcon, SquareIcon, UndoIcon } from "./icons"
+import { AnnotateIcon, CloseIcon, ComponentIcon, PenIcon, PointerIcon, SearchIcon, SquareIcon, UndoIcon } from "./icons"
 import { Button, IconButton, Input } from "./kit"
 import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
 
-type Tool = "select" | "pen" | "block"
+type Tool = "comment" | "select" | "pen" | "block"
 type Selection = { kind: "el"; target: SketchTarget } | { kind: "op"; index: number }
 type Editing = { selector?: string; index?: number; rect: Region; value: string; before: string }
 type Corner = "nw" | "ne" | "sw" | "se"
@@ -105,7 +105,7 @@ export function SketchLayer({
   const opsRef = useRef(ops)
   opsRef.current = ops
   const history = useRef<SketchOp[][]>([])
-  const [tool, setTool] = useState<Tool>("select")
+  const [tool, setToolState] = useState<Tool>("comment")
   const [hover, setHover] = useState<Region>()
   const [selection, setSelection] = useState<Selection>()
   const [editing, setEditing] = useState<Editing>()
@@ -113,6 +113,15 @@ export function SketchLayer({
   const [filter, setFilter] = useState("")
   const [dragging, setDragging] = useState<{ entry: ClientEntry; x: number; y: number; sx: number; sy: number }>()
   useScrollSync(frame, host, layer, undefined, true)
+
+  // Comment is the default tool: the sketch layer steps aside and the annotation layer underneath takes the drag.
+  const setTool = (next: Tool) => {
+    setToolState(next)
+    if (next === "comment") {
+      setHover(undefined)
+      setSelection(undefined)
+    }
+  }
 
   const win = useCallback(() => frame()?.contentWindow as (Window & { __stageboard_sketch?: SketchApi }) | null | undefined, [frame])
   const api = useCallback(() => win()?.__stageboard_sketch, [win])
@@ -133,6 +142,17 @@ export function SketchLayer({
       api()?.apply([])
     }
   }, [api, win])
+
+  // The page sits under an overlay while annotating, so it never needs focus; an autofocused field would swallow the tool keys.
+  useEffect(() => {
+    const keepFocus = () => {
+      if (document.activeElement instanceof HTMLIFrameElement) window.focus()
+    }
+    const onBlur = () => setTimeout(keepFocus)
+    keepFocus()
+    window.addEventListener("blur", onBlur)
+    return () => window.removeEventListener("blur", onBlur)
+  }, [])
 
   const remember = () => {
     history.current = [...history.current.slice(-80), opsRef.current]
@@ -250,7 +270,7 @@ export function SketchLayer({
       const up = () => {
         window.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", up)
-      }
+        }
       window.addEventListener("pointermove", move)
       window.addEventListener("pointerup", up)
       return
@@ -268,7 +288,7 @@ export function SketchLayer({
       const up = () => {
         window.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", up)
-        setOps((cur) =>
+          setOps((cur) =>
           cur.map((o, i) => (i === index && o.type === "block" && (o.rect.width < MIN || o.rect.height < MIN) ? { ...o, rect: { x: p.x - 100, y: p.y - 60, width: 200, height: 120 } } : o)),
         )
         setSelection({ kind: "op", index })
@@ -350,6 +370,7 @@ export function SketchLayer({
     const p = point(cx, cy)
     const rect = { x: p.x - COMPONENT_SIZE.width / 2, y: p.y - COMPONENT_SIZE.height / 2, ...COMPONENT_SIZE }
     commit([...opsRef.current, { type: "component", rect, storyId: entry.id, title: `${entry.title} / ${entry.name}` }])
+    setToolState("select")
     setSelection({ kind: "op", index: opsRef.current.length })
     setPalette(false)
   }
@@ -374,10 +395,11 @@ export function SketchLayer({
         return
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      if (e.key === "v") setTool("select")
+      if (e.key === "c") setTool("comment")
+      else if (e.key === "v") setTool("select")
       else if (e.key === "p") setTool("pen")
       else if (e.key === "b") setTool("block")
-      else if (e.key === "c") setPalette((v) => !v)
+      else if (e.key === "i") setPalette((v) => !v)
       else if (e.key === "Backspace" || e.key === "Delete") s.removeSelected()
       else if (e.key === "Enter") s.reconcile()
       else if (e.key === "ArrowUp" && s.selection?.kind === "el") {
@@ -409,7 +431,10 @@ export function SketchLayer({
   }
 
   const bar = (
-      <div className="sbu-sketch-bar sbu-panel" data-docked={Boolean(toolbarHost)} role="toolbar" aria-label="Sketch tools" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="sbu-sketch-bar sbu-panel" data-docked={Boolean(toolbarHost)} role="toolbar" aria-label="Annotate tools" onPointerDown={(e) => e.stopPropagation()}>
+        <ToolButton on={tool === "comment"} onClick={() => setTool("comment")} label="Comment: drag over or click any part of the screen · C">
+          <AnnotateIcon size={15} />
+        </ToolButton>
         <ToolButton on={tool === "select"} onClick={() => setTool("select")} label="Select, move and resize · V · double-click text to edit">
           <PointerIcon size={15} />
         </ToolButton>
@@ -419,7 +444,7 @@ export function SketchLayer({
         <ToolButton on={tool === "block"} onClick={() => setTool("block")} label="Block · B">
           <SquareIcon size={15} />
         </ToolButton>
-        <ToolButton on={palette} onClick={() => setPalette((v) => !v)} label="Components from this app · C">
+        <ToolButton on={palette} onClick={() => setPalette((v) => !v)} label="Components from this app · I">
           <ComponentIcon size={15} />
         </ToolButton>
         <span className="sbu-sketch-sep" />
@@ -457,14 +482,16 @@ export function SketchLayer({
         setDragging(undefined)
       }}
     >
-      <div
-        className="sbu-sketch-catch"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerLeave={() => setHover(undefined)}
-        onDoubleClick={onDoubleClick}
-        onWheel={onWheel}
-      />
+      {tool !== "comment" && (
+        <div
+          className="sbu-sketch-catch"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerLeave={() => setHover(undefined)}
+          onDoubleClick={onDoubleClick}
+          onWheel={onWheel}
+        />
+      )}
       <div ref={layer} className="sbu-annot-layer">
         {hover && tool === "select" && <div className="sbu-sketch-hover" style={{ left: hover.x, top: hover.y, width: hover.width, height: hover.height }} />}
         {rect && (
@@ -506,6 +533,7 @@ export function SketchLayer({
         <div className="sbu-sketch-palette sbu-panel" onPointerDown={(e) => e.stopPropagation()}>
           <Input
             className="sbu-palette-filter"
+            icon={<SearchIcon size={15} />}
             placeholder="Find a component"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

@@ -73,7 +73,6 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-b.sbu-viewer-nav { position: absolute; left: 50%; top: 50%; z-index: 4; margin-top: -21px; background: rgba(28,28,34,.86); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
 .sbu-b.sbu-viewer-nav:hover { background: rgba(52,52,60,.95); }
 .sbu-viewer-tools { min-height: 54px; display: flex; align-items: center; justify-content: center; padding-top: 10px; }
-.sbu-viewer-hint { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px; background: rgba(28,28,34,.9); border: 1px solid rgba(255,255,255,.08); color: #b9b9c3; font-size: 12.5px; animation: sbu-rise .2s ease both; }
 .sbu-sketch-bar[data-docked="true"] { position: static; translate: none; }
 .sbu-viewer-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .sbu-viewer-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
@@ -143,7 +142,6 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
   position: absolute; left: 0; top: 0; z-index: 20; width: max(var(--step-w), 280px); max-height: 360px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
   border-radius: 14px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.5);
 }
-.sbu-newflow { max-width: 680px; margin-bottom: 30px; animation: sbu-composer-in .22s cubic-bezier(.32,.72,0,1) both; }
 .sbu-chip { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 999px; background: rgba(255,255,255,.06); color: #b9b9c4; font-size: 11.5px; }
 .sbu-chip[data-tone="busy"] { background: rgba(141,122,246,.16); color: #d4cbff; }
 .sbu-chip[data-tone="warn"] { background: rgba(211,162,148,.14); color: #e2b7aa; }
@@ -156,6 +154,8 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-waves { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .sbu-sketch { position: absolute; inset: 0; z-index: 4; border-radius: 10px; overflow: hidden; }
 .sbu-sketch-catch { position: absolute; inset: 0; cursor: default; touch-action: none; box-shadow: inset 0 0 0 1.5px rgba(150,132,255,.55); border-radius: inherit; }
+.sbu-sketch[data-tool="comment"] { pointer-events: none; }
+.sbu-sketch[data-tool="comment"] .sbu-sketch-bar, .sbu-sketch[data-tool="comment"] .sbu-sketch-palette { pointer-events: auto; }
 .sbu-sketch[data-tool="pen"] .sbu-sketch-catch { cursor: crosshair; }
 .sbu-sketch[data-tool="block"] .sbu-sketch-catch { cursor: cell; }
 .sbu-sketch-hover { position: absolute; pointer-events: none; outline: 1px solid rgba(150,132,255,.7); background: rgba(150,132,255,.06); }
@@ -331,6 +331,12 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-input::placeholder { color: #7e7e89; }
 .sbu-input:focus { box-shadow: 0 0 0 2px rgba(190,176,255,.45); }
 .sbu-input[data-size="lg"] { height: 44px; padding: 0 14px; border-radius: 12px; font-size: 15px; }
+.sbu-input-group { position: relative; display: flex; align-items: center; min-width: 0; }
+.sbu-input-group > .sbu-input { padding-left: 34px; }
+.sbu-input-group[data-size="lg"] > .sbu-input { padding-left: 40px; }
+.sbu-input-icon { position: absolute; left: 12px; display: flex; color: #7e7e89; pointer-events: none; transition: color .12s ease; }
+.sbu-input-group[data-size="lg"] > .sbu-input-icon { left: 14px; }
+.sbu-input-group:focus-within > .sbu-input-icon { color: #c9c9d2; }
 .sbu-panel { background: #1b1a22; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; box-shadow: 0 18px 48px rgba(0,0,0,.5); }
 
 .sbu-composer-head {
@@ -425,7 +431,6 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
   .sbu-grid { grid-template-columns: repeat(auto-fill, minmax(min(var(--step-w), 100%), 1fr)); gap: 20px 12px; }
   .sbu-browse[data-device="mobile"] .sbu-grid, .sbu-browse[data-device="tablet"] .sbu-grid { grid-template-columns: 1fr 1fr; }
   .sbu-flows-head h1 { font-size: 17px; }
-  .sbu-newflow { max-width: none; }
   .sbu-toolbar { padding: 0 6px; gap: 4px; }
   .sbu-stage { padding: 8px; }
   .sbu-frame-wrap { max-width: 100%; }

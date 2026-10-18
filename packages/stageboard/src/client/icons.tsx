@@ -21,6 +21,7 @@ import {
   PencilLine,
   Pen,
   Plus,
+  Search,
   Sparkles,
   Square,
   SquareMousePointer,
@@ -40,6 +41,7 @@ function icon(Glyph: LucideIcon, strokeWidth = 1.75) {
 export const AnnotateIcon = icon(MessageSquarePlus)
 export const InspectIcon = icon(SquareMousePointer)
 export const PlusIcon = icon(Plus)
+export const SearchIcon = icon(Search)
 export const ArrowUpIcon = icon(ArrowUp, 2.25)
 export const CloseIcon = icon(X)
 export const CheckIcon = icon(Check, 2)

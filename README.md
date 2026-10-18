@@ -38,8 +38,7 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 - **Stories with mock data.** A Storybook-compatible `*.stories.tsx` format. Pages are stories too, so no backend or login is needed.
 - **Screens, Flows, Components.** Browse every page, every UI component and the user flows through the app, as Desktop, Tablet or Mobile. The sidebar searches whichever you are looking at.
 - **Flows.** Ordered journeys through your screens, like Mobbin's. Describe a new flow and an agent assembles it from existing screens, building the missing ones while they render as a pixel ocean; or add, drag and remove screens yourself. Flows live in `stageboard/board.json`; commit it.
-- **Annotate.** Drag over any screen, component, story or variant. Write a note, paste reference images, and send it to an agent.
-- **Sketch on a page.** Press S in a page: move, resize and retype elements, draw, add blocks, drop in your own components, then Reconcile. The agent gets every change plus before/after screenshots.
+- **Annotate.** Press A. Comment is the default: drag over any screen, component, story or variant, write a note, paste reference images, and send it to an agent. On a single screen the same toolbar also lets you move, resize and retype elements, draw, add blocks and drop in your own components, then Reconcile. The agent gets every change plus before/after screenshots.
 - **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Production renders the original.
 - **`stageboard shot`.** A headless screenshot of any story, variant or region. Agents use it to check their own work.
 - **MCP server.** `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant` and `complete_job` (agents report when they are done), attached to Claude and Codex agents automatically.

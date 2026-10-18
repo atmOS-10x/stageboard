@@ -4,7 +4,7 @@ import { createDream, createFlow, removeFlow, submitChangeRequest, updateFlow, u
 import { DEVICES, type Device, type Flow, type FlowStep } from "stageboard"
 import { groupBy, screenGroup, STORY_MIME, screenTitle, type ScreenNode } from "./browse"
 import { markReveal, pendingReveals } from "./dreams"
-import { CloseIcon, FlowNoteIcon, PlusIcon, PrevIcon } from "./icons"
+import { CloseIcon, FlowNoteIcon, PlusIcon, PrevIcon, SearchIcon } from "./icons"
 import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
 import { Button, IconButton, Input } from "./kit"
@@ -57,7 +57,7 @@ export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focu
         </Button>
       </div>
       {composing && <NewFlow base={ctx.base} onClose={() => onCompose(false)} />}
-      {!flows.length && !composing && (
+      {!flows.length && (
         <div className="sbu-flows-hero">
           <div className="sbu-flows-hero-card" data-busy={suggesting}>
             <WaveCanvas mode="render" fps={30} />
@@ -95,36 +95,45 @@ export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focu
 function NewFlow({ base, onClose }: { base: string; onClose: () => void }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  return (
-    <div className="sbu-newflow">
-      <PromptInput
-        base={base}
-        value={description}
-        onChange={setDescription}
-        onClose={onClose}
-        label="Describe the flow"
-        placeholder="Describe the journey: who starts where, what they do, where they end up. The agent picks your screens and builds the missing ones."
-        head={<input className="sbu-prompt-title" placeholder="New flow" value={name} onChange={(e) => setName(e.target.value)} aria-label="Flow name (optional)" />}
-        bar={
-          name.trim() && !description.trim() ? (
-            <Button
-              size="sm"
-              onClick={() =>
-                void createFlow({ name })
-                  .then(onClose)
-                  .catch((e) => pushToast({ tone: "error", title: "Couldn’t create the flow", body: errorText(e) }))
-              }
-            >
-              Create empty, I’ll add screens
-            </Button>
-          ) : null
-        }
-        onSubmit={async (uploads) => {
-          await createFlow({ name, description, assemble: true, attachments: uploads.map((u) => u.id) })
-          onClose()
-        }}
-      />
-    </div>
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+  return createPortal(
+    <div className="sbu-picker-scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sbu-note-dialog" role="dialog" aria-label="New flow">
+        <PromptInput
+          base={base}
+          value={description}
+          onChange={setDescription}
+          onClose={onClose}
+          minRows={4}
+          label="Describe the flow"
+          placeholder="Describe the journey: who starts where, what they do, where they end up. The agent picks your screens and builds the missing ones."
+          head={<input className="sbu-prompt-title" placeholder="New flow" value={name} onChange={(e) => setName(e.target.value)} aria-label="Flow name (optional)" />}
+          bar={
+            name.trim() && !description.trim() ? (
+              <Button
+                size="sm"
+                onClick={() =>
+                  void createFlow({ name })
+                    .then(onClose)
+                    .catch((e) => pushToast({ tone: "error", title: "Couldn’t create the flow", body: errorText(e) }))
+                }
+              >
+                Create empty, I’ll add screens
+              </Button>
+            ) : null
+          }
+          onSubmit={async (uploads) => {
+            await createFlow({ name, description, assemble: true, attachments: uploads.map((u) => u.id) })
+            onClose()
+          }}
+        />
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -389,6 +398,7 @@ function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => voi
           ) : (
             <Input
               size="lg"
+              icon={<SearchIcon size={17} />}
               placeholder="Find a screen"
               value={q}
               autoFocus

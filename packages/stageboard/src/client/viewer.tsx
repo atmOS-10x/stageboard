@@ -5,7 +5,7 @@ import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { screenTitle, type ScreenNode } from "./browse"
 import { FlowNote } from "./flows"
-import { AnnotateIcon, CloseIcon, ExternalIcon, FlowNoteIcon, InfoIcon, LayersIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
+import { AnnotateIcon, CloseIcon, ExternalIcon, FlowNoteIcon, InfoIcon, LayersIcon, NextIcon, PrevIcon } from "./icons"
 import { Shimmer } from "./shimmer"
 import { WaveCanvas } from "./waves"
 import { readPrefs, savePrefs } from "./draft-store"
@@ -65,7 +65,6 @@ export function FlowViewer({
   const [ready, setReady] = useState<Set<string>>(() => new Set())
   const [tools, setTools] = useState<HTMLDivElement | null>(null)
   const [box, setBox] = useState({ width: 0, height: 0 })
-  const [sketching, setSketching] = useState(false)
   const [info, setInfo] = useState(false)
   const [noting, setNoting] = useState(false)
   const [variantsOn, setVariantsOn] = useState(false)
@@ -85,7 +84,7 @@ export function FlowViewer({
   const count = flow.steps.length
   const currentStep = flow.steps[step]
   const frameOfCurrent = useCallback(() => (currentStep ? frames.current.get(currentStep.id) : undefined), [currentStep])
-  const busy = annotating || sketching || draftOpen || noting
+  const busy = annotating || draftOpen || noting
 
   useLayoutEffect(() => {
     const el = stage.current
@@ -104,7 +103,6 @@ export function FlowViewer({
   const go = useCallback((delta: number) => onStep(Math.max(0, Math.min(count - 1, step + delta))), [onStep, count, step])
 
   useEffect(() => {
-    setSketching(false)
     setInfo(false)
     setVariantsOn(false)
     setVariantCount(0)
@@ -140,12 +138,6 @@ export function FlowViewer({
   })
 
   useEffect(() => {
-    const onSent = () => setSketching(false)
-    window.addEventListener("stageboard:sketch-sent", onSent)
-    return () => window.removeEventListener("stageboard:sketch-sent", onSent)
-  }, [])
-
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return
@@ -153,7 +145,6 @@ export function FlowViewer({
       if (e.key === "ArrowRight") go(1)
       else if (e.key === "ArrowLeft") go(-1)
       else if (e.key === "Escape") onClose()
-      else if (e.key === "s" || e.key === "S") setSketching(true)
       else return
       e.preventDefault()
       e.stopPropagation()
@@ -258,7 +249,7 @@ export function FlowViewer({
                         <VariantLayer
                           key={`v-${id}`}
                           surface={surface}
-                          visible={variantsOn && !sketching}
+                          visible={variantsOn && !annotating}
                           onCount={setVariantCount}
                           onAskMore={(box) => {
                             savePrefs({ ...readPrefs(), mode: "variants" })
@@ -269,7 +260,7 @@ export function FlowViewer({
                           }}
                         />
                       )}
-                      {current && surface && sketching && (
+                      {current && surface && annotating && (
                         <SketchLayer
                           key={id}
                           surface={surface}
@@ -277,7 +268,7 @@ export function FlowViewer({
                           componentThumb={componentThumb}
                           paused={draftOpen}
                           toolbarHost={tools}
-                          onExit={() => setSketching(false)}
+                          onExit={() => onAnnotate(false)}
                           onReconcile={(sketch: Sketch, region: Region) => onDraft({ surface, region, viewport: sketch.viewport, scroll: sketch.scroll, sketch })}
                         />
                       )}
@@ -305,32 +296,22 @@ export function FlowViewer({
           </div>
         )}
       </div>
-      <div ref={setTools} className="sbu-viewer-tools">
-        {annotating && !sketching && !draftOpen && (
-          <div className="sbu-viewer-hint">Drag over any part of the screen</div>
-        )}
-      </div>
+      <div ref={setTools} className="sbu-viewer-tools" />
       {noting && <FlowNote flow={flow} base={base} onClose={() => setNoting(false)} />}
       <footer className="sbu-viewer-foot">
         <span className="sbu-viewer-device">
           {d.label} ({d.width}×{d.height})
         </span>
         <div className="sbu-viewer-actions">
-          <Button size="lg" icon={<AnnotateIcon size={16} />} on={annotating} onClick={() => onAnnotate(!annotating)} disabled={!entry} title="Drag over the screen to annotate · A">
-            Annotate
-          </Button>
           <Button
             size="lg"
-            icon={<SketchIcon size={16} />}
-            on={sketching}
-            onClick={() => {
-              onAnnotate(false)
-              setSketching((v) => !v)
-            }}
+            icon={<AnnotateIcon size={16} />}
+            on={annotating}
+            onClick={() => onAnnotate(!annotating)}
             disabled={!entry}
-            title="Move, resize and retype things, draw, drop in components · S"
+            title="Comment on any part of the screen, or move, retype and draw on it · A"
           >
-            Sketch
+            Annotate
           </Button>
           {(variantCount > 0 || variantsOn) && (
             <Button
@@ -339,7 +320,7 @@ export function FlowViewer({
               on={variantsOn}
               count={variantCount}
               onClick={() => {
-                setSketching(false)
+                onAnnotate(false)
                 setVariantsOn((v) => !v)
               }}
               title="Outline the parts of this screen that have variants, then click one to switch"
@@ -352,7 +333,6 @@ export function FlowViewer({
             icon={<FlowNoteIcon size={16} />}
             onClick={() => {
               onAnnotate(false)
-              setSketching(false)
               setNoting(true)
             }}
             title="A note about the whole flow, for every screen in it"
