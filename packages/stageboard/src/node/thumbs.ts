@@ -5,6 +5,7 @@ import path from "node:path"
 import type { Browser, Page } from "playwright-core"
 import { API_BASE, type BridgeState, type Region, type RegionDescription } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
+import { settle } from "./settle"
 import { launchBrowser } from "./shot"
 
 type Job = () => Promise<void>
@@ -130,6 +131,7 @@ export class Thumbnailer {
       page = await browser.newPage({
         viewport: { width: options.width ?? 1440, height: options.height ?? 900 },
         deviceScaleFactor: options.scale ?? 1,
+        reducedMotion: "reduce",
       })
       const params = new URLSearchParams({ story: id, "sb-shot": "1" })
       for (const [vid, key] of Object.entries(this.effectiveVariants(options))) {
@@ -141,6 +143,7 @@ export class Thumbnailer {
           timeout: 45_000,
         })
         .catch(() => {})
+      await settle(page)
       const usedIds = await page.evaluate(() => Array.from(((globalThis as any).__STAGEBOARD_USED__ as Set<string>) ?? []))
       this.used[id] = usedIds.sort()
       fs.writeFileSync(this.usedFile, JSON.stringify(this.used))

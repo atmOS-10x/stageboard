@@ -3,6 +3,7 @@ import path from "node:path"
 import { API_BASE } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
 import { buildIndex, type IndexedStory } from "./indexer"
+import { settle } from "./settle"
 import { createStageboardServer, findRunningServer } from "./server"
 
 export type ShotOptions = {
@@ -84,6 +85,7 @@ export async function shoot(config: ResolvedConfig, options: ShotOptions): Promi
       viewport: { width: options.width ?? 1280, height: options.height ?? 800 },
       deviceScaleFactor: options.scale ?? 1,
       colorScheme: options.theme,
+      reducedMotion: "reduce",
     })
     page.on("console", (m) => {
       if (m.type() === "error") consoleErrors.push(m.text())
@@ -109,7 +111,7 @@ export async function shoot(config: ResolvedConfig, options: ShotOptions): Promi
     const error = await page.evaluate(() => (window as any).__STAGEBOARD_ERROR__ as string | undefined)
     if (error) throw new Error(`Story ${story.id} failed to render:\n${error}`)
     await page.evaluate(() => document.fonts?.ready)
-    await page.waitForTimeout(150)
+    await settle(page)
     const out = path.resolve(options.out ?? path.join(config.stateDir, "shots", `${story.id}${options.variants?.length ? "~" + options.variants.join(",").replace(/[^\w.,=-]/g, "_") : ""}.png`))
     fs.mkdirSync(path.dirname(out), { recursive: true })
     const layout = await page.evaluate(() => (window as any).__STAGEBOARD_LAYOUT__ as string | undefined)
