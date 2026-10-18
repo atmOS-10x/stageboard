@@ -163,6 +163,20 @@ export function SketchLayer({
     return -1
   }
 
+  // Moved elements live as copies at their new spot; find them there before asking the page.
+  const movedAt = (x: number, y: number): SketchTarget | undefined => {
+    for (let i = opsRef.current.length - 1; i >= 0; i--) {
+      const op = opsRef.current[i]
+      if (op.type !== "move") continue
+      const r = op.to
+      if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) {
+        return api()?.find(op.selector) ?? { selector: op.selector, components: op.components, rect: op.from, text: op.text, editable: false }
+      }
+    }
+    return undefined
+  }
+  const targetAt = (p: { x: number; y: number; cx: number; cy: number }) => movedAt(p.x, p.y) ?? api()?.at(p.cx, p.cy)
+
   const moveIndex = (selector: string) => opsRef.current.findIndex((o) => o.type === "move" && o.selector === selector)
 
   const selectedRect = (): Region | undefined => {
@@ -267,7 +281,7 @@ export function SketchLayer({
       startTransform(e, sel)
       return
     }
-    const target = api()?.at(p.cx, p.cy)
+    const target = targetAt(p)
     if (!target) {
       setSelection(undefined)
       return
@@ -282,7 +296,7 @@ export function SketchLayer({
     const p = point(e.clientX, e.clientY)
     const hit = hitOp(p.x, p.y)
     if (hit >= 0) return setHover(opRect(opsRef.current[hit]))
-    const target = api()?.at(p.cx, p.cy)
+    const target = targetAt(p)
     const i = target ? moveIndex(target.selector) : -1
     setHover(i >= 0 ? (opsRef.current[i] as Extract<SketchOp, { type: "move" }>).to : target?.rect)
   }
@@ -295,7 +309,7 @@ export function SketchLayer({
       if (op.type === "block") setEditing({ index: hit, rect: op.rect, value: op.label ?? "", before: op.label ?? "" })
       return
     }
-    const target = api()?.at(p.cx, p.cy)
+    const target = targetAt(p)
     if (!target?.editable) return
     const existing = opsRef.current.find((o) => o.type === "text" && o.selector === target.selector) as Extract<SketchOp, { type: "text" }> | undefined
     const i = moveIndex(target.selector)

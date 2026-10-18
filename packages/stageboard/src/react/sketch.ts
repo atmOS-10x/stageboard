@@ -61,6 +61,40 @@ function query(selector: string): HTMLElement | null {
   }
 }
 
+const INHERITED = ["color", "font-family", "font-size", "font-weight", "font-style", "line-height", "letter-spacing", "text-align", "text-transform", "white-space", "direction"]
+
+function floatingCopy(el: HTMLElement, to: Region): HTMLElement {
+  const computed = getComputedStyle(el)
+  const copy = el.cloneNode(true) as HTMLElement
+  copy.removeAttribute("id")
+  copy.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"))
+  for (const prop of INHERITED) copy.style.setProperty(prop, computed.getPropertyValue(prop))
+  if (computed.backgroundColor === "rgba(0, 0, 0, 0)") {
+    let p = el.parentElement
+    while (p && getComputedStyle(p).backgroundColor === "rgba(0, 0, 0, 0)") p = p.parentElement
+    if (p) copy.style.backgroundColor = getComputedStyle(p).backgroundColor
+  }
+  Object.assign(copy.style, {
+    position: "absolute",
+    left: `${to.x}px`,
+    top: `${to.y}px`,
+    width: `${to.width}px`,
+    height: `${to.height}px`,
+    margin: "0",
+    boxSizing: "border-box",
+    translate: "none",
+    transform: "none",
+    maxWidth: "none",
+    maxHeight: "none",
+    zIndex: "1",
+    visibility: "visible",
+    pointerEvents: "none",
+    outline: "1.5px dashed rgba(141,122,246,.9)",
+    outlineOffset: "1px",
+  })
+  return copy
+}
+
 function strokePath(points: { x: number; y: number }[]): string {
   if (!points.length) return ""
   const [first, ...rest] = points
@@ -101,24 +135,18 @@ export function installSketch(base: string) {
     apply(ops) {
       restore()
       const svg: string[] = []
-      for (const op of ops) {
+      // Text first, so a moved element's copy shows its new text.
+      const ordered = [...ops.filter((o) => o.type === "text"), ...ops.filter((o) => o.type !== "text")]
+      for (const op of ordered) {
         if (op.type === "move") {
           const el = query(op.selector)
           if (!el) continue
+          // A copy on the top layer: parents that clip overflow or stack lower cannot hide it. The original
+          // keeps its place in the layout, invisible.
+          const copy = floatingCopy(el, op.to)
           touch(el)
-          const dx = op.to.x - op.from.x
-          const dy = op.to.y - op.from.y
-          el.style.translate = `${dx}px ${dy}px`
-          if (op.to.width !== op.from.width || op.to.height !== op.from.height) {
-            el.style.boxSizing = "border-box"
-            el.style.width = `${op.to.width}px`
-            el.style.height = `${op.to.height}px`
-            el.style.maxWidth = "none"
-            el.style.flex = "none"
-          }
-          el.style.position ||= "relative"
-          el.style.zIndex = "2147483000"
-          el.style.outline = "1.5px dashed rgba(141,122,246,.9)"
+          el.style.visibility = "hidden"
+          layer().appendChild(copy)
         } else if (op.type === "text") {
           const el = query(op.selector)
           const node = el && onlyText(el)
