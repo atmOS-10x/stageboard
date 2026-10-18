@@ -104,6 +104,42 @@ function forwardShortcuts() {
   })
 }
 
+const FREEZE_CSS = "*,*::before,*::after{animation-play-state:paused!important;transition:none!important;caret-color:transparent!important}"
+const SCROLL_KEYS = new Set([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"])
+let frozen: { style: HTMLStyleElement; videos: HTMLVideoElement[] } | undefined
+
+function setFrozen(on: boolean, scroll?: { x: number; y: number }) {
+  if (on && !frozen) {
+    const style = document.createElement("style")
+    style.textContent = FREEZE_CSS
+    document.head.appendChild(style)
+    const videos = Array.from(document.querySelectorAll("video")).filter((v) => !v.paused)
+    videos.forEach((v) => v.pause())
+    frozen = { style, videos }
+  } else if (!on && frozen) {
+    frozen.style.remove()
+    frozen.videos.forEach((v) => void v.play().catch(() => {}))
+    frozen = undefined
+  }
+  if (on && scroll) window.scrollTo({ left: scroll.x, top: scroll.y, behavior: "instant" })
+}
+
+let freezing = false
+
+function listenFreeze() {
+  if (freezing) return
+  freezing = true
+  window.addEventListener("message", (e) => {
+    if (e.data?.source === "stageboard" && e.data.type === "freeze") setFrozen(Boolean(e.data.on), e.data.scroll)
+  })
+  const block = (e: Event) => {
+    if (!frozen) return
+    if (e instanceof KeyboardEvent && !SCROLL_KEYS.has(e.key)) return
+    e.preventDefault()
+  }
+  for (const type of ["wheel", "touchmove", "keydown"]) window.addEventListener(type, block, { capture: true, passive: false })
+}
+
 export async function renderFrame(container: HTMLElement | null, options: FrameOptions) {
   if (!container) return
   const params = new URLSearchParams(location.search)
@@ -114,7 +150,10 @@ export async function renderFrame(container: HTMLElement | null, options: FrameO
   if (!shot) {
     startBridge(options.base)
     mountDevtools({ base: options.base, embedded: params.has("sb-embed") })
-    if (params.has("sb-embed")) forwardShortcuts()
+    if (params.has("sb-embed")) {
+      forwardShortcuts()
+      listenFreeze()
+    }
   }
   const entry = options.index.find((s) => s.id === id)
   if (!entry) {

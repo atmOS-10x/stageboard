@@ -16,6 +16,7 @@ import {
 import { useStageboard } from "stageboard/react"
 import type { Job, Region } from "stageboard"
 import { frameScroll, type VariantRef, type Viewport } from "./api"
+import type { StoredDraft } from "./draft-store"
 import { Pin } from "./pins"
 
 export type Surface = {
@@ -28,12 +29,13 @@ export type Surface = {
   scrollsFrame?: boolean
 }
 
-export type Draft = { surface: Surface; region: Region; viewport: Viewport }
+export type Draft = { surface: Surface; region: Region; viewport: Viewport; scroll?: { x: number; y: number }; restored?: StoredDraft }
 
 type AnnotateValue = {
   base: string
   active: boolean
   draft?: Draft
+  restore?: StoredDraft
   begin: (draft: Draft) => void
   anchor: RefObject<HTMLElement | null>
   pins: Job[]
@@ -91,6 +93,7 @@ export function AnnotateProvider({
   base,
   active,
   draft,
+  restore,
   onBegin,
   openPin,
   onTogglePin,
@@ -100,6 +103,7 @@ export function AnnotateProvider({
   base: string
   active: boolean
   draft?: Draft
+  restore?: StoredDraft
   onBegin: (draft: Draft) => void
   openPin?: string
   onTogglePin: (id: string | undefined) => void
@@ -121,8 +125,8 @@ export function AnnotateProvider({
     [openPin, onTogglePin],
   )
   const value = useMemo<AnnotateValue>(
-    () => ({ base, active, draft, begin: onBegin, anchor, pins, openPin, pinAnchor, togglePin }),
-    [base, active, draft, onBegin, pins, openPin, togglePin],
+    () => ({ base, active, draft, restore, begin: onBegin, anchor, pins, openPin, pinAnchor, togglePin }),
+    [base, active, draft, restore, onBegin, pins, openPin, togglePin],
   )
   return <AnnotateContext.Provider value={value}>{children}</AnnotateContext.Provider>
 }
@@ -230,6 +234,12 @@ export function AnnotationLayer({
   const pins = useMemo(() => ctx.pins.filter((j) => belongsTo(j, surface)), [ctx.pins, surface])
   const sync = useScrollSync(surface.frame, ref, layer, viewport, Boolean(drawing || isDraft || pins.length))
 
+  useEffect(() => {
+    const saved = ctx.restore
+    if (saved?.surfaceKey !== surface.key) return
+    ctx.begin({ surface, region: saved.region, viewport: saved.viewport, scroll: saved.scroll, restored: saved })
+  }, [ctx.restore, ctx.begin, surface])
+
   const measure = () => {
     const el = ref.current!
     const box = el.getBoundingClientRect()
@@ -277,11 +287,11 @@ export function AnnotationLayer({
     const p = toStory(e.clientX, e.clientY)
     const region = g.moved ? regionBetween(g.start, p) : pointRegion(g.start, g.vp, g.scroll)
     if (region.width < 2 || region.height < 2) return
-    ctx.begin({ surface, region: roundRegion(region), viewport: { width: Math.round(g.vp.width), height: Math.round(g.vp.height) } })
+    ctx.begin({ surface, region: roundRegion(region), viewport: { width: Math.round(g.vp.width), height: Math.round(g.vp.height) }, scroll: g.scroll })
   }
 
   const onWheel = (e: RWheelEvent) => {
-    if (!surface.scrollsFrame) return
+    if (!surface.scrollsFrame || isDraft) return
     const win = surface.frame?.()?.contentWindow
     if (!win) return
     try {
@@ -346,6 +356,73 @@ function PinSlot({ job }: { job: Job }) {
 }
 
 export type Placement = { left: number; top: number; origin: string }
+
+type Box = { x: number; y: number; width: number; height: number }
+
+export type ComposerPlacement = { panel: Box; origin: string; preview?: Box }
+
+const PANEL_WIDTH = 420
+const PANEL_GAP = 8
+const PANEL_MARGIN = 12
+const MIN_PREVIEW = 240
+
+export function composerPlacement(selection: Box, panelHeight: number, vw: number, vh: number): ComposerPlacement {
+  const width = Math.min(PANEL_WIDTH, vw - PANEL_MARGIN * 2)
+  const height = Math.min(panelHeight, vh - PANEL_MARGIN * 2)
+  const clampX = (x: number) => clamp(x, PANEL_MARGIN, vw - width - PANEL_MARGIN)
+  const clampY = (y: number) => clamp(y, PANEL_MARGIN, vh - height - PANEL_MARGIN)
+  const candidates = [
+    { x: selection.x + selection.width + PANEL_GAP, y: clampY(selection.y), origin: "left top" },
+    { x: selection.x - width - PANEL_GAP, y: clampY(selection.y), origin: "right top" },
+    { x: clampX(selection.x), y: selection.y + selection.height + PANEL_GAP, origin: "left top" },
+    { x: clampX(selection.x), y: selection.y - height - PANEL_GAP, origin: "left bottom" },
+  ]
+  const fits = candidates.find(
+    (c) => c.x >= PANEL_MARGIN && c.y >= PANEL_MARGIN && c.x + width <= vw - PANEL_MARGIN && c.y + height <= vh - PANEL_MARGIN,
+  )
+  if (fits) return { panel: { x: fits.x, y: fits.y, width, height }, origin: fits.origin }
+  const previewWidth = vw - width - PANEL_MARGIN * 2 - PANEL_GAP
+  if (previewWidth >= MIN_PREVIEW) {
+    return {
+      panel: { x: vw - width - PANEL_MARGIN, y: clampY((vh - height) / 2), width, height },
+      origin: "right center",
+      preview: { x: PANEL_MARGIN, y: PANEL_MARGIN, width: previewWidth, height: vh - PANEL_MARGIN * 2 },
+    }
+  }
+  const stacked = Math.min(height, Math.floor(vh * 0.6))
+  return {
+    panel: { x: PANEL_MARGIN, y: vh - stacked - PANEL_MARGIN, width, height: stacked },
+    origin: "center bottom",
+    preview: { x: PANEL_MARGIN, y: PANEL_MARGIN, width: vw - PANEL_MARGIN * 2, height: Math.max(0, vh - stacked - PANEL_MARGIN * 2 - PANEL_GAP) },
+  }
+}
+
+export function useComposerPlacement(
+  anchor: RefObject<HTMLElement | null>,
+  floating: RefObject<HTMLElement | null>,
+): ComposerPlacement | undefined {
+  const [placement, setPlacement] = useState<ComposerPlacement>()
+  useLayoutEffect(() => {
+    let raf = 0
+    let last = ""
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const a = anchor.current
+      const f = floating.current
+      if (!a?.isConnected || !f) return
+      const r = a.getBoundingClientRect()
+      const next = composerPlacement({ x: r.left, y: r.top, width: r.width, height: r.height }, f.scrollHeight, window.innerWidth, window.innerHeight)
+      const key = JSON.stringify(next)
+      if (key !== last) {
+        last = key
+        setPlacement(next)
+      }
+    }
+    tick()
+    return () => cancelAnimationFrame(raf)
+  }, [anchor, floating])
+  return placement
+}
 
 const MARGIN = 10
 

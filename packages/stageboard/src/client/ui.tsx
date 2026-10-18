@@ -6,6 +6,7 @@ import { AnnotateProvider, AnnotationLayer, useDismissedPins, type Draft, type S
 import { fetchUsedVariants, storyUrl } from "./api"
 import { Canvas, type PageNode } from "./canvas"
 import { Composer } from "./composer"
+import { clearDraft, readDraft, type StoredDraft } from "./draft-store"
 import { Gallery } from "./gallery"
 import { AnnotateIcon, InspectIcon, LayersIcon } from "./icons"
 import { PinDetails } from "./pins"
@@ -139,6 +140,7 @@ function App({ index, loaders, base }: UIOptions) {
   const [inspecting, setInspectingState] = useState(false)
   const [annotating, setAnnotatingState] = useState(false)
   const [draft, setDraft] = useState<Draft>()
+  const [restore, setRestore] = useState<StoredDraft | undefined>(readDraft)
   const [openPin, setOpenPin] = useState<string>()
   const [dismissed, dismiss] = useDismissedPins()
   const [gallery, setGallery] = useState(false)
@@ -245,10 +247,39 @@ function App({ index, loaders, base }: UIOptions) {
     fetchUsedVariants(base).then((known) => setUsed((u) => ({ ...known, ...u })))
   }, [base])
 
+  const routeKey = JSON.stringify(route)
+  const lastRoute = useRef(routeKey)
   useEffect(() => {
+    if (lastRoute.current === routeKey) return
+    lastRoute.current = routeKey
+    setRestore(undefined)
     setDraft(undefined)
     setOpenPin(undefined)
-  }, [route])
+  }, [routeKey])
+
+  const begin = useCallback((next: Draft) => {
+    setRestore(undefined)
+    setDraft(next)
+  }, [])
+
+  useEffect(() => {
+    if (!draft && !restore) clearDraft()
+  }, [draft, restore])
+
+  useEffect(() => {
+    if (!draft) return
+    const frame = draft.surface.frame
+    const post = (on: boolean) => frame?.()?.contentWindow?.postMessage({ source: "stageboard", type: "freeze", on, scroll: on ? draft.scroll : undefined }, "*")
+    post(true)
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.source === "stageboard" && e.data.type === "ready" && e.source && e.source === frame?.()?.contentWindow) post(true)
+    }
+    window.addEventListener("message", onMessage)
+    return () => {
+      window.removeEventListener("message", onMessage)
+      post(false)
+    }
+  }, [draft?.surface, draft?.scroll])
 
   const onSent = useCallback(() => setDraft(undefined), [])
 
@@ -300,7 +331,7 @@ function App({ index, loaders, base }: UIOptions) {
         {!connected && <span className="sbu-dim" title="Start it with stageboard dev">Bridge offline</span>}
       </header>
       <Sidebar index={index} active={current?.id} onPick={(id) => go({ view: "story", id })} />
-      <AnnotateProvider base={base} active={annotating} draft={draft} onBegin={setDraft} openPin={openPin} onTogglePin={setOpenPin} dismissed={dismissed}>
+      <AnnotateProvider base={base} active={annotating} draft={draft} restore={restore} onBegin={begin} openPin={openPin} onTogglePin={setOpenPin} dismissed={dismissed}>
       <main className="sbu-main" data-annotating={annotating}>
         {route.view === "canvas" &&
           (pages.length ? (

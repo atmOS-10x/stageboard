@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react"
 import { submitChangeRequest, useStageboard } from "stageboard/react"
-import type { ChangeRequest, Job, RegionDescription, Upload } from "stageboard"
-import { besideRect, useAnchored, useAnnotate, useOutsidePointer, type Draft } from "./annotate"
-import { describeInFrame, describeOnServer, uploadImage } from "./api"
-import { ArrowUpIcon, CloseIcon, LayersIcon, PlusIcon } from "./icons"
-
-type Mode = "variants" | "edit"
+import type { ChangeRequest, Job, Upload } from "stageboard"
+import { useAnnotate, useComposerPlacement, useOutsidePointer, type Draft } from "./annotate"
+import { uploadImage, uploadUrl, withQuery } from "./api"
+import { readPrefs, saveDraft, savePrefs, type ComposerMode } from "./draft-store"
+import { ArrowUpIcon, CloseIcon, PlusIcon } from "./icons"
 
 type Attachment = {
   localId: string
@@ -18,33 +17,24 @@ type Attachment = {
 
 const MAX_TEXTAREA = 240
 const EXIT_MS = 140
-const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
 
 function imagesFrom(list: FileList | File[] | null | undefined): File[] {
   return Array.from(list ?? []).filter((f) => f.type.startsWith("image/"))
 }
 
-function useDescription(draft: Draft, base: string) {
-  const [description, setDescription] = useState<RegionDescription>()
-  const { surface, region, viewport } = draft
-  useEffect(() => {
-    setDescription(undefined)
-    const local = describeInFrame(surface.frame?.(), region)
-    if (local && (local.components.length || local.variantIds.length)) {
-      setDescription(local)
-      return
-    }
-    const ctrl = new AbortController()
-    describeOnServer(base, surface.storyId, region, viewport, surface.variant ? [surface.variant] : [], ctrl.signal)
-      .then(setDescription)
-      .catch(() => {})
-    return () => ctrl.abort()
-  }, [base, surface, region, viewport])
-  return description
+function restored(base: string, uploads: Upload[]): Attachment[] {
+  return uploads.map((upload) => ({
+    localId: upload.id,
+    name: upload.name,
+    preview: uploadUrl(base, upload.path),
+    status: "done",
+    upload,
+    promise: Promise.resolve(upload),
+  }))
 }
 
-function useAttachments(base: string) {
-  const [items, setItems] = useState<Attachment[]>([])
+function useAttachments(base: string, initial: Upload[]) {
+  const [items, setItems] = useState<Attachment[]>(() => restored(base, initial))
   const itemsRef = useRef(items)
   itemsRef.current = items
 
@@ -96,15 +86,30 @@ function useAttachments(base: string) {
   const remove = useCallback((localId: string) => {
     setItems((list) => {
       const gone = list.find((it) => it.localId === localId)
-      if (gone) URL.revokeObjectURL(gone.preview)
+      if (gone?.preview.startsWith("blob:")) URL.revokeObjectURL(gone.preview)
       return list.filter((it) => it.localId !== localId)
     })
     files.current.delete(localId)
   }, [])
 
-  useEffect(() => () => itemsRef.current.forEach((it) => URL.revokeObjectURL(it.preview)), [])
+  useEffect(() => () => itemsRef.current.forEach((it) => it.preview.startsWith("blob:") && URL.revokeObjectURL(it.preview)), [])
 
   return { items, add, retry, remove }
+}
+
+function previewUrl(base: string, draft: Draft): string {
+  const { surface, region, viewport } = draft
+  const pad = 16
+  return withQuery(`${base}/api/shot`, {
+    story: surface.storyId,
+    w: viewport.width,
+    h: viewport.height,
+    x: Math.max(0, region.x - pad),
+    y: Math.max(0, region.y - pad),
+    rw: region.width + pad * 2,
+    rh: region.height + pad * 2,
+    variant: surface.variant ? `${surface.variant.id}:${surface.variant.key}` : undefined,
+  })
 }
 
 export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: () => void; onSent: (job: Job) => void }) {
@@ -112,25 +117,46 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
   const ref = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  const placement = useAnchored(anchor, ref, besideRect(12))
+  const placement = useComposerPlacement(anchor, ref)
   const connected = useStageboard((s) => s.connected)
-  const description = useDescription(draft, base)
-  const { items, add, retry, remove } = useAttachments(base)
-  const [note, setNote] = useState("")
-  const [mode, setMode] = useState<Mode>("variants")
-  const [count, setCount] = useState(3)
+  const { items, add, retry, remove } = useAttachments(base, draft.restored?.attachments ?? [])
+  const [note, setNote] = useState(draft.restored?.note ?? "")
+  const [prefs, setPrefs] = useState(readPrefs)
+  const { mode, count } = prefs
   const [phase, setPhase] = useState<"idle" | "sending" | "leaving">("idle")
   const [error, setError] = useState<string>()
   const [dropping, setDropping] = useState(false)
+  const [previewLoaded, setPreviewLoaded] = useState(false)
   const dragDepth = useRef(0)
   const { surface } = draft
 
   const empty = !note.trim() && items.length === 0
   const canSend = Boolean(note.trim()) && connected && phase === "idle"
+  const preview = placement?.preview
+  const previewSrc = preview ? previewUrl(base, draft) : undefined
+
+  const setPref = (next: Partial<typeof prefs>) =>
+    setPrefs((cur) => {
+      const merged = { ...cur, ...next }
+      savePrefs(merged)
+      return merged
+    })
+
+  const uploaded = items.flatMap((it) => (it.upload ? [it.upload] : []))
+  const uploadedKey = uploaded.map((u) => u.id).join(",")
+  useEffect(() => {
+    if (phase !== "idle") return
+    saveDraft({ surfaceKey: surface.key, region: draft.region, viewport: draft.viewport, scroll: draft.scroll, note, attachments: uploaded })
+  }, [note, uploadedKey, draft, phase])
+
+  useEffect(() => setPreviewLoaded(false), [previewSrc])
 
   const placed = Boolean(placement)
   useEffect(() => {
-    if (placed) textarea.current?.focus({ preventScroll: true })
+    if (!placed) return
+    const el = textarea.current
+    el?.focus({ preventScroll: true })
+    el?.setSelectionRange(el.value.length, el.value.length)
   }, [draft, placed])
 
   useLayoutEffect(() => {
@@ -218,133 +244,123 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
     },
   }
 
-  const component = description?.components[0]?.name
-  const variantIds = (description?.variantIds ?? []).filter((id) => id !== surface.variant?.id)
-
   return (
-    <div
-      ref={ref}
-      className="sbu-float sbu-composer"
-      data-placed={Boolean(placement)}
-      data-phase={phase}
-      style={placement ? { left: placement.left, top: placement.top, transformOrigin: placement.origin } : undefined}
-      role="dialog"
-      aria-label="Annotate region"
-      onKeyDown={(e) => {
-        e.stopPropagation()
-        if (e.key === "Escape") {
-          e.preventDefault()
-          onClose()
-        }
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault()
-          void send()
-        }
-      }}
-      {...dropHandlers}
-    >
-      <div className="sbu-composer-ctx">
-        <div className="sbu-ctx-list">
-          <span className="sbu-ctx" title={`${surface.title} · ${surface.storyId}`}>
-            <span>{surface.title}</span>
-          </span>
-          {surface.variant && (
-            <span className="sbu-ctx" title={`${surface.variant.id}:${surface.variant.key}`}>
-              <LayersIcon size={11} />
-              <span>{surface.variant.label ?? surface.variant.key}</span>
-            </span>
-          )}
-          {component && (
-            <span className="sbu-ctx sbu-ctx-mono" title={description?.components.map((c) => c.name).join(" ‹ ")}>
-              <span>{component}</span>
-            </span>
-          )}
-          {variantIds.map((id) => (
-            <span key={id} className="sbu-ctx" title="Variant boundary under the selection">
-              <LayersIcon size={11} />
-              <span>{id}</span>
-            </span>
-          ))}
+    <>
+      {preview && previewSrc && (
+        <div className="sbu-focus" data-phase={phase}>
+          <div className="sbu-focus-shot" style={{ left: preview.x, top: preview.y, width: preview.width, height: preview.height }} data-loaded={previewLoaded}>
+            <img src={previewSrc} alt="Selected area" onLoad={() => setPreviewLoaded(true)} />
+            {!previewLoaded && <span className="sbu-spin" aria-hidden="true" />}
+          </div>
         </div>
-        <button type="button" className="sbu-icon" onClick={onClose} aria-label="Close">
-          <CloseIcon size={13} />
-        </button>
-      </div>
-
-      {items.length > 0 && (
-        <ul className="sbu-chips-img">
-          {items.map((it) => (
-            <li key={it.localId} className="sbu-imgchip" data-status={it.status} title={it.name}>
-              <img src={it.preview} alt={it.name} />
-              {it.status === "uploading" && <span className="sbu-imgchip-veil"><span className="sbu-spin" /></span>}
-              {it.status === "error" && (
-                <button type="button" className="sbu-imgchip-veil" onClick={() => retry(it.localId)} aria-label={`Retry ${it.name}`}>
-                  Retry
-                </button>
-              )}
-              <button type="button" className="sbu-imgchip-x" onClick={() => remove(it.localId)} aria-label={`Remove ${it.name}`}>
-                <CloseIcon size={9} />
-              </button>
-            </li>
-          ))}
-        </ul>
       )}
-
-      <textarea
-        ref={textarea}
-        className="sbu-composer-input"
-        rows={1}
-        value={note}
-        placeholder={mode === "variants" ? "What should the variants explore?" : "What should change here?"}
-        onChange={(e) => setNote(e.target.value)}
-        onPaste={onPaste}
-        disabled={phase !== "idle"}
-        aria-label="Note for the agent"
-      />
-
-      {error && <div className="sbu-composer-error">{error}</div>}
-      {!connected && <div className="sbu-composer-error">Bridge offline · start it with stageboard dev</div>}
-
-      <div className="sbu-composer-bar">
-        <button type="button" className="sbu-icon" onClick={() => fileInput.current?.click()} aria-label="Attach reference images" title="Attach images · or paste, or drop">
-          <PlusIcon size={15} />
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            add(imagesFrom(e.target.files))
-            e.target.value = ""
-          }}
-        />
-        <div className="sbu-seg" role="radiogroup" aria-label="Request kind">
-          <button type="button" role="radio" aria-checked={mode === "variants"} data-on={mode === "variants"} onClick={() => setMode("variants")}>
-            Variants
-          </button>
-          <button type="button" role="radio" aria-checked={mode === "edit"} data-on={mode === "edit"} onClick={() => setMode("edit")}>
-            Edit
-          </button>
-        </div>
-        {mode === "variants" && (
-          <div className="sbu-seg sbu-seg-count" role="radiogroup" aria-label="How many variants">
-            {[1, 2, 3, 4].map((n) => (
-              <button key={n} type="button" role="radio" aria-checked={count === n} data-on={count === n} onClick={() => setCount(n)}>
-                {n}
+      <div
+        ref={ref}
+        className="sbu-composer"
+        data-placed={placed}
+        data-phase={phase}
+        style={
+          placement
+            ? { left: placement.panel.x, top: placement.panel.y, width: placement.panel.width, transformOrigin: placement.origin }
+            : undefined
+        }
+        role="dialog"
+        aria-label="Annotate region"
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === "Escape") {
+            e.preventDefault()
+            onClose()
+          }
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+            e.preventDefault()
+            void send()
+          }
+        }}
+        {...dropHandlers}
+      >
+        <div className="sbu-composer-head">
+          <div className="sbu-seg" role="radiogroup" aria-label="Request kind">
+            {(["variants", "edit"] as ComposerMode[]).map((m) => (
+              <button key={m} type="button" role="radio" aria-checked={mode === m} data-on={mode === m} onClick={() => setPref({ mode: m })}>
+                {m === "variants" ? "Variants" : "Edit"}
               </button>
             ))}
           </div>
-        )}
-        <span className="sbu-spacer" />
-        {note.trim() && phase === "idle" && <span className="sbu-kbd-hint">{IS_MAC ? "⌘" : "Ctrl"} ↵</span>}
-        <button type="button" className="sbu-send" disabled={!canSend} onClick={() => void send()} aria-label="Send">
-          {phase === "idle" ? <ArrowUpIcon size={14} /> : <span className="sbu-spin" />}
-        </button>
-      </div>
+          <span className="sbu-spacer" />
+          <button type="button" className="sbu-icon" onClick={onClose} aria-label="Close">
+            <CloseIcon size={13} />
+          </button>
+        </div>
 
-      {dropping && <div className="sbu-drop">Drop images to attach</div>}
-    </div>
+        <div className="sbu-composer-card">
+          {items.length > 0 && (
+            <ul className="sbu-chips-img">
+              {items.map((it) => (
+                <li key={it.localId} className="sbu-imgchip" data-status={it.status} title={it.name}>
+                  <img src={it.preview} alt={it.name} />
+                  {it.status === "uploading" && <span className="sbu-imgchip-veil"><span className="sbu-spin" /></span>}
+                  {it.status === "error" && (
+                    <button type="button" className="sbu-imgchip-veil" onClick={() => retry(it.localId)} aria-label={`Retry ${it.name}`}>
+                      Retry
+                    </button>
+                  )}
+                  <button type="button" className="sbu-imgchip-x" onClick={() => remove(it.localId)} aria-label={`Remove ${it.name}`}>
+                    <CloseIcon size={9} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <textarea
+            ref={textarea}
+            className="sbu-composer-input"
+            rows={2}
+            value={note}
+            placeholder={mode === "variants" ? "What should the variants explore?" : "What should change here?"}
+            onChange={(e) => setNote(e.target.value)}
+            onPaste={onPaste}
+            disabled={phase !== "idle"}
+            aria-label="Note for the agent"
+          />
+
+          {error && <div className="sbu-composer-error">{error}</div>}
+          {!connected && <div className="sbu-composer-error">Bridge offline · start it with stageboard dev</div>}
+
+          <div className="sbu-composer-bar">
+            <button type="button" className="sbu-icon" onClick={() => fileInput.current?.click()} aria-label="Attach reference images" title="Attach reference images · or paste, or drop">
+              <PlusIcon size={15} />
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                add(imagesFrom(e.target.files))
+                e.target.value = ""
+              }}
+            />
+            {mode === "variants" && (
+              <div className="sbu-seg sbu-seg-count" role="radiogroup" aria-label="How many variants">
+                {[1, 2, 3, 4].map((n) => (
+                  <button key={n} type="button" role="radio" aria-checked={count === n} data-on={count === n} onClick={() => setPref({ count: n })}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+            <span className="sbu-spacer" />
+            <button type="button" className="sbu-send" disabled={!canSend} onClick={() => void send()} aria-label="Send" title="Send · Enter">
+              {phase === "idle" ? <ArrowUpIcon size={14} /> : <span className="sbu-spin" />}
+            </button>
+          </div>
+        </div>
+
+        {dropping && <div className="sbu-drop">Drop images to attach</div>}
+      </div>
+    </>
   )
 }
