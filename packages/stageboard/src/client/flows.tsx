@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react"
+import { createPortal } from "react-dom"
 import { createDream, createFlow, removeFlow, updateFlow, useStageboard } from "stageboard/react"
 import { DEVICES, type Device, type Flow, type FlowStep } from "stageboard"
-import { STORY_MIME, screenTitle, type ScreenNode } from "./browse"
+import { groupBy, screenGroup, STORY_MIME, screenTitle, type ScreenNode } from "./browse"
 import { markReveal, pendingReveals } from "./dreams"
 import { ArrowUpIcon, CloseIcon, PlusIcon } from "./icons"
 import { Thumb } from "./thumb"
@@ -329,64 +330,110 @@ function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => voi
   const [q, setQ] = useState("")
   const [describing, setDescribing] = useState(false)
   const [prompt, setPrompt] = useState("")
-  const ref = useRef<HTMLDivElement>(null)
+  const [sending, setSending] = useState(false)
+  const d = DEVICES[ctx.device]
   const shown = useMemo(
-    () => ctx.screens.filter((s) => !q || `${s.page.title ?? ""} ${s.entry.title} ${s.entry.name} ${s.page.route}`.toLowerCase().includes(q.toLowerCase())).slice(0, 40),
+    () => ctx.screens.filter((s) => !q || `${s.page.title ?? ""} ${s.entry.title} ${s.entry.name} ${s.page.route} ${s.page.group ?? ""}`.toLowerCase().includes(q.toLowerCase())),
     [ctx.screens, q],
   )
+  const groups = useMemo(() => groupBy(shown, screenGroup), [shown])
+
   useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      e.stopPropagation()
+      if (describing) setDescribing(false)
+      else onClose()
     }
-    window.addEventListener("pointerdown", onDown, true)
-    return () => window.removeEventListener("pointerdown", onDown, true)
-  }, [onClose])
-  return (
-    <div ref={ref} className="sbu-addstep" onKeyDown={(e) => e.key === "Escape" && onClose()}>
-      {describing ? (
-        <>
-          <textarea
-            className="sbu-dream-prompt"
-            autoFocus
-            placeholder="What should this new screen show?"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && prompt.trim()) {
-                e.preventDefault()
-                void onNew(prompt)
-              }
-            }}
-          />
-          <div className="sbu-dream-bar">
-            <button type="button" className="sbu-ghost" onClick={() => setDescribing(false)}>
-              Back
-            </button>
-            <span className="sbu-spacer" />
-            <button type="button" className="sbu-send" disabled={!prompt.trim()} onClick={() => void onNew(prompt)} aria-label="Build this screen">
-              <ArrowUpIcon size={14} />
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <input className="sbu-sketch-filter" placeholder="Find a screen" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
-          <button type="button" className="sbu-addstep-new" onClick={() => setDescribing(true)}>
-            <PlusIcon size={13} /> New screen, built by the agent
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [describing, onClose])
+
+  const build = async () => {
+    if (!prompt.trim() || sending) return
+    setSending(true)
+    await onNew(prompt).catch((e) => {
+      setSending(false)
+      pushToast({ tone: "error", title: "Couldn’t start the agent", body: errorText(e) })
+    })
+  }
+
+  return createPortal(
+    <div className="sbu-picker-scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sbu-picker" role="dialog" aria-label="Add a screen to the flow" data-device={ctx.device}>
+        <div className="sbu-picker-head">
+          {describing ? (
+            <span className="sbu-picker-title">New screen, built by the agent</span>
+          ) : (
+            <input
+              className="sbu-picker-search"
+              placeholder="Find a screen"
+              value={q}
+              autoFocus
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && shown[0]) onPick(shown[0].entry.id)
+              }}
+            />
+          )}
+          <button type="button" className="sbu-viewer-round" onClick={onClose} aria-label="Close" title="Close · Esc">
+            <CloseIcon size={14} />
           </button>
-          <ul>
-            {shown.map((s) => (
-              <li key={s.entry.id}>
-                <button type="button" onClick={() => onPick(s.entry.id)}>
-                  <span>{s.page.title ?? s.entry.name}</span>
-                  <span className="sbu-dim">{s.page.route}</span>
-                </button>
-              </li>
+        </div>
+        {describing ? (
+          <div className="sbu-picker-describe">
+            <textarea
+              className="sbu-picker-prompt"
+              autoFocus
+              placeholder="What should this screen show? The agent builds it as a page story next to the screen before it in the flow."
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  void build()
+                }
+              }}
+            />
+            <div className="sbu-dream-bar">
+              <button type="button" className="sbu-ghost" onClick={() => setDescribing(false)}>
+                Back to screens
+              </button>
+              <span className="sbu-spacer" />
+              <button type="button" className="sbu-send" disabled={!prompt.trim() || sending} onClick={() => void build()} aria-label="Build this screen">
+                {sending ? <span className="sbu-spin" /> : <ArrowUpIcon size={14} />}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="sbu-picker-body">
+            <button type="button" className="sbu-picker-new" onClick={() => setDescribing(true)}>
+              <span className="sbu-picker-new-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }}>
+                <WaveCanvas mode="render" fps={24} />
+                <PlusIcon size={22} />
+              </span>
+              <span className="sbu-picker-name">New screen</span>
+            </button>
+            {groups.map(([group, list]) => (
+              <section key={group} className="sbu-picker-group">
+                <h3>{group}</h3>
+                <div className="sbu-picker-grid">
+                  {list.map((s) => (
+                    <button key={s.entry.id} type="button" className="sbu-picker-item" onClick={() => onPick(s.entry.id)} title={s.page.route}>
+                      <span className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }}>
+                        <Thumb src={ctx.thumbUrl(s.entry.id)} />
+                      </span>
+                      <span className="sbu-picker-name">{screenTitle(s)}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
             ))}
-            {!shown.length && <li className="sbu-dim">No screens match</li>}
-          </ul>
-        </>
-      )}
-    </div>
+            {!shown.length && <p className="sbu-dim">No screens match “{q}”.</p>}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
   )
 }
