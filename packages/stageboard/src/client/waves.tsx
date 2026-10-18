@@ -55,12 +55,20 @@ export function WaveCanvas({ mode, underlay, onDone, fps = 60 }: { mode: Mode; u
     if (!canvas) return
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
     const img = underlay ? Object.assign(new Image(), { src: underlay }) : undefined
-    const start = performance.now()
+    const start = performance.now() - (mode === "render" ? Math.random() * 6000 : 0)
     const frameMs = 1000 / fps - 2
     let raf = 0
     let last = 0
+    let visible = true
+    const io = new IntersectionObserver(([entry]) => {
+      const was = visible
+      visible = entry.isIntersecting
+      if (visible && !was) raf = requestAnimationFrame(draw)
+    })
+    io.observe(canvas)
 
     const draw = (now: number) => {
+      if (!visible && mode === "render") return
       if (mode === "render" && last && now - last < frameMs) {
         raf = requestAnimationFrame(draw)
         return
@@ -118,7 +126,10 @@ export function WaveCanvas({ mode, underlay, onDone, fps = 60 }: { mode: Mode; u
       if (!reduce || mode === "reveal") raf = requestAnimationFrame(draw)
     }
     raf = requestAnimationFrame(draw)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      io.disconnect()
+    }
   }, [mode, underlay, fps])
 
   return <canvas ref={ref} className="sbu-waves" data-mode={mode} aria-hidden="true" />

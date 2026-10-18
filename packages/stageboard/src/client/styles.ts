@@ -147,14 +147,22 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 
 
 .sbu-thumb { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; background: #f2f2f4; isolation: isolate; pointer-events: none; }
-.sbu-thumb[data-state="loading"] { background: linear-gradient(100deg, #eeeef1 30%, #f8f8fa 50%, #eeeef1 70%); background-size: 300% 100%; animation: sbu-shimmer 1.9s ease-in-out infinite; }
+.sbu-thumb[data-state="loading"] { background: #16151e; }
+.sbu-thumb-note[data-on-waves="true"] { padding: 5px 12px; border-radius: 999px; background: rgba(20,19,28,.72); font-size: 12.5px; font-weight: 500; letter-spacing: .02em; }
+.sbu-shimmer {
+  color: #b9b0e8;
+  background: linear-gradient(105deg, #9d94cc 0 38%, #ffffff 50%, #9d94cc 62% 100%);
+  background-size: 300% 100%; background-position: 100% 0;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: sbu-shimmer 2.2s linear infinite;
+}
 .sbu-thumb[data-state="error"] { z-index: 1; background: #f3f3f5; }
 .sbu-thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; animation: sbu-fade .28s ease both; }
 .sbu-thumb-img[data-incoming="true"] { opacity: 0; animation: none; }
 .sbu-thumb-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(calc(1 / max(var(--sbu-k, 1), .5))); display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #9a9aa4; white-space: nowrap; letter-spacing: .01em; z-index: 1; }
 .sbu-thumb-note button { pointer-events: auto; border: 0; background: none; padding: 0; font: inherit; color: #5c5c67; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(92,92,103,.3); text-underline-offset: 3px; }
 .sbu-thumb-note button:hover { color: #2c2c33; text-decoration-color: currentColor; }
-@keyframes sbu-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@keyframes sbu-shimmer { 0% { background-position: 100% 0; } 70%, 100% { background-position: 0 0; } }
 @keyframes sbu-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sbu-rot { to { transform: rotate(360deg); } }
 
@@ -311,7 +319,7 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 @media (prefers-reduced-motion: reduce) {
   .sbu-thumb[data-state="loading"] { animation: none; }
   .sbu-spin { animation-duration: 2.4s; }
-  .sbu-float[data-placed="true"], .sbu-float[data-phase="leaving"], .sbu-composer[data-placed="true"], .sbu-composer[data-phase="leaving"], .sbu-focus, .sbu-pin, .sbu-imgchip, .sbu-sel, .sbu-annot-hint, .sbu-thumb-img, .sbu-drop { animation: none; }
+  .sbu-shimmer, .sbu-float[data-placed="true"], .sbu-float[data-phase="leaving"], .sbu-composer[data-placed="true"], .sbu-composer[data-phase="leaving"], .sbu-focus, .sbu-pin, .sbu-imgchip, .sbu-sel, .sbu-annot-hint, .sbu-thumb-img, .sbu-drop { animation: none; }
   .sbu-frame-wrap, .sbu-sel[data-pin] { transition: none; }
 }
 `

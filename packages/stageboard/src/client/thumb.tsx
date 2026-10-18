@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import { withQuery } from "./api"
+import { Shimmer } from "./shimmer"
+import { WaveCanvas } from "./waves"
 
 export function Thumb({ src, className }: { src: string; className?: string }) {
   const [retry, setRetry] = useState(0)
@@ -27,7 +29,14 @@ export function Thumb({ src, className }: { src: string; className?: string }) {
           onError={() => setFailed(requested)}
         />
       )}
-      {!shown && loading && <span className="sbu-thumb-note">Rendering…</span>}
+      {!shown && loading && (
+        <>
+          <WaveCanvas mode="render" fps={24} />
+          <span className="sbu-thumb-note" data-on-waves="true">
+            <Shimmer>Rendering</Shimmer>
+          </span>
+        </>
+      )}
       {broken && (
         <span className="sbu-thumb-note" data-error="true">
           Couldn’t render
