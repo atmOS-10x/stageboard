@@ -7,7 +7,7 @@ import pc from "picocolors"
 import { API_BASE } from "../core/protocol"
 import { loadConfig } from "./config"
 import { buildIndex } from "./indexer"
-import { createStageboardServer } from "./server"
+import { createStageboardServer, findRunningServer } from "./server"
 import { shoot } from "./shot"
 import { writeVariantsModule } from "./variants"
 
@@ -77,11 +77,27 @@ cli
     for (const s of index) console.log(`${pc.cyan(s.id.padEnd(48))} ${pc.dim(s.file)}${s.hasPage ? pc.magenta(" page") : ""}`)
   })
 
-cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, list_variants, compare_variants, select_variant)").action(async (opts) => {
+cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, list_variants, compare_variants, select_variant, complete_job)").action(async (opts) => {
   const config = await loadConfig(process.cwd(), opts.config)
   const { runMcpServer } = await import("./mcp")
   await runMcpServer(config)
 })
+
+cli
+  .command("done <job> [summary]", "Tell the running stageboard that an agent job is finished")
+  .option("--failed", "The job could not be done")
+  .action(async (job: string, summary: string | undefined, opts) => {
+    const config = await loadConfig(process.cwd(), opts.config)
+    const base = await findRunningServer(config)
+    if (!base) throw new Error("No running stageboard dev server found")
+    const res = await fetch(`${base}${API_BASE}/api/jobs/${encodeURIComponent(job)}/complete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ summary, failed: Boolean(opts.failed) }),
+    })
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
+    console.log(`job ${job} marked ${opts.failed ? "failed" : "done"}`)
+  })
 
 cli
   .command("skill [dir]", "Install the stageboard agent skill into .claude/skills and .agents/skills")

@@ -81,10 +81,19 @@ function contextSection(job: Job, request: ChangeRequest): string {
   return lines.join("\n")
 }
 
+function doneSection(config: ResolvedConfig, job: Job): string {
+  return [
+    "## When you are done",
+    `Your job id is \`${job.id}\`. As your very last step, report it finished so the user's board stops showing it as running:`,
+    `call the stageboard MCP tool \`complete_job\` with job \`${job.id}\` and a one-sentence summary, or run \`npx stageboard done ${job.id} "<summary>"\` from ${config.root}.`,
+    "Add `failed: true` (or `--failed`) if you could not do what was asked.",
+  ].join("\n")
+}
+
 const MCP_HINT = [
   "## stageboard tools",
   "If a `stageboard` skill is installed (.claude/skills or .agents/skills), follow it.",
-  "If the `stageboard` MCP server is connected, use its tools: `list_stories`, `screenshot` (story, optional variants, region or full page), `list_variants`, `compare_variants` and `select_variant`. They work without the app running. Otherwise use the `npx stageboard` CLI described below.",
+  "If the `stageboard` MCP server is connected, use its tools: `list_stories`, `screenshot` (story, optional variants, region or full page), `list_variants`, `compare_variants` and `select_variant` and `complete_job`. They work without the app running. Otherwise use the `npx stageboard` CLI described below.",
 ].join("\n")
 
 export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest): string {
@@ -138,6 +147,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     "- Follow the project's existing conventions (read nearby files and any CLAUDE.md / AGENTS.md).",
     "- Finish with a one-line summary per change.",
   )
+  lines.push("", doneSection(config, job))
   if (config.instructions) lines.push("", "## Project notes", config.instructions.trim())
   lines.push("", "Page context (JSON):", JSON.stringify(pageContext(request), null, 2))
   return lines.join("\n")

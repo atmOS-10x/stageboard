@@ -78,6 +78,7 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 @keyframes sbu-rot { to { transform: rotate(360deg); } }
 
 .sbu-annot { position: absolute; inset: 0; z-index: 3; pointer-events: none; container-type: size; }
+.sbu-annot-layer { position: absolute; inset: 0; pointer-events: none; will-change: transform; }
 .sbu-annot-catch { position: absolute; inset: 0; pointer-events: auto; cursor: crosshair; touch-action: none; border-radius: inherit; transition: box-shadow .15s ease; }
 .sbu-annot-catch:hover { box-shadow: inset 0 0 0 calc(1px / var(--sbu-k, 1)) rgba(160,144,255,.45); }
 .sbu-sel {

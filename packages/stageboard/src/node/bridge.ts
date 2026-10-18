@@ -28,6 +28,7 @@ function gitRoot(dir: string): string {
 export class Bridge {
   private state: BridgeState
   private runs = new Map<string, AgentRun>()
+  private completions = new Map<string, (result: { ok: boolean; error?: string }) => void>()
   private provider: AgentProvider
   private stateFile: string
   private rescanTimer?: ReturnType<typeof setTimeout>
@@ -208,7 +209,9 @@ export class Bridge {
       job.externalId = run.externalId
       job.externalUrl = run.externalUrl
       this.bump()
-      const result = await run.done
+      const reported = new Promise<{ ok: boolean; error?: string }>((resolve) => this.completions.set(job.id, resolve))
+      const result = await Promise.race([run.done, reported])
+      run.detach?.()
       if ((job.status as Job["status"]) === "cancelled") return
       await this.refreshVariants()
       job.status = result.ok ? "done" : "failed"
@@ -218,9 +221,20 @@ export class Bridge {
       job.error = (e as Error).message
     } finally {
       this.runs.delete(job.id)
+      this.completions.delete(job.id)
       job.updatedAt = new Date().toISOString()
       this.bump()
     }
+  }
+
+  complete(id: string, report: { summary?: string; failed?: boolean }): Job | undefined {
+    const job = this.state.jobs.find((j) => j.id === id)
+    if (!job) return undefined
+    if (report.summary) job.summary = report.summary.slice(0, 2000)
+    const resolve = this.completions.get(id)
+    if (resolve) resolve(report.failed ? { ok: false, error: report.summary || "the agent reported a failure" } : { ok: true })
+    else this.bump()
+    return job
   }
 
   cancel(id: string) {
@@ -267,6 +281,14 @@ export class Bridge {
       if (req.method === "POST" && cancel) {
         this.cancel(cancel[1])
         send(200, { ok: true })
+        return true
+      }
+      const complete = /^\/jobs\/([\w-]+)\/complete$/.exec(pathname)
+      if (req.method === "POST" && complete) {
+        const body = await readJson(req)
+        const job = this.complete(complete[1], { summary: body.summary ? String(body.summary) : undefined, failed: Boolean(body.failed) })
+        if (!job) return send(404, { error: `no job ${complete[1]}` }), true
+        send(200, { ok: true, status: job.status })
         return true
       }
       const prompt = /^\/jobs\/([\w-]+)\/prompt$/.exec(pathname)

@@ -40,7 +40,7 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 - **Annotate.** Drag over anything in the site map, a story or the variants gallery. Write a note, paste reference images, and send it to an agent.
 - **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Production renders the original.
 - **`stageboard shot`.** A headless screenshot of any story, variant or region. Agents use it to check their own work.
-- **MCP server.** `list_stories`, `screenshot`, `list_variants`, `compare_variants` and `select_variant`, attached to Claude and Codex agents automatically.
+- **MCP server.** `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant` and `complete_job` (agents report when they are done), attached to Claude and Codex agents automatically.
 
 <p align="center">
   <img src=".github/assets/variants.png" alt="Variants gallery" width="880" />

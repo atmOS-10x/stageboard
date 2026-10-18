@@ -162,30 +162,54 @@ function roundRegion(r: Region): Region {
   return { x: Math.round(r.x), y: Math.round(r.y), width: Math.max(1, Math.round(r.width)), height: Math.max(1, Math.round(r.height)) }
 }
 
-function boxStyle(region: Region, vp: Viewport, scroll: { x: number; y: number }): CSSProperties {
+function boxStyle(region: Region, vp: Viewport): CSSProperties {
   const u = 100 / vp.width
   return {
-    left: `${(region.x - scroll.x) * u}cqw`,
-    top: `${(region.y - scroll.y) * u}cqw`,
+    left: `${region.x * u}cqw`,
+    top: `${region.y * u}cqw`,
     width: `${region.width * u}cqw`,
     height: `${region.height * u}cqw`,
   }
 }
 
-function useFrameScroll(frame: Surface["frame"], watching: boolean) {
-  const [scroll, setScroll] = useState({ x: 0, y: 0 })
-  useEffect(() => {
+function useScrollSync(
+  frame: Surface["frame"],
+  host: RefObject<HTMLDivElement | null>,
+  layer: RefObject<HTMLDivElement | null>,
+  viewport: Viewport | undefined,
+  watching: boolean,
+) {
+  const last = useRef("")
+  const sync = useCallback(() => {
+    const el = layer.current
+    const box = host.current
+    if (!el || !box) return
+    const off = frameScroll(frame?.())
+    const s = viewport ? box.offsetWidth / viewport.width : 1
+    const next = `translate(${-off.x * s}px, ${-off.y * s}px)`
+    if (next !== last.current) el.style.transform = last.current = next
+  }, [frame, host, layer, viewport])
+  useLayoutEffect(() => {
     if (!frame || !watching) return
     let raf = 0
+    let win: Window | null | undefined
     const tick = () => {
-      const next = frameScroll(frame())
-      setScroll((prev) => (prev.x === next.x && prev.y === next.y ? prev : next))
+      const current = frame()?.contentWindow
+      if (current !== win) {
+        win?.removeEventListener("scroll", sync)
+        win = current
+        win?.addEventListener("scroll", sync, { passive: true })
+      }
+      sync()
       raf = requestAnimationFrame(tick)
     }
     tick()
-    return () => cancelAnimationFrame(raf)
-  }, [frame, watching])
-  return frame ? scroll : { x: 0, y: 0 }
+    return () => {
+      cancelAnimationFrame(raf)
+      win?.removeEventListener("scroll", sync)
+    }
+  }, [frame, watching, sync])
+  return sync
 }
 
 export function AnnotationLayer({
@@ -199,11 +223,12 @@ export function AnnotationLayer({
 }) {
   const ctx = useAnnotate()
   const ref = useRef<HTMLDivElement>(null)
+  const layer = useRef<HTMLDivElement>(null)
   const [drawing, setDrawing] = useState<{ region: Region; viewport: Viewport }>()
   const gesture = useRef<{ start: { x: number; y: number }; client: { x: number; y: number }; moved: boolean; vp: Viewport; scroll: { x: number; y: number } }>(undefined)
   const isDraft = ctx.draft?.surface.key === surface.key
   const pins = useMemo(() => ctx.pins.filter((j) => belongsTo(j, surface)), [ctx.pins, surface])
-  const scroll = useFrameScroll(surface.frame, Boolean(drawing || isDraft || pins.length))
+  const sync = useScrollSync(surface.frame, ref, layer, viewport, Boolean(drawing || isDraft || pins.length))
 
   const measure = () => {
     const el = ref.current!
@@ -260,7 +285,8 @@ export function AnnotationLayer({
     const win = surface.frame?.()?.contentWindow
     if (!win) return
     try {
-      win.scrollBy(e.deltaX, e.deltaY)
+      win.scrollBy({ left: e.deltaX, top: e.deltaY, behavior: "instant" })
+      sync()
     } catch {}
   }
 
@@ -278,30 +304,32 @@ export function AnnotationLayer({
           onDoubleClick={(e) => e.stopPropagation()}
         />
       )}
-      {drawing && <div className="sbu-sel" data-drawing="true" style={boxStyle(drawing.region, drawing.viewport, scroll)} />}
-      {!drawing && isDraft && ctx.draft && (
-        <div
-          ref={(el) => {
-            ctx.anchor.current = el
-          }}
-          className="sbu-sel"
-          style={boxStyle(ctx.draft.region, ctx.draft.viewport, scroll)}
-        />
-      )}
-      {pins.map((job) => (
-        <PinSlot key={job.id} job={job} scroll={scroll} />
-      ))}
+      <div ref={layer} className="sbu-annot-layer">
+        {drawing && <div className="sbu-sel" data-drawing="true" style={boxStyle(drawing.region, drawing.viewport)} />}
+        {!drawing && isDraft && ctx.draft && (
+          <div
+            ref={(el) => {
+              ctx.anchor.current = el
+            }}
+            className="sbu-sel"
+            style={boxStyle(ctx.draft.region, ctx.draft.viewport)}
+          />
+        )}
+        {pins.map((job) => (
+          <PinSlot key={job.id} job={job} />
+        ))}
+      </div>
     </div>
   )
 }
 
-function PinSlot({ job, scroll }: { job: Job; scroll: { x: number; y: number } }) {
+function PinSlot({ job }: { job: Job }) {
   const ctx = useAnnotate()
   const region = job.target.region!
   const vp = job.target.viewport
   const open = ctx.openPin === job.id
   const [hover, setHover] = useState(false)
-  const box = boxStyle(region, vp, scroll)
+  const box = boxStyle(region, vp)
   return (
     <>
       <div className="sbu-sel" data-pin={isActive(job) ? "running" : "idle"} data-show={open || hover} style={box} />

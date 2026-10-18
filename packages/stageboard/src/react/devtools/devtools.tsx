@@ -85,12 +85,7 @@ function JobOverlays() {
   return (
     <>
       {jobs.flatMap((job) => {
-        let rects: DOMRect[] = []
-        if (job.variantId) rects = variantBoundaryRects(job.variantId)
-        if (!rects.length && sameDocument(job.target.url)) {
-          const el = safeQuery(job.target.selector)
-          if (el) rects = [el.getBoundingClientRect()]
-        }
+        const rects = jobRects(job)
         return rects.map((r, i) => (
           <div
             key={`${job.id}-${i}`}
@@ -108,6 +103,28 @@ function JobOverlays() {
       })}
     </>
   )
+}
+
+function jobRects(job: Job): DOMRect[] {
+  const story = new URLSearchParams(location.search).get("story")
+  if (job.target.storyId ? job.target.storyId !== story : !sameDocument(job.target.url)) return []
+  const region = job.target.region
+  const page = region && new DOMRect(region.x - scrollX, region.y - scrollY, region.width, region.height)
+  const el = job.target.selector ? safeQuery(job.target.selector) : null
+  if (el) {
+    const r = el.getBoundingClientRect()
+    if (!page || overlaps(r, page)) return [r]
+  }
+  if (job.variantId) {
+    const boundaries = variantBoundaryRects(job.variantId)
+    const hit = page ? boundaries.filter((r) => overlaps(r, page)) : boundaries
+    if (hit.length) return hit.slice(0, 1)
+  }
+  return page ? [page] : []
+}
+
+function overlaps(a: DOMRect, b: DOMRect): boolean {
+  return a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom
 }
 
 function sameDocument(url: string): boolean {

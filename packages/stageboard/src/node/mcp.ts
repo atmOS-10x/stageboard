@@ -150,6 +150,23 @@ export async function runMcpServer(config: ResolvedConfig) {
     },
   )
 
+  mcp.registerTool(
+    "complete_job",
+    {
+      description:
+        "Tell stageboard you have finished a job it gave you (the job id is in your instructions). Call it once, as your very last step, so the user's board stops showing the job as running.",
+      inputSchema: {
+        job: z.string().describe("Job id from your instructions"),
+        summary: z.string().describe("One or two sentences on what you changed"),
+        failed: z.boolean().optional().describe("True if you could not do what was asked"),
+      },
+    },
+    async ({ job, summary, failed }) => {
+      await api(`/jobs/${encodeURIComponent(job)}/complete`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ summary, failed }) })
+      return { content: [{ type: "text", text: `Job ${job} marked ${failed ? "failed" : "done"}.` } satisfies Text] }
+    },
+  )
+
   const transport = new StdioServerTransport()
   await mcp.connect(transport)
   const shutdown = async () => {

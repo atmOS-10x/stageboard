@@ -10,6 +10,7 @@ export type AgentRun = {
   externalUrl?: string
   done: Promise<{ ok: boolean; error?: string }>
   cancel: () => void
+  detach?: () => void
 }
 
 export type McpLaunch = { command: string; args: string[] }
@@ -153,6 +154,9 @@ async function claudeBackground(
     cancel: () => {
       cancelled = true
       if (id) spawn("claude", ["stop", id], { cwd: ctx.cwd, stdio: "ignore" })
+    },
+    detach: () => {
+      cancelled = true
     },
   }
 }
@@ -328,6 +332,9 @@ function atmosProvider(config: Extract<AgentConfig, { provider: "atmos" }>): Age
         cancel: () => {
           cancelled = true
           spawn("atmos", ["session", "cancel", id], { cwd: ctx.cwd, stdio: "ignore" })
+        },
+        detach: () => {
+          cancelled = true
         },
       }
     },

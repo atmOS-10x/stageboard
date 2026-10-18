@@ -65,4 +65,4 @@ To make a component swappable, write `export const Hero = variant("landing.hero"
 | `npx stageboard shot <id> [--variant id=key] [--width 1440] [--full] [--out file]` | PNG of a story |
 | `npx stageboard list [filter]` | story ids |
 | `npx stageboard dev` | catalog, site map and bridge at `/__stageboard/` |
-| MCP `stageboard` | `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant` (run with `npx stageboard mcp`) |
+| MCP `stageboard` | `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant`, `complete_job` (run with `npx stageboard mcp`) |

@@ -151,6 +151,7 @@ export function PinDetails({
         </button>
       </div>
       <p className="sbu-details-note">{job.note}</p>
+      {job.summary && <p className="sbu-details-note sbu-dim">{job.summary}</p>}
       {images.length > 0 && (
         <div className="sbu-chips-img">
           {images.map((img) => (

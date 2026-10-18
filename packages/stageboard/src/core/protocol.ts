@@ -63,6 +63,7 @@ export type Job = {
   producedFiles: string[]
   log: string[]
   error?: string
+  summary?: string
   attachments?: Upload[]
   selectionImage?: string
 }
