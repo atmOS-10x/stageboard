@@ -514,7 +514,7 @@ function App({ index, loaders, base }: UIOptions) {
           ))}
         {route.view === "flows" && (
           <FlowsView
-            ctx={{ device, screens: pages, index, thumbUrl, frameUrl, onOpen: openStory, onStep: (flowId, step) => go({ view: "flows", focus: flowId, step }) }}
+            ctx={{ device, screens: pages, index, thumbUrl, frameUrl, base, onOpen: openStory, onStep: (flowId, step) => go({ view: "flows", focus: flowId, step }) }}
             focus={route.focus}
             composing={composingFlow}
             onCompose={setComposingFlow}
@@ -524,6 +524,7 @@ function App({ index, loaders, base }: UIOptions) {
           <FlowViewer
             key={viewerFlow.id}
             flow={viewerFlow}
+            base={base}
             step={Math.min(route.step, Math.max(0, viewerFlow.steps.length - 1))}
             device={device}
             screens={pages}

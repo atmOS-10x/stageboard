@@ -56,7 +56,7 @@ export type Flow = {
   createdAt: string
 }
 
-export type FlowRequest = { name?: string; description?: string; group?: string; steps?: FlowStep[]; assemble?: boolean; suggest?: boolean }
+export type FlowRequest = { name?: string; description?: string; group?: string; steps?: FlowStep[]; assemble?: boolean; suggest?: boolean; attachments?: string[] }
 
 export type Point = { x: number; y: number }
 

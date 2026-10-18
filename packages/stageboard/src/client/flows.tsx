@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { createPortal } from "react-dom"
-import { createDream, createFlow, removeFlow, updateFlow, useStageboard } from "stageboard/react"
+import { createDream, createFlow, removeFlow, submitChangeRequest, updateFlow, useStageboard } from "stageboard/react"
 import { DEVICES, type Device, type Flow, type FlowStep } from "stageboard"
 import { groupBy, screenGroup, STORY_MIME, screenTitle, type ScreenNode } from "./browse"
 import { markReveal, pendingReveals } from "./dreams"
 import { ArrowUpIcon, CloseIcon, PlusIcon } from "./icons"
 import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
+import { PromptInput } from "./prompt-input"
 import { Shimmer } from "./shimmer"
 import { errorText, pushToast } from "./toasts"
 import { WaveCanvas } from "./waves"
@@ -21,6 +22,7 @@ type Ctx = {
   frameUrl: (id: string) => string
   onOpen: (id: string) => void
   onStep: (flowId: string, index: number) => void
+  base: string
 }
 
 function newId() {
@@ -53,7 +55,7 @@ export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focu
           <PlusIcon size={13} /> New flow
         </button>
       </div>
-      {composing && <NewFlow onClose={() => onCompose(false)} />}
+      {composing && <NewFlow base={ctx.base} onClose={() => onCompose(false)} />}
       {!flows.length && !composing && (
         <div className="sbu-flows-hero">
           <div className="sbu-flows-hero-card" data-busy={suggesting}>
@@ -89,63 +91,87 @@ export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focu
   )
 }
 
-function NewFlow({ onClose }: { onClose: () => void }) {
+function NewFlow({ base, onClose }: { base: string; onClose: () => void }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [group, setGroup] = useState("")
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string>()
-  const send = async (assemble: boolean) => {
-    if (sending || (!name.trim() && !description.trim())) return
-    setSending(true)
-    try {
-      await createFlow({ name, description, group, assemble: assemble && Boolean(description.trim()) })
-      onClose()
-    } catch (e) {
-      setError(errorText(e))
-      setSending(false)
-    }
-  }
   return (
-    <div
-      className="sbu-newflow"
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose()
-        if (e.key === "Enter" && !e.shiftKey && (e.target as HTMLElement).tagName === "TEXTAREA") {
-          e.preventDefault()
-          void send(true)
-        }
-      }}
-    >
-      <div className="sbu-newflow-row">
-        <input className="sbu-newflow-name" placeholder="Flow name, e.g. Approving a prescription" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <input className="sbu-newflow-group" placeholder="Group (optional)" value={group} onChange={(e) => setGroup(e.target.value)} />
-      </div>
-      <textarea
-        className="sbu-dream-prompt"
-        placeholder="Describe the journey: who starts where, what they do, where they end up. The agent picks existing screens and builds missing ones."
+    <div className="sbu-newflow">
+      <PromptInput
+        base={base}
         value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        onChange={setDescription}
+        onClose={onClose}
+        label="Describe the flow"
+        placeholder="Describe the journey: who starts where, what they do, where they end up. The agent picks your screens and builds the missing ones."
+        head={<input className="sbu-prompt-title" placeholder="New flow" value={name} onChange={(e) => setName(e.target.value)} aria-label="Flow name (optional)" />}
+        bar={
+          name.trim() && !description.trim() ? (
+            <button
+              type="button"
+              className="sbu-ghost sbu-ghost-sm"
+              onClick={() =>
+                void createFlow({ name })
+                  .then(onClose)
+                  .catch((e) => pushToast({ tone: "error", title: "Couldn’t create the flow", body: errorText(e) }))
+              }
+            >
+              Create empty, I’ll add screens
+            </button>
+          ) : null
+        }
+        onSubmit={async (uploads) => {
+          await createFlow({ name, description, assemble: true, attachments: uploads.map((u) => u.id) })
+          onClose()
+        }}
       />
-      {error && <div className="sbu-composer-error">{error}</div>}
-      <div className="sbu-dream-bar">
-        <button type="button" className="sbu-ghost" onClick={() => void send(false)} disabled={sending || !name.trim()}>
-          Empty flow, I’ll add screens
-        </button>
-        <span className="sbu-spacer" />
-        <button type="button" className="sbu-ghost" onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" className="sbu-send" disabled={sending || !description.trim()} onClick={() => void send(true)} aria-label="Assemble with the agent" title="Assemble with the agent · Enter">
-          {sending ? <span className="sbu-spin" /> : <ArrowUpIcon size={14} />}
-        </button>
-      </div>
     </div>
+  )
+}
+
+export function FlowNote({ flow, base, onClose }: { flow: Flow; base: string; onClose: () => void }) {
+  const [note, setNote] = useState("")
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+  return createPortal(
+    <div className="sbu-picker-scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sbu-note-dialog" role="dialog" aria-label={`Note on ${flow.name}`}>
+        <PromptInput
+          base={base}
+          value={note}
+          onChange={setNote}
+          onClose={onClose}
+          minRows={4}
+          label="Note on the whole flow"
+          placeholder="What should change across this flow? For example the order of screens, a step that is missing, or wording that should match everywhere."
+          head={
+            <span className="sbu-prompt-context">
+              Whole flow · <strong>{flow.name}</strong> · {flow.steps.length} screen{flow.steps.length === 1 ? "" : "s"}
+            </span>
+          }
+          onSubmit={async (uploads) => {
+            await submitChangeRequest({
+              kind: "edit",
+              note: note.trim(),
+              flow,
+              attachments: uploads.map((u) => u.id),
+              target: { url: "", title: flow.name, selector: "", tag: "flow", rect: { x: 0, y: 0, width: 0, height: 0 }, viewport: { width: 1440, height: 900 }, components: [], storyId: flow.steps.find((s) => s.storyId)?.storyId },
+            })
+            pushToast({ tone: "info", title: "Sent to the agent", body: `Your note on “${flow.name}” is being worked on.` })
+            onClose()
+          }}
+        />
+      </div>
+    </div>,
+    document.body,
   )
 }
 
 function FlowStrip({ flow, ctx, focused }: { flow: Flow; ctx: Ctx; focused: boolean }) {
   const [renaming, setRenaming] = useState(false)
+  const [noting, setNoting] = useState(false)
   const [adding, setAdding] = useState<number>()
   const [over, setOver] = useState<number>()
   const steps = flow.steps
@@ -218,9 +244,9 @@ function FlowStrip({ flow, ctx, focused }: { flow: Flow; ctx: Ctx; focused: bool
                   insertAt(adding, { id: newId(), storyId })
                   setAdding(undefined)
                 }}
-                onNew={async (prompt) => {
+                onNew={async (prompt, attachments) => {
                   const parent = [...steps.slice(0, adding)].reverse().find((s) => s.storyId)?.storyId
-                  const dream = await createDream({ prompt, parent, flow: { id: flow.id, index: adding } })
+                  const dream = await createDream({ prompt, parent, attachments, flow: { id: flow.id, index: adding } })
                   markReveal(dream.id, true)
                   setAdding(undefined)
                 }}
@@ -229,6 +255,7 @@ function FlowStrip({ flow, ctx, focused }: { flow: Flow; ctx: Ctx; focused: bool
           </div>
         </div>
       </div>
+      {noting && <FlowNote flow={flow} base={ctx.base} onClose={() => setNoting(false)} />}
       <div className="sbu-flow-foot">
         {renaming ? (
           <input
@@ -262,6 +289,9 @@ function FlowStrip({ flow, ctx, focused }: { flow: Flow; ctx: Ctx; focused: bool
           ) : (
             `${steps.length} screen${steps.length === 1 ? "" : "s"}`
           )}
+          <button type="button" className="sbu-link sbu-flow-delete" onClick={() => setNoting(true)}>
+            Note on flow
+          </button>
           <button type="button" className="sbu-link sbu-flow-delete" onClick={() => confirm(`Delete the flow “${flow.name}”? Its screens stay.`) && void removeFlow(flow.id)}>
             Delete
           </button>
@@ -326,11 +356,10 @@ function StepCard({ flow, step, index, ctx, onRemove }: { flow: Flow; step: Flow
   )
 }
 
-function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => void; onPick: (storyId: string) => void; onNew: (prompt: string) => Promise<void> }) {
+function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => void; onPick: (storyId: string) => void; onNew: (prompt: string, attachments: string[]) => Promise<void> }) {
   const [q, setQ] = useState("")
   const [describing, setDescribing] = useState(false)
   const [prompt, setPrompt] = useState("")
-  const [sending, setSending] = useState(false)
   const d = DEVICES[ctx.device]
   const shown = useMemo(
     () => ctx.screens.filter((s) => !q || `${s.page.title ?? ""} ${s.entry.title} ${s.entry.name} ${s.page.route} ${s.page.group ?? ""}`.toLowerCase().includes(q.toLowerCase())),
@@ -349,21 +378,12 @@ function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => voi
     return () => window.removeEventListener("keydown", onKey, true)
   }, [describing, onClose])
 
-  const build = async () => {
-    if (!prompt.trim() || sending) return
-    setSending(true)
-    await onNew(prompt).catch((e) => {
-      setSending(false)
-      pushToast({ tone: "error", title: "Couldn’t start the agent", body: errorText(e) })
-    })
-  }
-
   return createPortal(
     <div className="sbu-picker-scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sbu-picker" role="dialog" aria-label="Add a screen to the flow" data-device={ctx.device}>
         <div className="sbu-picker-head">
           {describing ? (
-            <span className="sbu-picker-title">New screen, built by the agent</span>
+            <span className="sbu-picker-title">New screen</span>
           ) : (
             <input
               className="sbu-picker-search"
@@ -382,28 +402,21 @@ function AddStep({ ctx, onClose, onPick, onNew }: { ctx: Ctx; onClose: () => voi
         </div>
         {describing ? (
           <div className="sbu-picker-describe">
-            <textarea
-              className="sbu-picker-prompt"
-              autoFocus
-              placeholder="What should this screen show? The agent builds it as a page story next to the screen before it in the flow."
+            <PromptInput
+              base={ctx.base}
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault()
-                  void build()
-                }
-              }}
+              onChange={setPrompt}
+              onClose={() => setDescribing(false)}
+              minRows={4}
+              label="Describe the new screen"
+              placeholder="What should this screen show? The agent builds it next to the screen before it in the flow."
+              head={
+                <button type="button" className="sbu-ghost sbu-ghost-sm" onClick={() => setDescribing(false)}>
+                  ← Back to screens
+                </button>
+              }
+              onSubmit={(uploads) => onNew(prompt, uploads.map((u) => u.id))}
             />
-            <div className="sbu-dream-bar">
-              <button type="button" className="sbu-ghost" onClick={() => setDescribing(false)}>
-                Back to screens
-              </button>
-              <span className="sbu-spacer" />
-              <button type="button" className="sbu-send" disabled={!prompt.trim() || sending} onClick={() => void build()} aria-label="Build this screen">
-                {sending ? <span className="sbu-spin" /> : <ArrowUpIcon size={14} />}
-              </button>
-            </div>
           </div>
         ) : (
           <div className="sbu-picker-body">

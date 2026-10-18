@@ -50,7 +50,7 @@ export function clearDraft() {
 
 export function readPrefs(): ComposerPrefs {
   const prefs = read<Partial<ComposerPrefs>>(PREFS)
-  return { mode: prefs?.mode === "edit" ? "edit" : "variants", count: Math.min(4, Math.max(1, Number(prefs?.count) || 3)) }
+  return { mode: prefs?.mode === "variants" ? "variants" : "edit", count: Math.min(4, Math.max(1, Number(prefs?.count) || 3)) }
 }
 
 export function savePrefs(prefs: ComposerPrefs) {

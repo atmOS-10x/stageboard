@@ -8,6 +8,7 @@ import {
   Image,
   Layers,
   MessageSquarePlus,
+  MessagesSquare,
   MousePointer2,
   PencilLine,
   Pen,
@@ -46,3 +47,4 @@ export const UndoIcon = icon(Undo2)
 export const SketchIcon = icon(PencilLine)
 export const PrevIcon = icon(ChevronLeft, 2)
 export const NextIcon = icon(ChevronRight, 2)
+export const FlowNoteIcon = icon(MessagesSquare)

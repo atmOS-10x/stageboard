@@ -99,7 +99,7 @@ function forwardShortcuts() {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
     const el = e.target as HTMLElement | null
     if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return
-    if (!["a", "A", "s", "S", "Escape"].includes(e.key)) return
+    if (!["a", "A", "s", "S", "Escape", "ArrowLeft", "ArrowRight"].includes(e.key)) return
     window.parent?.postMessage({ source: "stageboard", type: "key", key: e.key }, "*")
   })
 }

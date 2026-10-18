@@ -4,7 +4,8 @@ import { DEVICES, type Device, type Flow, type Region, type Sketch } from "stage
 import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { screenTitle, type ScreenNode } from "./browse"
-import { AnnotateIcon, CloseIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
+import { FlowNote } from "./flows"
+import { AnnotateIcon, CloseIcon, FlowNoteIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
 import { Shimmer } from "./shimmer"
 import { WaveCanvas } from "./waves"
 import { SketchLayer } from "./sketch"
@@ -18,6 +19,7 @@ export function FlowViewer({
   flow,
   step,
   device,
+  base,
   screens,
   index,
   components,
@@ -35,6 +37,7 @@ export function FlowViewer({
   flow: Flow
   step: number
   device: Device
+  base: string
   screens: ScreenNode[]
   index: ClientEntry[]
   components: ClientEntry[]
@@ -59,6 +62,7 @@ export function FlowViewer({
   const [box, setBox] = useState({ width: 0, height: 0 })
   const [sketching, setSketching] = useState(false)
   const [info, setInfo] = useState(false)
+  const [noting, setNoting] = useState(false)
 
   const storyOf = useCallback(
     (i: number) => {
@@ -74,7 +78,7 @@ export function FlowViewer({
   const count = flow.steps.length
   const currentStep = flow.steps[step]
   const frameOfCurrent = useCallback(() => (currentStep ? frames.current.get(currentStep.id) : undefined), [currentStep])
-  const busy = annotating || sketching || draftOpen
+  const busy = annotating || sketching || draftOpen || noting
 
   useLayoutEffect(() => {
     const el = stage.current
@@ -101,7 +105,13 @@ export function FlowViewer({
     const onMessage = (e: MessageEvent) => {
       if (e.data?.source !== "stageboard" || e.data.type !== "ready") return
       for (const [id, el] of frames.current) {
-        if (el.contentWindow === e.source) setReady((r) => (r.has(id) ? r : new Set(r).add(id)))
+        if (el.contentWindow !== e.source) continue
+        setReady((r) => (r.has(id) ? r : new Set(r).add(id)))
+        // A screen that autofocuses a field would scroll the viewer and swallow the arrow keys.
+        try {
+          ;(el.contentDocument?.activeElement as HTMLElement | null)?.blur()
+        } catch {}
+        stage.current?.scrollTo(0, 0)
       }
     }
     window.addEventListener("message", onMessage)
@@ -109,6 +119,16 @@ export function FlowViewer({
   }, [])
 
   useEffect(() => setReady(new Set()), [device])
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.source !== "stageboard" || e.data.type !== "key" || busy) return
+      if (e.data.key === "ArrowRight") go(1)
+      if (e.data.key === "ArrowLeft") go(-1)
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  })
 
   useEffect(() => {
     const onSent = () => setSketching(false)
@@ -183,6 +203,7 @@ export function FlowViewer({
       <div
         ref={stage}
         className="sbu-viewer-stage"
+        onScroll={(e) => e.currentTarget.scrollTo(0, 0)}
         onWheel={onWheel}
         onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
         onTouchEnd={(e) => {
@@ -208,6 +229,9 @@ export function FlowViewer({
                   style={{ width: w, height: h, transform: `translateX(calc(-50% + ${offset}px))` }}
                   onClick={current ? undefined : () => onStep(i)}
                   aria-hidden={!current}
+                  ref={(el) => {
+                    if (el) el.inert = !current
+                  }}
                 >
                   {id ? (
                     <div className="sbu-viewer-scale" style={{ width: d.width, height: d.height, transform: `scale(${scale})` }}>
@@ -269,6 +293,7 @@ export function FlowViewer({
           </div>
         )}
       </div>
+      {noting && <FlowNote flow={flow} base={base} onClose={() => setNoting(false)} />}
       <footer className="sbu-viewer-foot">
         <span className="sbu-viewer-device">
           {d.label} ({d.width}×{d.height})
@@ -288,6 +313,18 @@ export function FlowViewer({
             disabled={!entry}
           >
             <SketchIcon size={14} /> Sketch <span className="sbu-key">S</span>
+          </button>
+          <button
+            type="button"
+            className="sbu-viewer-pill"
+            onClick={() => {
+              onAnnotate(false)
+              setSketching(false)
+              setNoting(true)
+            }}
+            title="A note about the whole flow, for every screen in it"
+          >
+            <FlowNoteIcon size={14} /> Note on flow
           </button>
           {entry && (
             <button type="button" className="sbu-viewer-pill" data-quiet="true" onClick={() => onOpenScreen(entry.id)} title="Open the full screen view: variants, inspect, sizes">

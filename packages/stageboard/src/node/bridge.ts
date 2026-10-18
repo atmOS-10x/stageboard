@@ -197,9 +197,9 @@ export class Bridge {
     job.attachments = (request.attachments ?? []).map((id) => readUpload(this.config, id)).filter((u): u is NonNullable<typeof u> => Boolean(u))
     const target = request.target
     if (request.kind === "page") return this.enrichPage(job, request)
-    if (request.kind === "flow") {
+    if (request.kind === "flow" || request.flow) {
       this.flowIndex = (await buildIndex(this.config)).filter((s) => s.hasPage).map((s) => ({ id: s.id, title: `${s.title} / ${s.name}`, file: s.file }))
-      return
+      if (request.kind === "flow" || !request.target.region) return
     }
     if (request.sketch) return this.enrichSketch(job, request)
     if (!this.renderer || !target.storyId || !target.region) return
@@ -344,7 +344,7 @@ export class Bridge {
     this.state.flows.push(flow)
     if (input.assemble && flow.description) {
       flow.status = "assembling"
-      const job = await this.createJob({ kind: "flow", note: flow.description, flow, target: emptyTarget() })
+      const job = await this.createJob({ kind: "flow", note: flow.description, flow, target: emptyTarget(), attachments: input.attachments })
       flow.jobId = job.id
     }
     this.saveBoard()

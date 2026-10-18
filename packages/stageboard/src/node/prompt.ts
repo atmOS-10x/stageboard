@@ -173,6 +173,21 @@ function flowPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest, sc
   ]
 }
 
+function flowNotePrompt(request: ChangeRequest, screens: Screen[]): string[] {
+  const flow = request.flow!
+  const byId = new Map(screens.map((s) => [s.id, s]))
+  return [
+    `Change the user flow "${flow.name}" as the user asks below. The note is about the whole flow, not one screen: apply it to every screen it concerns, keep the screens consistent with each other, and leave screens alone that it does not touch.`,
+    "",
+    "## The flow, in order",
+    ...flow.steps.map((s, i) => {
+      const screen = s.storyId ? byId.get(s.storyId) : undefined
+      return `${i + 1}. ${s.storyId ? `\`${s.storyId}\`` : `(not built yet: ${s.pending ?? "pending"})`}${screen ? ` — ${screen.title} (${screen.file})` : ""}${s.note ? `: ${s.note}` : ""}`
+    }),
+    "Screenshot each screen with `npx stageboard shot <story-id>` before and after. If the note changes which screens the flow has or their order, save the new order with the stageboard MCP tool `save_flow` (or `npx stageboard flow save`), passing flow id `" + flow.id + "`.",
+  ]
+}
+
 function pagePrompt(job: Job, request: ChangeRequest): string[] {
   const dream = request.dream!
   const parent = request.target.storyId
@@ -227,6 +242,8 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
         VARIANT_FORMAT("<the id you chose>", job.id),
       )
     }
+  } else if (request.kind === "edit" && request.flow) {
+    lines.push(...flowNotePrompt(request, screens), "", `What the user asked for: ${request.note}`)
   } else if (request.kind === "edit") {
     lines.push(
       sketched ? "Make the page match the user's sketch below, directly in place." : `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,
@@ -241,7 +258,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     )
   }
 
-  const context = request.kind === "page" || request.kind === "flow" ? "" : contextSection(job, request)
+  const context = request.kind === "page" || request.kind === "flow" || request.flow ? "" : contextSection(job, request)
   if (context) lines.push("", context)
   const sketch = sketchSection(job, request)
   if (sketch) lines.push("", sketch)
