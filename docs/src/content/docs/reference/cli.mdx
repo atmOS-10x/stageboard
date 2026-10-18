@@ -1,0 +1,184 @@
+---
+title: CLI
+description: Every stageboard command and option, with a usage line and an example for each.
+---
+
+The `stageboard` CLI starts the board, renders stories and flows to PNGs, runs the MCP server and installs the agent skill. Run it with `npx stageboard <command>`; `npx stageboard --help` and `npx stageboard <command> --help` list the options.
+
+Every command except `init` and `skill` reads `stageboard.config.ts` (or `.mts`, `.js`, `.mjs`), searching upward from the current folder.
+
+| Global option | What it does |
+| --- | --- |
+| `--config <file>` | Use this config file instead of searching for one. |
+| `-h`, `--help` | Show help. |
+| `-v`, `--version` | Show the version. |
+
+## dev
+
+```text
+stageboard dev [--port <port>] [--host <host>]
+```
+
+Starts the board (Screens, Flows, Components), the agent bridge and the Vite dev server, and prints the catalog URL, the public URL if set, and the agent provider.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `--port <port>` | `port` from the config, else `STAGEBOARD_PORT`, else `6060` | Port to listen on. If it is taken, the next free one is used. |
+| `--host <host>` | all interfaces | Host to bind. |
+
+The board is at `http://localhost:6060/__stageboard/`. `STAGEBOARD_PUBLIC_URL` (or `publicUrl` in the config) sets the URL printed as `public` and used for hot reload behind a proxy.
+
+```bash
+npx stageboard dev --port 7070
+```
+
+## shot
+
+```text
+stageboard shot <story> [--variant <id=key>]... [--width <px>] [--height <px>] [--full] [--theme <theme>] [--scale <n>] [--out <file>]
+```
+
+Renders one story in headless Chromium and writes a PNG. `<story>` is a story id, `file#Export` (for example `src/hero.stories.tsx#Default`), or a search term that matches exactly one story. It uses the running `stageboard dev` server if there is one, and starts a temporary one otherwise, so the app does not need to run.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `--variant <id=key>` | none | Render variant `key` for boundary `id`. Repeat for several boundaries. |
+| `--width <px>` | `1280` | Viewport width. |
+| `--height <px>` | `800` | Viewport height. |
+| `--full` | off | Capture the full scroll height of the page. |
+| `--theme <theme>` | none | `light` or `dark` color scheme. |
+| `--scale <n>` | `1` | Device scale factor. |
+| `--out <file>` | `.stageboard/shots/<story-id>.png` | Output PNG path. |
+
+It prints the PNG path on stdout, and console errors from the story on stderr. Without `--full`, it clips to the story's stage unless the story's layout is `fullscreen`. Chromium is found from Playwright, `STAGEBOARD_CHROME`, `CHROME_PATH` or a system install; if none exists, run `npx playwright install chromium`.
+
+```bash
+npx stageboard shot landing-hero--default --variant landing.hero=hero.calm --width 1440 --full --out /tmp/hero.png
+```
+
+## flow
+
+```text
+stageboard flow shot <flow> [--device <device>] [--theme <theme>] [--cols <n>] [--out <file>]
+stageboard flow save <json or file>
+```
+
+`flow shot` renders every screen of a flow, in order, into one grid image. `<flow>` is a flow id or name (a unique part of the name works). Before capturing a step, it plays the step's actions. It prints the PNG path, then the flow as text: each step's title, story id, route and note, and every action marked `✓` (played), `✗` (failed, with the reason) or `·` (not played).
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `--device <device>` | `desktop` | `desktop` (1440×900), `tablet` (834×1194) or `mobile` (390×844). |
+| `--theme <theme>` | none | `light` or `dark`. |
+| `--cols <n>` | 3 desktop, 4 tablet, 5 mobile | Screens per row. |
+| `--out <file>` | `.stageboard/shots/flow-<id>-<device>.png` | Output PNG path (`-<theme>` is added to the default name when set). |
+
+```bash
+npx stageboard flow shot "Sign up" --device mobile
+```
+
+`flow save` saves a flow to `stageboard/board.json` through the running `stageboard dev` server. The argument is the JSON itself or a path to a JSON file. Pass `"flow": "<id>"` to update a flow; omit it to add one. The fields are the same as the MCP tool [`save_flow`](/reference/mcp#save_flow).
+
+```bash
+npx stageboard flow save '{ "name": "Sign up", "group": "Onboarding", "steps": [{ "storyId": "pages-signup--default", "note": "The user enters an email", "actions": [{ "do": "click", "target": "Continue" }] }, { "pending": "Check your inbox" }] }'
+```
+
+See [Flows](/guides/flows).
+
+## list
+
+```text
+stageboard list [filter] [--json]
+```
+
+Lists every story: its id, its file, and `page` for page stories. `filter` matches id, title or name, case-insensitive.
+
+| Option | What it does |
+| --- | --- |
+| `--json` | Print the stories as JSON: `id`, `title`, `name`, `exportName`, `file`, `hasPage` and, for page stories, `page`. |
+
+```bash
+npx stageboard list hero
+```
+
+## mcp
+
+```text
+stageboard mcp
+```
+
+Runs the stageboard MCP server on stdio. See [MCP server](/reference/mcp).
+
+```bash
+npx stageboard mcp
+```
+
+## done
+
+```text
+stageboard done <job> [summary] [--failed]
+```
+
+Tells the running `stageboard dev` server that an agent job is finished, so the board stops showing it as running. Agents run this as their last step when they don't have the MCP tool `complete_job`.
+
+| Option | What it does |
+| --- | --- |
+| `--failed` | The job could not be done. |
+
+```bash
+npx stageboard done 3f9c2a1b "Made the hero title two lines on mobile"
+```
+
+## skill
+
+```text
+stageboard skill [dir] [--claude] [--codex]
+```
+
+Installs the stageboard agent skill into `.claude/skills/stageboard` and `.agents/skills/stageboard` under `dir` (default: the current folder), replacing an existing copy.
+
+| Option | What it does |
+| --- | --- |
+| `--claude` | Only install into `.claude/skills`. |
+| `--codex` | Only install into `.agents/skills`. |
+
+```bash
+npx stageboard skill --claude
+```
+
+## variants
+
+```text
+stageboard variants
+```
+
+Regenerates the variants registry file (`variantsFile`, default `stageboard.variants.ts`) from the `*.variant.tsx` files. `stageboard dev` does this on its own; run it after adding or removing variants without the dev server.
+
+```bash
+npx stageboard variants
+```
+
+See [Variants](/guides/variants).
+
+## init
+
+```text
+stageboard init
+```
+
+Creates `stageboard.config.ts` in the current folder, unless one already exists:
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  preview: "./stageboard.preview.tsx",
+  agent: { provider: "claude" },
+})
+```
+
+```bash
+npx stageboard init
+```
+
+See [Configuration](/configuration).

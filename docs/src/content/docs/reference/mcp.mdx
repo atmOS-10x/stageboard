@@ -1,0 +1,172 @@
+---
+title: MCP server
+description: Run the stageboard MCP server, connect it to an agent, and use its tools to list, screenshot and compare stories, variants and flows.
+---
+
+The stageboard MCP server gives an agent tools to list stories, screenshot them, compare and select variants, save and render flows, and report a job finished. It runs on stdio:
+
+```bash
+npx stageboard mcp
+```
+
+It finds `stageboard.config.ts` from its working directory (or the file passed with `--config`). The tools talk to the running `stageboard dev` server; if none is running, the MCP server starts a temporary one on `127.0.0.1`, so the app does not need to run.
+
+## Attached automatically
+
+When stageboard sends a request to the `claude` or `codex` provider, it attaches its MCP server to that agent run under the name `stageboard`:
+
+- `claude` gets `--mcp-config '{"mcpServers":{"stageboard":{...}}}'`.
+- `codex` gets `-c mcp_servers.stageboard.command=...` and `-c mcp_servers.stageboard.args=...`.
+
+The server runs as `node <stageboard>/dist/node/cli.js mcp --config <your config>`, from the installed `stageboard` package. The `atmos` and `command` providers don't get it; their agents use the `npx stageboard` CLI instead, or a server you add yourself. See [Agents](/guides/agents).
+
+## Adding it to an MCP client
+
+For any client that reads an `mcpServers` config, add:
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "stageboard": {
+      "command": "npx",
+      "args": ["stageboard", "mcp"]
+    }
+  }
+}
+```
+
+Run the client from the project folder, or add `"--config", "/abs/path/stageboard.config.ts"` to `args`. For Claude Code, `claude mcp add stageboard -- npx stageboard mcp` does the same. For Codex:
+
+```toml title="~/.codex/config.toml"
+[mcp_servers.stageboard]
+command = "npx"
+args = ["stageboard", "mcp"]
+```
+
+## Tools
+
+### list_stories
+
+Lists the stories (components and pages) stageboard can render, with the ids to pass to `screenshot`.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `filter` | `string`, optional | Case-insensitive text to match against id, title or name. |
+
+Returns text, one story per line: `id`, `title / name`, `file` and `page` for page stories, separated by tabs. Returns `No stories match.` if nothing matches.
+
+### screenshot
+
+Renders one story in a headless browser and returns a PNG.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `story` | `string` | Story id from `list_stories`. |
+| `variants` | `Record<string, string>`, optional | Variant selections by boundary id, for example `{ "landing.hero": "hero.calm" }`. |
+| `width` | `integer`, optional | Viewport width. |
+| `height` | `integer`, optional | Viewport height. |
+| `full` | `boolean`, optional | Capture the full scroll height. |
+| `region` | `{ x, y, width, height }`, optional | Clip to this region, in story viewport pixels. |
+
+Returns one `image/png` image.
+
+### list_variants
+
+Lists variant boundaries, their variant files and which one is selected.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `id` | `string`, optional | Only this boundary id, for example `landing.hero`. |
+
+Returns JSON: `[{ "id", "selected", "variants": [{ "key", "label", "description", "file" }] }]`. `selected` is `"original"` when no variant is selected.
+
+### compare_variants
+
+Screenshots a story once per variant of one boundary, original first, so you can compare them side by side.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `id` | `string` | Boundary id, for example `landing.hero`. |
+| `story` | `string`, optional | Story to render. Defaults to a story that renders the boundary. |
+| `keys` | `string[]`, optional | Only these variant keys (`"original"` allowed). |
+| `width` | `integer`, optional | Viewport width. |
+| `full` | `boolean`, optional | Capture the full scroll height. |
+
+Returns, per variant, a text label `Label (key)` followed by its PNG. Fails if no story renders the boundary and `story` is not passed.
+
+### select_variant
+
+Selects which variant the user sees for a boundary. Updates the live app, Components and Screens.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `id` | `string` | Boundary id. |
+| `key` | `string` | Variant key, or `"original"` for the committed component. |
+
+Returns `Selected <key> for <id>.`
+
+### complete_job
+
+Tells stageboard the agent has finished a job it was given. Every stageboard prompt contains the job id and asks the agent to call this once, as its last step, so the board stops showing the job as running.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `job` | `string` | Job id from the prompt. |
+| `summary` | `string` | One or two sentences on what changed. |
+| `failed` | `boolean`, optional | `true` if the agent could not do what was asked. |
+
+Returns `Job <id> marked done.` or `Job <id> marked failed.` The CLI equivalent is `npx stageboard done <job> "<summary>" [--failed]`.
+
+### save_flow
+
+Saves a user flow for the Flows view to `stageboard/board.json`: an ordered list of screens.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `flow` | `string`, optional | Flow id to update. Omit to add a new flow. |
+| `name` | `string`, optional | Flow name. |
+| `group` | `string`, optional | Section in the Flows sidebar, for example `Onboarding`. |
+| `description` | `string`, optional | What the flow is about. |
+| `steps` | `Step[]` | The screens, in the order the user sees them. |
+
+Each step has:
+
+| Field | Type | What it does |
+| --- | --- | --- |
+| `storyId` | `string`, optional | Page story id of the screen. |
+| `pending` | `string`, optional | A screen that is still being built, instead of `storyId`. |
+| `note` | `string`, optional | What is happening on this screen, one short sentence. |
+| `actions` | `Action[]`, optional | What the user does on this screen, in order. The viewer plays them with a cursor; the last one usually leads to the next step. |
+
+An action is `{ "do": "click" | "type" | "press" | "hover" | "scroll" | "wait", "target"?: string, "text"?: string }`. `target` is the element's visible text, aria-label, placeholder or label, or a CSS selector. `text` is the text to type, the key to press, or milliseconds to wait.
+
+```json
+{
+  "name": "Sign up",
+  "group": "Onboarding",
+  "steps": [
+    { "storyId": "pages-signup--default", "note": "The user enters an email", "actions": [{ "do": "type", "target": "Email", "text": "ana@example.com" }, { "do": "click", "target": "Continue" }] },
+    { "pending": "Check your inbox" }
+  ]
+}
+```
+
+Returns `Saved flow <id> with <n> steps.`
+
+### flow_grid
+
+Renders every screen of a flow, in order, into one grid image, playing each step's actions before capturing it. Use it to take in a whole flow at once and to check it after changing it.
+
+| Parameter | Type | What it does |
+| --- | --- | --- |
+| `flow` | `string` | Flow id or name from `list_flows`. |
+| `device` | `"desktop" \| "tablet" \| "mobile"`, optional | Screen size. Defaults to `desktop`. |
+| `theme` | `"light" \| "dark"`, optional | Color scheme. |
+
+Returns the flow as text (each step's title, story id, route, note and actions, with `✓` for actions that played and `✗` with the reason for ones that failed), the path of the saved PNG, and the PNG itself. The CLI equivalent is `npx stageboard flow shot`.
+
+### list_flows
+
+Lists the user flows with their steps. Takes no parameters. Returns JSON: every flow with its `id`, `name`, `group`, `description`, `status` (`ready`, `assembling` or `failed`) and `steps` (each with its own `id`, plus `storyId` or `pending`, `note` and `actions`).
+
+See [Flows](/guides/flows), [Variants](/guides/variants) and [CLI](/reference/cli).

@@ -4,6 +4,7 @@ import type { ChangeRequest, Job, Upload } from "stageboard"
 import { useAnnotate, useComposerPlacement, useOutsidePointer, type Draft } from "./annotate"
 import { withQuery } from "./api"
 import { readPrefs, saveDraft, savePrefs, type ComposerMode } from "./draft-store"
+import { addComment } from "./flow-batch"
 import { Segmented } from "./kit"
 import { PromptInput } from "./prompt-input"
 
@@ -63,7 +64,19 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
     phase === "idle",
   )
 
+  // On a flow's screen the comment joins the flow's batch; Reconcile in the viewer sends them all at once.
+  const batch = surface.batch
+  const leave = (then: () => void) => {
+    setPhase("leaving")
+    setTimeout(then, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : EXIT_MS)
+  }
+
   const submit = async (files: Upload[]) => {
+    if (batch) {
+      addComment(batch, { storyId: surface.storyId, title: surface.title, step: surface.step ?? 0, note: note.trim(), region: draft.region, viewport: draft.viewport, scroll: draft.scroll, attachments: files })
+      leave(onClose)
+      return
+    }
     const variant = surface.variant
     const change: ChangeRequest = {
       kind: mode,
@@ -86,8 +99,7 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
       ...(draft.sketch ? { sketch: draft.sketch } : {}),
     }
     const job = await submitChangeRequest(change)
-    setPhase("leaving")
-    setTimeout(() => onSent(job), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : EXIT_MS)
+    leave(() => onSent(job))
   }
 
   const sketched = draft.sketch ? `${draft.sketch.ops.length} sketched change${draft.sketch.ops.length === 1 ? "" : "s"} · ` : ""
@@ -124,9 +136,14 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
           focusKey={draft}
           label="Note for the agent"
           placeholder={
-            mode === "variants" ? `${sketched}${sketched ? "anything the variants should explore?" : "What should the variants explore?"}` : `${sketched}${sketched ? "anything to add? (optional)" : "What should change here?"}`
+            batch
+              ? "What should change here? It joins your notes on this flow"
+              : mode === "variants" ? `${sketched}${sketched ? "anything the variants should explore?" : "What should the variants explore?"}` : `${sketched}${sketched ? "anything to add? (optional)" : "What should change here?"}`
           }
           head={
+            batch ? (
+              <span className="sbu-prompt-context">Note on this screen · sent with the flow</span>
+            ) : (
             <Segmented
               label="Request kind"
               size="sm"
@@ -137,9 +154,10 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
                 { value: "variants", label: "Variants" },
               ]}
             />
+            )
           }
           bar={
-            mode === "variants" && (
+            !batch && mode === "variants" && (
               <Segmented label="How many variants" size="sm" value={count} onChange={(n: number) => setPref({ count: n })} options={[1, 2, 3, 4].map((n) => ({ value: n, label: n }))} />
             )
           }

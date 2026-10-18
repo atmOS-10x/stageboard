@@ -355,7 +355,15 @@ function commandProvider(config: Extract<AgentConfig, { provider: "command" }>):
         stdio: ["ignore", "pipe", "pipe"],
       })
       pipeLines(child, (line) => ctx.log(line.slice(0, 300)))
-      return { done: exitPromise(child), cancel: () => child.kill("SIGTERM") }
+      const exited = exitPromise(child)
+      const done = config.detached
+        ? exited.then((r) => {
+            if (!r.ok) return r
+            ctx.log("Launcher exited; waiting for the agent to report with complete_job or stageboard done")
+            return new Promise<never>(() => {})
+          })
+        : exited
+      return { done, cancel: () => child.exitCode === null && child.signalCode === null && child.kill("SIGTERM") }
     },
   }
 }

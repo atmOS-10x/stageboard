@@ -68,6 +68,33 @@ export function matchStory(index: IndexedStory[], query: string): IndexedStory {
   throw new Error(`No story matches "${query}". Run \`stageboard list\`.`)
 }
 
+type Page = Awaited<ReturnType<Awaited<ReturnType<typeof launchBrowser>>["newPage"]>>
+
+// Load one story in the frame page and wait until it has rendered and settled.
+export async function openFrame(page: Page, url: string, storyId: string, options: { variants?: string[]; theme?: "light" | "dark"; timeout?: number } = {}) {
+  const params = new URLSearchParams({ story: storyId, "sb-shot": "1" })
+  for (const v of options.variants ?? []) params.append("sb-variant", v.replace("=", ":"))
+  if (options.theme) params.set("sb-theme", options.theme)
+  await page.goto(`${url}${API_BASE}/frame.html?${params}`, { waitUntil: "load", timeout: options.timeout ?? 120_000 })
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.waitForFunction(
+        () => (window as any).__STAGEBOARD_READY__ === true || (window as any).__STAGEBOARD_ERROR__,
+        undefined,
+        { timeout: options.timeout ?? 120_000 },
+      )
+      break
+    } catch (e) {
+      if (attempt >= 3 || !/context was destroyed|navigation/i.test((e as Error).message)) throw e
+      await page.waitForLoadState("load")
+    }
+  }
+  const error = await page.evaluate(() => (window as any).__STAGEBOARD_ERROR__ as string | undefined)
+  if (error) throw new Error(`Story ${storyId} failed to render:\n${error}`)
+  await page.evaluate(() => document.fonts?.ready)
+  await settle(page)
+}
+
 export async function shoot(config: ResolvedConfig, options: ShotOptions): Promise<ShotResult> {
   const started = Date.now()
   const index = await buildIndex(config)
@@ -91,27 +118,7 @@ export async function shoot(config: ResolvedConfig, options: ShotOptions): Promi
       if (m.type() === "error") consoleErrors.push(m.text())
     })
     page.on("pageerror", (e) => consoleErrors.push(e.message))
-    const params = new URLSearchParams({ story: story.id, "sb-shot": "1" })
-    for (const v of options.variants ?? []) params.append("sb-variant", v.replace("=", ":"))
-    if (options.theme) params.set("sb-theme", options.theme)
-    await page.goto(`${url}${API_BASE}/frame.html?${params}`, { waitUntil: "load", timeout: options.timeout ?? 120_000 })
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await page.waitForFunction(
-          () => (window as any).__STAGEBOARD_READY__ === true || (window as any).__STAGEBOARD_ERROR__,
-          undefined,
-          { timeout: options.timeout ?? 120_000 },
-        )
-        break
-      } catch (e) {
-        if (attempt >= 3 || !/context was destroyed|navigation/i.test((e as Error).message)) throw e
-        await page.waitForLoadState("load")
-      }
-    }
-    const error = await page.evaluate(() => (window as any).__STAGEBOARD_ERROR__ as string | undefined)
-    if (error) throw new Error(`Story ${story.id} failed to render:\n${error}`)
-    await page.evaluate(() => document.fonts?.ready)
-    await settle(page)
+    await openFrame(page, url, story.id, options)
     const out = path.resolve(options.out ?? path.join(config.stateDir, "shots", `${story.id}${options.variants?.length ? "~" + options.variants.join(",").replace(/[^\w.,=-]/g, "_") : ""}.png`))
     fs.mkdirSync(path.dirname(out), { recursive: true })
     const layout = await page.evaluate(() => (window as any).__STAGEBOARD_LAYOUT__ as string | undefined)

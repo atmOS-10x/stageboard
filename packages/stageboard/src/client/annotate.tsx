@@ -27,7 +27,12 @@ export type Surface = {
   variant?: VariantRef
   frame?: () => HTMLIFrameElement | null | undefined
   scrollsFrame?: boolean
+  /** In a flow's batch: comments here collect on that flow (by id) instead of going to an agent one by one. */
+  batch?: string
+  step?: number
 }
+
+export type Mark = { id: string; n: number; region: Region; viewport: Viewport; note: string }
 
 export type Draft = { surface: Surface; region: Region; viewport: Viewport; scroll?: { x: number; y: number }; sketch?: Sketch; restored?: StoredDraft }
 
@@ -220,10 +225,13 @@ export function AnnotationLayer({
   surface,
   viewport,
   style,
+  marks = [],
 }: {
   surface: Surface
   viewport?: Viewport
   style?: CSSProperties
+  /** Comments already collected in a batch, numbered on the screen. */
+  marks?: Mark[]
 }) {
   const ctx = useAnnotate()
   const ref = useRef<HTMLDivElement>(null)
@@ -232,7 +240,7 @@ export function AnnotationLayer({
   const gesture = useRef<{ start: { x: number; y: number }; client: { x: number; y: number }; moved: boolean; vp: Viewport; scroll: { x: number; y: number } }>(undefined)
   const isDraft = ctx.draft?.surface.key === surface.key
   const pins = useMemo(() => ctx.pins.filter((j) => belongsTo(j, surface)), [ctx.pins, surface])
-  const sync = useScrollSync(surface.frame, ref, layer, viewport, Boolean(drawing || isDraft || pins.length))
+  const sync = useScrollSync(surface.frame, ref, layer, viewport, Boolean(drawing || isDraft || pins.length || marks.length))
 
   useEffect(() => {
     const saved = ctx.restore
@@ -328,6 +336,17 @@ export function AnnotationLayer({
         {pins.map((job) => (
           <PinSlot key={job.id} job={job} />
         ))}
+        {marks.map((m) => {
+          const box = boxStyle(m.region, m.viewport)
+          return (
+            <div key={m.id}>
+              <div className="sbu-sel" data-mark="true" style={box} />
+              <div className="sbu-mark" style={{ left: box.left, top: box.top }} title={m.note}>
+                {m.n}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

@@ -29,6 +29,9 @@ export type CodexAgentConfig = {
 export type CommandAgentConfig = {
   provider: "command"
   command: string
+  // The command only launches the agent elsewhere and returns: exit code 0 leaves the job running until the agent
+  // reports with complete_job or `stageboard done`, or the job is cancelled. A non-zero exit still fails it.
+  detached?: boolean
 }
 
 export type AgentConfig = AtmosAgentConfig | ClaudeAgentConfig | CodexAgentConfig | CommandAgentConfig

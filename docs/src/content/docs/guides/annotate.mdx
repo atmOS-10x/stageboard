@@ -1,0 +1,61 @@
+---
+title: Annotate
+description: Mark up any screen, component or flow, sketch the change you want on the live page, and send it to your agent with screenshots and source paths.
+---
+
+Annotate is how you tell an agent what to change. You point at part of a screen, write a note, and stageboard sends the agent your note together with screenshots, the React components under that area and their source files. It works in Screens, Components, on a single screen and in the flow viewer.
+
+## Comment on a region
+
+1. Press `A`, or choose Annotate in the header.
+2. Drag over the part of a screen, component, story or variant you mean. A click without dragging marks a small area around that point.
+3. Choose Edit to change the code in place, or Variants (1 to 4) to get alternatives you can switch between. See [Variants](/guides/variants).
+4. Write the note. Paste, drop or attach reference images.
+5. Press `Enter` to send it (`Shift+Enter` adds a line). `Escape` closes the note.
+
+A pin appears on the area while the agent works. Click it to see the request, the agent's progress and its summary when it is done. Press `A` or `Escape` to stop annotating.
+
+## Sketch on a single screen
+
+Open a screen on its own and press `A`. Besides Comment, the toolbar lets you change the live page directly, without touching code, and then send the result:
+
+| Tool | Key | What it does |
+| --- | --- | --- |
+| Comment | `C` | Drag over or click any part of the screen and write a note, as above. |
+| Select | `V` | Click an element to select it, drag to move it, drag a corner to resize it. Double-click text to retype it. `↑` selects the parent element. |
+| Draw | `P` | Freehand pen. |
+| Block | `B` | Drag a colored block where something should go. Double-click a block to label it. |
+| Components | `I` | A searchable palette of your app's component stories. Drag one onto the page, or click it to drop it in the middle. |
+| Undo | `Cmd+Z` or `Ctrl+Z` | Undo the last change. |
+| Clear | | Remove the whole sketch. |
+| Reconcile | `Enter` | Send the sketch to the agent. |
+
+`Backspace` or `Delete` removes the selected block, mark or component, or resets the moves and text edits of the selected element. `Escape` clears the selection, then leaves Annotate.
+
+Reconcile opens the same note as a comment, with the sketch attached. Choose Edit to make the page match the sketch, or Variants to get alternatives that take the sketch as their direction. The note is optional.
+
+## What the agent receives
+
+Every request is written as a prompt for the agent you configured (see [Agents](/guides/agents)). It contains:
+
+- **Your note** and the request kind (Edit or Variants, and how many).
+- **The marked region** in page pixels and the viewport size, and a screenshot of that area with a small margin.
+- **The component chain** under the region, innermost first, each with its source file and line, in a `Page context (JSON):` block at the end of the prompt.
+- **Your reference images**, as file paths.
+- **Variants in view**, when you annotated a variant, so the agent edits or builds on that one.
+- **For a sketch:** every change as a line (moved or resized element with its selector and component, changed text before and after, blocks and their labels, components placed from a story id, freehand marks), plus a before screenshot and an after screenshot with the sketch applied.
+- **How to check and finish:** `npx stageboard shot` to look at its work, and the job id to report with the MCP tool `complete_job` or `npx stageboard done <job>`.
+
+The agent is told to treat moves and resizes as layout intent, not pixel offsets, so the page should match the sketch at every width.
+
+## Annotate a flow
+
+In the [flow viewer](/guides/flows#the-flow-viewer), annotations collect across the flow's screens instead of going out one by one:
+
+1. Press `A`. Comment on one screen, or sketch on it with the same toolbar.
+2. Press `→` to move to the next screen and keep going. Comments are marked with numbers on their screen.
+3. Note on flow in the footer becomes Reconcile, with a count of your annotations.
+4. Choose Reconcile. The dialog lists every comment and sketched screen in step order; remove any you don't want and add a note for all of them if you like.
+5. Send. The whole batch goes to the agent as one request.
+
+The agent gets each annotation with its screen, story id and file: a screenshot of every commented area, and before and after screenshots of every sketched screen. It is told the annotations belong together, so the screens stay consistent. Variants asked for from a screen's variant outlines are sent as their own request, outside the batch.

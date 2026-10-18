@@ -20,22 +20,75 @@ const V = {
 }
 const RESOLVED_PREFIX = "\0"
 
-const html = (title: string, entry: string, bodyClass = "") => `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" href="data:," />
-    <title>${title}</title>
-  </head>
-  <body class="${bodyClass}">
-    <div id="root"><div id="sb-boot" style="position:fixed;inset:0;display:grid;place-items:center;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;color:#8a8a93;background:#fafafa">
+// The plain boot screen frames show until their story renders.
+const PLAIN_BOOT = `<div id="root"><div id="sb-boot" style="position:fixed;inset:0;display:grid;place-items:center;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;color:#8a8a93;background:#fafafa">
       <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
         <div style="width:22px;height:22px;border-radius:999px;border:2px solid #e4e4e7;border-top-color:#71717a;animation:sbspin .8s linear infinite"></div>
         <div id="sb-boot-text">Loading…</div>
       </div>
       <style>@keyframes sbspin{to{transform:rotate(360deg)}}</style>
+    </div></div>`
+
+// The stageboard app boots dark, with the same pixel waves as a rendering screen across the whole window
+// (a small copy of client/waves.tsx, since nothing is bundled yet), until the UI mounts over it.
+const WAVE_BOOT = `<style>html,body{margin:0;background:#16151e}</style>
+    <div id="root"><div id="sb-boot" style="position:fixed;inset:0;background:#16151e">
+      <canvas id="sb-boot-waves" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+      <div id="sb-boot-text" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:6px 14px;border-radius:999px;background:rgba(20,19,28,.72);font:500 12.5px/1.5 ui-sans-serif,system-ui,sans-serif;letter-spacing:.02em;color:#c9c5e6;white-space:nowrap">Loading stageboard</div>
     </div></div>
+    <script>
+      (function () {
+        var canvas = document.getElementById("sb-boot-waves")
+        var CELL = 10, DEEP = [22, 21, 30], SWELL = [74, 62, 150], CREST = [150, 132, 255], FOAM = [236, 233, 255]
+        var TRAINS = [[0.92, 0.38, 0.42, 0.00035, 0.05, 1], [0.7, -0.71, 0.3, 0.00022, 0.06, 0.32]]
+        function mix(a, b, t) { return "rgb(" + Math.round(a[0] + (b[0] - a[0]) * t) + "," + Math.round(a[1] + (b[1] - a[1]) * t) + "," + Math.round(a[2] + (b[2] - a[2]) * t) + ")" }
+        function shade(v) { return v < 0.45 ? mix(DEEP, SWELL, v / 0.45) : v < 0.9 ? mix(SWELL, CREST, (v - 0.45) / 0.45) : mix(CREST, FOAM, (v - 0.9) / 0.1) }
+        function profile(p) { var f = p - Math.floor(p); return f < 0.2 ? Math.pow(f / 0.2, 1.6) : Math.exp(-(f - 0.2) * 1.5) }
+        function height(x, y, w, t) {
+          var top = 0, sum = 0
+          for (var k = 0; k < TRAINS.length; k++) {
+            var tr = TRAINS[k], along = (x * tr[0] + y * tr[1]) / (w * tr[2]), across = (-x * tr[1] + y * tr[0]) / w
+            var h = profile(along - t * tr[3] + tr[4] * Math.sin(across * 4 + t * 0.0006)) * tr[5]
+            top = Math.max(top, h); sum += h
+          }
+          return Math.min(1, top + (sum - top) * 0.3)
+        }
+        var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, start = performance.now(), last = 0
+        function draw(now) {
+          if (!canvas.isConnected) return
+          if (last && now - last < 31) return requestAnimationFrame(draw)
+          last = now
+          var dpr = devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight
+          if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr) }
+          var ctx = canvas.getContext("2d"), t = reduce ? 0 : now - start
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+          ctx.fillStyle = mix(DEEP, DEEP, 0); ctx.fillRect(0, 0, w, h)
+          for (var i = 0; i < Math.ceil(w / CELL); i++) for (var j = 0; j < Math.ceil(h / CELL); j++) {
+            var x = i * CELL + CELL / 2, y = j * CELL + CELL / 2, v = height(x, y, w, t), size = CELL * (0.42 + 0.5 * v)
+            ctx.globalAlpha = 0.35 + 0.65 * v; ctx.fillStyle = shade(v); ctx.fillRect(x - size / 2, y - size / 2, size, size)
+          }
+          ctx.globalAlpha = 1
+          if (!reduce) requestAnimationFrame(draw)
+        }
+        requestAnimationFrame(draw)
+      })()
+    </script>`
+
+// The stageboard mark (.github/assets/icon.svg), so the tab shows it.
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none"><defs><linearGradient id="b" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop stop-color="#1c1b24"/><stop offset="1" stop-color="#0f0f14"/></linearGradient><linearGradient id="t" x1="138" y1="138" x2="202" y2="202" gradientUnits="userSpaceOnUse"><stop stop-color="#a99cff"/><stop offset="1" stop-color="#6f8dff"/></linearGradient></defs><rect width="256" height="256" rx="58" fill="url(#b)"/><rect x="54" y="54" width="64" height="64" rx="16" stroke="#ececf1" stroke-width="9"/><rect x="138" y="54" width="64" height="64" rx="16" stroke="#ececf1" stroke-opacity=".45" stroke-width="9"/><rect x="54" y="138" width="64" height="64" rx="16" stroke="#ececf1" stroke-opacity=".45" stroke-width="9"/><rect x="133.5" y="133.5" width="73" height="73" rx="36.5" fill="url(#t)"/></svg>`,
+)}`
+
+const html = (title: string, entry: string, bodyClass = "") => `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="${FAVICON}" />
+    <title>${title}</title>
+  </head>
+  <body class="${bodyClass}">
+    ${bodyClass === "sb-ui" ? WAVE_BOOT : PLAIN_BOOT}
     <script>
       (function () {
         var start = Date.now()
@@ -43,7 +96,7 @@ const html = (title: string, entry: string, bodyClass = "") => `<!doctype html>
           var el = document.getElementById("sb-boot-text")
           if (!el) return clearInterval(t)
           var n = performance.getEntriesByType("resource").length
-          el.textContent = "Loading… " + n + " modules · " + Math.round((Date.now() - start) / 1000) + "s"
+          el.textContent = (el.dataset.label || (el.dataset.label = el.textContent.replace(/…$/, ""))) + "… " + n + " modules · " + Math.round((Date.now() - start) / 1000) + "s"
         }, 500)
       })()
     </script>

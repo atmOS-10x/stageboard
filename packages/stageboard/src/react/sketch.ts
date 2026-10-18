@@ -87,7 +87,6 @@ function floatingCopy(el: HTMLElement, to: Region): HTMLElement {
     transform: "none",
     maxWidth: "none",
     maxHeight: "none",
-    zIndex: "1",
     visibility: "visible",
     pointerEvents: "none",
     outline: "1.5px dashed rgba(141,122,246,.9)",
@@ -135,8 +134,10 @@ export function installSketch(base: string) {
   const api: SketchApi = {
     apply(ops) {
       restore()
-      const svg: string[] = []
-      // Text first, so a moved element's copy shows its new text.
+      const w = Math.max(document.documentElement.scrollWidth, innerWidth)
+      const h = Math.max(document.documentElement.scrollHeight, innerHeight)
+      // Text first, so a moved element's copy shows its new text. Everything else stacks in the order it was made:
+      // each item is its own layer child, so a mark drawn after a move sits on top of the moved element.
       const ordered = [...ops.filter((o) => o.type === "text"), ...ops.filter((o) => o.type !== "text")]
       for (const op of ordered) {
         if (op.type === "move") {
@@ -169,15 +170,10 @@ export function installSketch(base: string) {
           frame.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${width}px;height:${height}px;border:0;border-radius:8px;background:#fff;box-shadow:0 0 0 1.5px rgba(141,122,246,.9)`
           layer().appendChild(frame)
         } else if (op.type === "stroke") {
-          svg.push(`<path d="${strokePath(op.points)}" stroke="${op.color}" stroke-width="${op.width}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)
+          const holder = document.createElement("div")
+          holder.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none"><path d="${strokePath(op.points)}" stroke="${op.color}" stroke-width="${op.width}" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+          layer().appendChild(holder.firstElementChild!)
         }
-      }
-      if (svg.length) {
-        const w = Math.max(document.documentElement.scrollWidth, innerWidth)
-        const h = Math.max(document.documentElement.scrollHeight, innerHeight)
-        const holder = document.createElement("div")
-        holder.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" style="position:absolute;left:0;top:0;overflow:visible">${svg.join("")}</svg>`
-        layer().appendChild(holder.firstElementChild!)
       }
     },
     at(clientX, clientY) {

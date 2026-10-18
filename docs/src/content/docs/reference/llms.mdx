@@ -1,0 +1,32 @@
+---
+title: Docs for agents
+description: Point an agent at the plain-text versions of these docs, or install the stageboard skill in your repo.
+---
+
+These docs are also published as plain Markdown for language models:
+
+| URL | What it contains |
+| --- | --- |
+| [`/llms.txt`](https://docs.stageboard.design/llms.txt) | A short description of stageboard and a link to every page's Markdown, grouped like the sidebar. Start here. |
+| [`/llms-full.txt`](https://docs.stageboard.design/llms-full.txt) | Every page in full, as Markdown, in one file. |
+| `/<page>.md` | One page as Markdown, for example [`/guides/flows.md`](https://docs.stageboard.design/guides/flows.md). The introduction is `/index.md`. `.mdx` works too. |
+
+Every page also has Copy Markdown and Open in ChatGPT or Claude buttons under its title. A request with `Accept: text/markdown` to a page's normal URL gets the Markdown as well.
+
+To use them, give the agent the URL and ask it to read it before it works:
+
+```text
+Read https://docs.stageboard.design/llms-full.txt, then set up stageboard in this repo.
+```
+
+Agents that fetch web pages (Claude Code, Codex and most others) follow the URL themselves. For a tool that only takes files, download one first, for example `curl -o stageboard-docs.md https://docs.stageboard.design/llms-full.txt`.
+
+## Inside a repo, use the skill
+
+For an agent working in your project, the stageboard skill is better than the docs: it is written as instructions for agents, ships with the installed version of stageboard, and is picked up automatically from the repo.
+
+```bash
+npx stageboard skill
+```
+
+This installs it into `.claude/skills/stageboard` and `.agents/skills/stageboard`. Every request stageboard sends to an agent tells it to follow the skill when it is installed. See [Agents](/guides/agents#the-skill) and [CLI](/reference/cli#skill).

@@ -1,0 +1,103 @@
+---
+title: Quick start
+description: Install stageboard, write a first story and open the board, either through your agent or by hand.
+---
+
+The fastest way to set up stageboard is to let your coding agent do it. The manual path below does the same steps by hand.
+
+## Let your agent set it up
+
+Paste this prompt into Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or `.agents/skills`:
+
+```text title="Prompt"
+Set up stageboard in this repo. Run `npm i -D stageboard` (use this repo's package manager), then
+`npx stageboard skill` to install the stageboard skill, and follow it: write the config and a preview
+with mock providers, add stories for the main components, put every page in Screens with realistic
+mock data, and check each one with `npx stageboard shot`. Finish by listing the stories that look weak.
+```
+
+The skill tells the agent how to write the config, mock providers, stories and page stories, and to check each one with a screenshot.
+
+## Set it up by hand
+
+### 1. Install
+
+```npm
+npm i -D stageboard
+```
+
+stageboard needs `react` and `react-dom` 18 or later. It runs on Vite 6 or later.
+
+### 2. Create the config
+
+```bash
+npx stageboard init
+```
+
+This writes `stageboard.config.ts` in the current directory:
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  preview: "./stageboard.preview.tsx",
+  agent: { provider: "claude" },
+})
+```
+
+Create the preview file it points to. It imports your global CSS and exports `decorators` that wrap every story, for example in your providers:
+
+```tsx title="stageboard.preview.tsx"
+import "./src/styles.css"
+import type { Decorator } from "stageboard"
+
+export const decorators: Decorator[] = [(Story) => <div className="font-sans antialiased"><Story /></div>]
+```
+
+Add `.stageboard/` (local state and caches) to `.gitignore`. See [Configuration](/configuration) for every option.
+
+### 3. Write a first story
+
+```tsx title="src/components/button.stories.tsx"
+import type { Meta, Story } from "stageboard"
+import { Button } from "./button"
+
+export default { title: "Primitives/Button", component: Button, args: { children: "Save" } } satisfies Meta<typeof Button>
+
+export const Primary: Story<typeof Button> = {}
+export const Disabled: Story<typeof Button> = { args: { disabled: true } }
+```
+
+Story ids are `kebab(title)--kebab(export)`, so these are `primitives-button--primary` and `primitives-button--disabled`. `npx stageboard list` prints them. See [Stories](/guides/stories) for the full format.
+
+### 4. Start the board
+
+```bash
+npx stageboard dev
+```
+
+Open `http://localhost:6060/__stageboard/`. The port defaults to `6060` (or `STAGEBOARD_PORT`), and stageboard moves to the next free port if it is taken; the terminal prints the actual URL. Use `--port` and `--host` to change them.
+
+To check a story without opening the board, take a screenshot:
+
+```bash
+npx stageboard shot primitives-button--primary --width 1440 --out /tmp/button.png
+```
+
+### 5. Install the agent skill
+
+```bash
+npx stageboard skill
+```
+
+This copies the stageboard skill into `.claude/skills/stageboard` and `.agents/skills/stageboard`. Pass `--claude` or `--codex` to install only one of them. Run it again after upgrading stageboard.
+
+## Next steps
+
+- [Stories](/guides/stories) and [Screens](/guides/screens): cover your components and every page.
+- [Flows](/guides/flows): string screens into user journeys.
+- [Annotate](/guides/annotate): point at what is wrong and send it to an agent.
+- [Agents](/guides/agents): pick Claude Code, Codex, atmOS or your own CLI.
+- [Next.js](/guides/nextjs): use the Next.js preset.
+- [CLI reference](/reference/cli): every command and flag.

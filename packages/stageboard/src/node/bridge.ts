@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
-import type { BridgeState, ChangeRequest, Dream, DreamRequest, Flow, FlowRequest, FlowStep, Job, VariantFile } from "../core/protocol"
+import { sketchBounds, type BridgeState, type ChangeRequest, type Dream, type DreamRequest, type Flow, type FlowRequest, type FlowStep, type Job, type VariantFile } from "../core/protocol"
 import { createRequire } from "node:module"
 import { createProvider, type AgentProvider, type AgentRun, type McpLaunch } from "./agents"
 import type { ResolvedConfig } from "./config"
@@ -199,6 +199,7 @@ export class Bridge {
     if (request.kind === "page") return this.enrichPage(job, request)
     if (request.kind === "flow" || request.flow) {
       this.flowIndex = (await buildIndex(this.config)).filter((s) => s.hasPage).map((s) => ({ id: s.id, title: `${s.title} / ${s.name}`, file: s.file }))
+      if (request.annotations?.length) return this.enrichBatch(job, request)
       if (request.kind === "flow" || !request.target.region) return
     }
     if (request.sketch) return this.enrichSketch(job, request)
@@ -255,6 +256,33 @@ export class Bridge {
       job.sketchImage = writeUpload(this.config, await this.renderer.shot(target.storyId, { ...base, sketch }), "image/png", `sketch-${job.id}.png`).path
     } catch (e) {
       this.log(job, `Could not render the sketch: ${(e as Error).message.slice(0, 160)}`)
+    }
+    this.bump()
+  }
+
+  // A batch of annotations across a flow's screens: a crop of every commented region, and before/after renders of
+  // every sketched screen, listed in the prompt next to the annotation they belong to.
+  private async enrichBatch(job: Job, request: ChangeRequest) {
+    if (!this.renderer) return
+    const pad = 24
+    job.images = []
+    for (const [i, a] of (request.annotations ?? []).entries()) {
+      const base = { variants: {}, width: a.viewport.width, height: a.viewport.height }
+      try {
+        if (a.region) {
+          const r = a.region
+          const png = await this.renderer.shot(a.storyId, { ...base, region: { x: Math.max(0, r.x - pad), y: Math.max(0, r.y - pad), width: r.width + pad * 2, height: r.height + pad * 2 } })
+          job.images.push({ label: `${i + 1}:selection`, path: writeUpload(this.config, png, "image/png", `selection-${job.id}-${i + 1}.png`).path })
+        }
+        if (a.sketch?.ops.length) {
+          const b = sketchBounds(a.sketch.ops, { x: 0, y: 0, width: a.viewport.width, height: a.viewport.height })
+          const region = { x: Math.max(0, b.x - pad * 2), y: Math.max(0, b.y - pad * 2), width: b.width + pad * 4, height: b.height + pad * 4 }
+          job.images.push({ label: `${i + 1}:before`, path: writeUpload(this.config, await this.renderer.shot(a.storyId, { ...base, region }), "image/png", `before-${job.id}-${i + 1}.png`).path })
+          job.images.push({ label: `${i + 1}:sketch`, path: writeUpload(this.config, await this.renderer.shot(a.storyId, { ...base, region, sketch: a.sketch }), "image/png", `sketch-${job.id}-${i + 1}.png`).path })
+        }
+      } catch (e) {
+        this.log(job, `Could not render annotation ${i + 1}: ${(e as Error).message.slice(0, 160)}`)
+      }
     }
     this.bump()
   }

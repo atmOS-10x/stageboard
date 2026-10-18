@@ -1,0 +1,94 @@
+---
+title: Screens and pages
+description: Turn page components into screens with parameters.page, browse them as Desktop, Tablet or Mobile, in light or dark, grouped by area.
+---
+
+A screen is a story with `parameters.page`. It renders a whole page of your app with mock data, full-bleed, and shows up in the Screens view next to every other page. Use page stories to put your entire app on the board without running its backend.
+
+```tsx title="src/pages/pages.stories.tsx"
+import type { Meta, Story } from "stageboard"
+import { HomePage, LoginPage, PricingPage } from "./pages"
+
+export default { title: "Pages", parameters: { layout: "fullscreen" } } satisfies Meta
+
+export const Home: Story = {
+  render: () => <HomePage />,
+  parameters: { page: { route: "/", title: "Home", group: "Marketing", links: ["/pricing", "/login"] } },
+}
+
+export const Pricing: Story = {
+  render: () => <PricingPage />,
+  parameters: { page: { route: "/pricing", title: "Pricing", group: "Marketing", links: ["/login"] } },
+}
+
+export const Login: Story = {
+  render: () => <LoginPage />,
+  parameters: { page: { route: "/login", title: "Log in", group: "Auth" } },
+}
+```
+
+## `parameters.page`
+
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `route` | `string` | required | The page's real route pattern, with dynamic segments in brackets: `/[team]/tickets/[id]`. A story is a screen only when it has a `route`. |
+| `title` | `string` | the story's name | Title on the screen card and in the sidebar. |
+| `group` | `string` | last part of the file's `title` | The section the screen is listed under. |
+| `links` | `string[]` | none | Routes this page navigates to. The single-screen view shows each linked screen as a button next to the title; agents read and update it when they build screens and flows. |
+| `params` | `Record<string, string \| string[]>` | from `path` | What `useParams()` returns in the story (Next.js shim). |
+| `path` | `string` | `route` with `params` filled in | The concrete URL the story shows, such as `/stays/42?tab=photos`, for `usePathname()` and `useSearchParams()`. |
+| `dream` | `string` | none | Set by an agent that built this page for a flow, so the placeholder in the flow becomes this story. Don't set it yourself. |
+
+A story with `page` defaults to the `fullscreen` layout. Wrap logged-in pages in a decorator that provides your app shell and mocks:
+
+```tsx title="src/app/dashboard.stories.tsx"
+export const Tickets: Story = {
+  render: () => <TicketsPage />,
+  decorators: [(S) => <MockDashboard><S /></MockDashboard>],
+  parameters: {
+    page: {
+      route: "/[team]/dashboard/tickets",
+      title: "Tickets",
+      group: "Dashboard",
+      links: ["/[team]/dashboard/tickets/[id]"],
+    },
+  },
+}
+```
+
+## The Screens view
+
+Screens shows a card for every page story, rendered at the selected device size and grouped by `group`. The sidebar lists the same screens and searches their titles, story names and routes. Click a card to open the screen on its own, where you can [annotate](/guides/annotate) it, show its [variants](/guides/variants), open it in a new tab, or copy its `npx stageboard shot` command. Its `links` appear as buttons next to the title. A `next/link` click or `router.push` in the screen opens the screen whose `route` matches the URL (`/stays/42` matches `/stays/[id]` and `/stays/:id`; a literal route beats a dynamic one); with no match the board shows "No screen for /path".
+
+Components lists every story that isn't a screen, grouped by the file's `title`. That includes stories without a `route` in a file of page stories, so a page's tabs and states can live next to it without becoming screens of their own. A story that spreads a screen story (`{ ...Home, args: { … } }`) or its `parameters` keeps the route and stays a screen.
+
+## Devices
+
+The Device switch in the header renders every screen at one of three sizes:
+
+| Device | Size |
+| --- | --- |
+| Desktop | 1440 × 900 |
+| Tablet | 834 × 1194 |
+| Mobile | 390 × 844 |
+
+The same sizes are used by the flow viewer and `npx stageboard flow shot --device`.
+
+## Light and dark
+
+The theme button next to the device switch cycles the screens through system, dark and light. A forced theme adds the `dark` or `light` class to `<html>`, sets `color-scheme` and `data-theme`, and answers `prefers-color-scheme` queries with that theme, so class-based setups (Tailwind `dark:`, next-themes) and media-query setups both follow it.
+
+To pin one story to a theme, set `parameters.theme`:
+
+```tsx title="src/pages/pages.stories.tsx"
+export const HomeDark: Story = {
+  render: () => <HomePage />,
+  parameters: { theme: "dark", page: { route: "/", title: "Home (dark)", group: "Marketing" } },
+}
+```
+
+The theme chosen in the header wins over `parameters.theme`. From the command line, use `npx stageboard shot <id> --theme dark` (see [CLI](/reference/cli)).
+
+## States of a page
+
+Flows often need a page in a specific state: a dialog open, a form filled in, an empty inbox. Give each state its own page story with the same `route` and a distinct `title`, so it is a screen you can put in a flow. To cover a whole app, enumerate its routes, build the mock backend once, then add page stories area by area and check each with `npx stageboard shot <id> --width 1440 --full`.

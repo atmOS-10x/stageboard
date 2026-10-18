@@ -1,0 +1,154 @@
+---
+title: Agents
+description: Choose which agent stageboard sends requests to, configure it, and see what every request contains.
+---
+
+stageboard sends every request from Annotate, Variants, Reconcile and Flows to a coding agent. You pick the agent with the `agent` option in `stageboard.config.ts`; without it, stageboard uses `claude`.
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  agent: { provider: "codex", model: "gpt-5-codex" },
+})
+```
+
+`npx stageboard dev` prints the provider it uses on start. The agent always runs in the git root of the folder that holds `stageboard.config.ts` (or that folder, outside git), so it edits the checkout you are looking at.
+
+## Providers
+
+| Provider | Runs | Shows up in |
+| --- | --- | --- |
+| `claude` | `claude --bg` (or `claude -p` with `background: false`) | `claude agents` |
+| `codex` | `codex exec --json` | Codex |
+| `atmos` | `atmos session new` | atmOS sessions |
+| `command` | any shell command | your tool |
+
+### claude
+
+Starts a Claude Code background session named `stageboard: <note>` and polls `claude agents --json --all` until it is no longer busy. Cancelling a job runs `claude stop <id>`.
+
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `background` | `boolean` | `true` | `false` runs `claude -p <prompt> --output-format stream-json --verbose` as a child process instead, and streams its messages into the job log. |
+| `model` | `string` | Claude's default | Passed as `--model`. |
+| `permissionMode` | `string` | `"acceptEdits"` | Passed as `--permission-mode`. |
+| `extraArgs` | `string[]` | `[]` | Appended to the `claude` arguments. |
+
+### codex
+
+Runs `codex exec --json -C <cwd> --sandbox <sandbox> <prompt>` and streams its events into the job log.
+
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `model` | `string` | Codex's default | Passed as `-m`. |
+| `sandbox` | `"read-only" \| "workspace-write" \| "danger-full-access"` | `"workspace-write"` | Passed as `--sandbox`. |
+| `extraArgs` | `string[]` | `[]` | Appended to the `codex exec` arguments. |
+
+### atmos
+
+Runs `atmos session new --json -p <prompt>`, with a title made from the note, and polls `atmos session get <id> --json` until the session is idle, done or failed. If there is no atmOS user login on the machine (for example inside an atmOS session), it starts a child session with `atmos session subagent create` instead. Cancelling runs `atmos session cancel <id>`.
+
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `project` | `string` | none | Passed as `--project`. |
+| `checkout` | `string` | none | Passed as `--checkout`. |
+| `device` | `string` | `"current"` | Passed as `--device`. |
+| `harness` | `string` | `"claude_local"` | Passed as `--harness`. `"codex_local"` also picks a Codex child session in the fallback. |
+| `model` | `string` | none | Passed as `--model`. |
+| `permissionMode` | `string` | `"acceptEdits"` | Passed as `--harness-permission-mode`. |
+| `sameWorktree` | `boolean` | `true` | Prepends a "Where to work" section that tells the session to work in the existing worktree and branch (via its `worktree_enter` tool), not a new one, because you are watching that checkout live. `false` leaves the prompt as is. |
+
+### command
+
+Runs any shell command in the agent's working directory. stageboard writes the prompt to a temporary file first (`<tmpdir>/stageboard-<jobId>.md`).
+
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `command` | `string` | required | The shell command. `{promptFile}` is replaced with the prompt file path and `{jobId}` with the job id. |
+| `detached` | `boolean` | `false` | The command only launches the agent elsewhere and returns. Exit code 0 leaves the job running until the agent reports completion. |
+
+The command also gets two environment variables: `STAGEBOARD_PROMPT_FILE` (the prompt file) and `STAGEBOARD_JOB_ID`. Its output goes to the job log. By default the job is running until the agent reports completion or the command exits, whichever comes first; exit code 0 marks it done, any other code marks it failed.
+
+Set `detached: true` when the command starts a session in another tool (a tmux pane, a remote agent) and returns at once. The job then stays running until the agent reports with the `complete_job` MCP tool or `npx stageboard done <jobId> [summary] [--failed]`, as the prompt tells it, or until you cancel it. A non-zero exit still marks the job failed, since the launcher itself failed. This one starts an interactive Claude Code session in a tmux session per job:
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  agent: {
+    provider: "command",
+    command: `tmux new-session -d -s sb-{jobId} 'claude "$(cat {promptFile})"'`,
+    detached: true,
+  },
+})
+```
+
+## Project notes
+
+`instructions` is a string that stageboard appends to every prompt under `## Project notes`. Use it for things every request should know, such as where shared components live or which design tokens to use.
+
+```ts title="stageboard.config.ts"
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  instructions: "Use the tokens in src/styles/tokens.css. Never add new colors.",
+})
+```
+
+## What a request contains
+
+The prompt depends on the kind of request (edit, variants, adopt, new page, flow), but an annotation on a story includes:
+
+- The note and what to do with it, for example "Change the `Hero` component the user pointed at, directly in place".
+- The marked region: the story id, x, y, width and height in page pixels and the viewport size.
+- A cropped screenshot of exactly that area, with a small margin, as a file path.
+- The component chain under the selection, innermost first.
+- Your reference images, as file paths.
+- The variants in view, and whether to edit that variant's file or build new variants on it.
+- For sketches: every move, resize, text edit, block and freehand mark, plus before and after screenshots.
+- How to check the work with `npx stageboard shot` and the stageboard MCP tools.
+- Rules: work in the current tree, don't commit, push or start dev servers, follow the project's conventions.
+- The job id and how to report completion.
+- Your `instructions`, under `## Project notes`.
+
+The prompt ends with a `Page context (JSON):` block with the URL, page title, CSS selector, element text, the component chain with each component's `sourcePath` and `sourceLine`, the selection's tag and rect, the viewport, the variant boundary and its active key, and the story id.
+
+```json
+{
+  "url": "http://localhost:6060/__stageboard/frame.html?story=landing-hero--default",
+  "title": "Acme",
+  "selector": "section.hero > h1",
+  "text": "Ship faster",
+  "components": [
+    { "name": "HeroTitle", "sourcePath": "src/landing/hero.tsx", "sourceLine": 42 },
+    { "name": "Hero", "sourcePath": "src/landing/hero.tsx", "sourceLine": 12 }
+  ],
+  "selection": { "tag": "h1", "rect": { "x": 120, "y": 96, "width": 640, "height": 72 } },
+  "viewport": { "width": 1440, "height": 900 },
+  "variant": { "id": "landing.hero", "active": "original" },
+  "story": "landing-hero--default"
+}
+```
+
+stageboard also saves each prompt as `.stageboard/prompt-<jobId>.md`, so you can read exactly what the agent got.
+
+## Reporting completion
+
+Every prompt ends with the job id and asks the agent to report it finished as its last step, so the board stops showing the job as running:
+
+- the MCP tool `complete_job` with `job`, `summary` and optional `failed: true`, or
+- `npx stageboard done <jobId> "<summary>"`, with `--failed` if it could not do what was asked.
+
+For `claude` and `codex`, stageboard attaches its MCP server to the agent automatically. See [MCP server](/reference/mcp).
+
+## The skill
+
+`npx stageboard skill` installs the stageboard skill into `.claude/skills/stageboard` and `.agents/skills/stageboard` of the current folder (or the folder you pass). It teaches an agent how to write stories with mock data, page stories, flows and variants, and how to check its work. Pass `--claude` or `--codex` to install only one of them. Every prompt tells the agent to follow the skill when it is installed.
+
+```bash
+npx stageboard skill
+```
+
+Related: [Annotate](/guides/annotate), [Variants](/guides/variants), [Flows](/guides/flows), [CLI](/reference/cli).

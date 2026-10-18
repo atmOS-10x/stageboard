@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="https://stageboard.design">stageboard.design</a> &nbsp; <a href="https://docs.stageboard.design">Docs</a>
+</p>
+
+<p align="center">
   <img alt="status" src="https://img.shields.io/badge/status-early-a99cff?style=flat-square" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-3f3f46?style=flat-square" />
   <img alt="typescript" src="https://img.shields.io/badge/TypeScript-5.9-3f3f46?style=flat-square&logo=typescript&logoColor=white" />
@@ -37,11 +41,11 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 
 - **Stories with mock data.** A Storybook-compatible `*.stories.tsx` format. Pages are stories too, so no backend or login is needed.
 - **Screens, Flows, Components.** Browse every page, every UI component and the user flows through the app, as Desktop, Tablet or Mobile. The sidebar searches whichever you are looking at.
-- **Flows.** Ordered journeys through your screens, like Mobbin's. Describe a new flow and an agent assembles it from existing screens, building the missing ones while they render as a pixel ocean; or add, drag and remove screens yourself. Flows live in `stageboard/board.json`; commit it.
+- **Flows.** Ordered journeys through your screens, like Mobbin's. Describe a new flow and an agent assembles it from existing screens, building the missing ones while they render as a pixel ocean; or add, drag and remove screens yourself. In the flow viewer each step says what is happening on the screen and plays what the user does on it (clicks, typing, key presses) with a cursor; Play runs the whole flow screen by screen. Annotate goes across screens: comment and sketch on one, press → for the next, and Note on flow becomes Reconcile, sending everything in one request. Click a screen (or press Enter) to use it, Escape to hand control back, R to replay it from the start. `npx stageboard flow shot <flow>` renders a whole flow into one grid image, playing each step's actions first and listing them with the note so an agent can take it in at once. Flows live in `stageboard/board.json`; commit it.
 - **Annotate.** Press A. Comment is the default: drag over any screen, component, story or variant, write a note, paste reference images, and send it to an agent. On a single screen the same toolbar also lets you move, resize and retype elements, draw, add blocks and drop in your own components, then Reconcile. The agent gets every change plus before/after screenshots.
-- **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Production renders the original.
+- **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Adopt as original asks the agent to make the picked variant the new original. Production renders the original.
 - **`stageboard shot`.** A headless screenshot of any story, variant or region. Agents use it to check their own work.
-- **MCP server.** `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant` and `complete_job` (agents report when they are done), attached to Claude and Codex agents automatically.
+- **MCP server.** `list_stories`, `screenshot`, `flow_grid`, `list_variants`, `compare_variants`, `select_variant`, `list_flows`, `save_flow` and `complete_job` (agents report when they are done), attached to Claude and Codex agents automatically.
 
 <p align="center">
   <img src=".github/assets/variants.png" alt="Variants gallery" width="880" />
@@ -51,7 +55,7 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 
 ```bash
 npm i -D stageboard
-npx stageboard init        # writes stageboard.config.ts
+npx stageboard init        # writes stageboard.config.ts, with the preview at ./stageboard.preview.tsx
 npx stageboard dev         # screens, flows, components and agent bridge on :6060/__stageboard/
 ```
 
@@ -87,23 +91,35 @@ To get the inspector bubble in your running app, render `<StageboardDevtools />`
 
 | command | |
 |---|---|
-| `stageboard dev` | screens, flows, components, annotation bridge |
-| `stageboard shot <story> [--variant id=key] [--width 1440] [--full]` | PNG of a story, no app needed |
-| `stageboard list [filter]` | story ids |
+| `stageboard init` | write a starter `stageboard.config.ts` |
+| `stageboard dev [--port 6060] [--host 0.0.0.0]` | screens, flows, components, annotation bridge |
+| `stageboard shot <story> [--variant id=key] [--width 1440] [--height 900] [--full] [--theme dark] [--scale 2] [--out file.png]` | PNG of a story, no app needed |
+| `stageboard list [filter] [--json]` | story ids |
+| `stageboard flow shot <flow> [--device mobile] [--theme dark] [--cols 3] [--out file.png]` | every screen of a flow in one grid image, with its steps |
+| `stageboard flow save '<json>'` | save a flow (JSON or a file path) to the running board |
+| `stageboard done <job> [summary] [--failed]` | tell the running board an agent job is finished |
 | `stageboard mcp` | MCP server on stdio |
-| `stageboard skill` | install the agent skill into `.claude/skills` and `.agents/skills` |
+| `stageboard skill [dir] [--claude] [--codex]` | install the agent skill into `.claude/skills` and `.agents/skills`, or only one |
 | `stageboard variants` | regenerate the variants registry |
+
+Every command takes `--config <file>` to use another config file.
 
 ## Agents
 
 | provider | runs | shows up in |
 |---|---|---|
-| `claude` | `claude --bg` | `claude agents` |
+| `claude` | `claude --bg`; `background: false` runs `claude -p` | `claude agents` |
 | `codex` | `codex exec` | Codex |
-| `atmos` | `atmos session new`, in the same worktree | atmOS sessions |
-| `command` | any CLI; the prompt is in `$STAGEBOARD_PROMPT_FILE` | your tool |
+| `atmos` | `atmos session new`, in the same worktree unless `sameWorktree: false` | atmOS sessions |
+| `command` | any CLI; `{promptFile}` and `{jobId}` in the command, `$STAGEBOARD_PROMPT_FILE` and `$STAGEBOARD_JOB_ID` in its env | your tool |
+
+With `detached: true` a `command` agent's job stays open until the agent calls `complete_job` or `stageboard done`.
 
 Every request includes the marked region, a cropped screenshot, the component chain with source paths, your reference images and the variants in view. The prompt ends with a `Page context (JSON):` block, using the same convention as the atmOS browser extension.
+
+## Docs
+
+Guides and the full reference live at [docs.stageboard.design](https://docs.stageboard.design).
 
 ## License
 

@@ -1,0 +1,117 @@
+---
+title: Stories
+description: Write stories for your components and pages, wrap them in providers and mocks with a preview file, and know how story ids are made.
+---
+
+A story is one state of a component or page, rendered with mock data. Stories live in `*.stories.tsx` files that match the `stories` globs in [`stageboard.config.ts`](/configuration), and stageboard shows them under Screens and Components.
+
+```tsx title="src/components/button.stories.tsx"
+import type { Meta, Story } from "stageboard"
+import { Button } from "./button"
+
+export default {
+  title: "Primitives/Button",
+  component: Button,
+  args: { children: "Save" },
+} satisfies Meta<typeof Button>
+
+export const Primary: Story<typeof Button> = {}
+export const Disabled: Story<typeof Button> = { args: { disabled: true } }
+```
+
+This file has two stories, `primitives-button--primary` and `primitives-button--disabled`.
+
+## The default export: `Meta`
+
+The default export describes every story in the file. Import the `Meta` type from `stageboard` and use `satisfies Meta<typeof Component>`, so `args` are checked against the component's props.
+
+| Field | Type | What it does |
+| --- | --- | --- |
+| `title` | `string` | Group and name in the sidebar, with `/` for nesting. Also the first half of every story id. |
+| `component` | component | Rendered with the merged `args` when a story has no `render`. |
+| `args` | `Partial<Props>` | Props shared by all stories in the file. |
+| `parameters` | object | Defaults for every story in the file (see below). |
+| `decorators` | `Decorator[]` | Wrappers for every story in the file. |
+
+`parameters` takes these fields:
+
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `layout` | `"centered" \| "padded" \| "fullscreen"` | `"fullscreen"` with `page`, otherwise `"centered"` | How the story sits in the frame. |
+| `viewport` | `{ width, height? }` | none | Fixed width of the stage; applies to the `centered` layout. |
+| `theme` | `"light" \| "dark"` | none | Forces the color scheme (see [Screens](/guides/screens#light-and-dark)). |
+| `background` | `string` | none | CSS background of the frame's body. |
+| `page` | object | none | Makes the story a screen. See [Screens](/guides/screens). |
+| `variants` | `Record<string, string>` | none | Variant to show per boundary, as `{ "landing.hero": "hero.calm" }`. See [Variants](/guides/variants). |
+
+## Named exports: `Story`
+
+Every named export that starts with an uppercase letter is a story. Exports that start with a lowercase letter, or with `__`, are ignored, so helpers and fixtures can live in the same file.
+
+| Field | Type | What it does |
+| --- | --- | --- |
+| `name` | `string` | Display name. Defaults to the export name split into words (`LongTitle` becomes "Long Title"). |
+| `args` | `Partial<Props>` | Merged over the file's `args`. |
+| `parameters` | object | Merged over the file's `parameters`, one level deep. |
+| `decorators` | `Decorator[]` | Wrappers for this story only. |
+| `render` | `(args, context) => ReactNode` | Renders the story instead of `component`. `context` has `id`, `title`, `name`, `args` and `parameters`. |
+
+A story can also be a function; it is used as `render`:
+
+```tsx title="src/pages/pages.stories.tsx"
+export const Empty = () => <InboxPage tickets={[]} />
+```
+
+## The preview file
+
+The preview file wraps every story. Point the `preview` option at it (`npx stageboard init` writes `./stageboard.preview.tsx`). It imports global CSS and exports `decorators`, and optionally `parameters` that act as defaults below the file's and the story's own.
+
+```tsx title="stageboard.preview.tsx"
+import "./src/styles.css"
+import type { Decorator } from "stageboard"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MockAuthProvider } from "./stageboard/mocks"
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+export const decorators: Decorator[] = [
+  (Story) => (
+    <QueryClientProvider client={queryClient}>
+      <MockAuthProvider user="signed-in">
+        <Story />
+      </MockAuthProvider>
+    </QueryClientProvider>
+  ),
+]
+```
+
+A decorator is `(Story, context) => ReactNode`. Story decorators wrap the story first, then the file's, then the preview's, so the preview's are outermost.
+
+## Mock data
+
+Pages need data without a backend or login. Mock at the edges, not inside components:
+
+- **Providers.** Keep pure UI providers (theme, query client, i18n). Replace anything that authenticates, opens sockets or redirects with the same React context and a static value.
+- **HTTP.** Mock the client once: an axios `adapter`, a wrapper around `window.fetch` for your API paths, or handlers keyed by operation name for generated clients. Unknown endpoints should return an empty value of the right shape, so a page never hangs on a loader.
+- **Fixtures.** Write factories (`makeTicket`) that fill every required field, and use one consistent fictional world with realistic names and dates in your product's language. Avoid lorem ipsum.
+
+For Next.js apps, `nextPreset` shims `next/image`, `next/link`, `next/navigation`, `next/font` and `next/dynamic`; see [Next.js](/guides/nextjs).
+
+## Story ids
+
+An id is `kebab(title)--kebab(exportName)`. `Marketing/Hero` with `export const LongTitle` becomes `marketing-hero--long-title`. The `name` field does not change the id. Run `npx stageboard list` to see every id.
+
+Without a `title`, stageboard derives one from the file path: it drops the `.stories.tsx` extension and the `src`, `components` and `app` folders, collapses a repeated segment, drops a trailing `index`, and title-cases the rest. `src/components/button/button.stories.tsx` becomes `Button`, and `src/features/billing-plan/index.stories.tsx` becomes `Features/Billing Plan`.
+
+stageboard reads titles from the source text without running it, so write `title` as a string literal, either in `export default { … }` or in a `const meta = { … }` that the file exports with `export default meta`.
+
+## Storybook compatibility
+
+The format follows Storybook's Component Story Format: a default export with `title`, `component`, `args`, `parameters` and `decorators`, and named object stories with `args`, `render` and `name`. Most CSF 3 stories render unchanged once their types come from `stageboard`.
+
+What stageboard does not do:
+
+- No `play` functions, `loaders`, `argTypes`, controls, globals or addons. To script what a user does on a screen, use [flow actions](/guides/flows).
+- `tags` is accepted but ignored.
+- `parameters` other than the ones listed above are passed through to `context.parameters` but have no effect of their own.
+- Titles and ids come from the source text, so computed titles and re-exported stories are not indexed.

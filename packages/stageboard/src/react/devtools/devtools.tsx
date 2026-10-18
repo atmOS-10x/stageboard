@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client"
 import type { ElementTarget, Job } from "../../core/protocol"
 import { componentChain, cssPath, nearestVariant, variantBoundaryRects } from "../fiber"
 import { isActiveJob, startBridge, useStageboard } from "../store"
+import { DEFAULT_HOTKEY, hotkeyLabel, matchesHotkey, parseHotkey, type Hotkey } from "./hotkey"
 import { Panel } from "./panel"
 import { devtoolsCss } from "./styles"
 
@@ -161,7 +162,7 @@ function Mark() {
   )
 }
 
-function DevtoolsApp({ embedded }: { embedded: boolean }) {
+function DevtoolsApp({ embedded, hotkey }: { embedded: boolean; hotkey: Hotkey }) {
   const [picking, setPicking] = useState(false)
   const [hover, setHover] = useState<{ rect: DOMRect; name: string; dims: string }>()
   const [picked, setPicked] = useState<Picked>()
@@ -228,7 +229,7 @@ function DevtoolsApp({ embedded }: { embedded: boolean }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.altKey && e.shiftKey && e.code === "KeyC") {
+      if (matchesHotkey(e, hotkey)) {
         e.preventDefault()
         setPicked(undefined)
         setPicking((p) => !p)
@@ -237,7 +238,7 @@ function DevtoolsApp({ embedded }: { embedded: boolean }) {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [hotkey])
 
   useEffect(() => {
     if (!embedded) return
@@ -294,7 +295,7 @@ function DevtoolsApp({ embedded }: { embedded: boolean }) {
             if (picked) setPicked(undefined)
             else setPicking((p) => !p)
           }}
-          title="Inspect (Alt+Shift+C)"
+          title={`Inspect (${hotkeyLabel(hotkey)})`}
         >
           <Mark />
           <span className="sb-label">{picking ? "Pick an element" : "Inspect"}</span>
@@ -325,7 +326,9 @@ export function mountDevtools(options: DevtoolsOptions = {}): () => void {
   shadow.appendChild(container)
   const root = createRoot(container)
   const embedded = options.embedded ?? new URLSearchParams(location.search).has("sb-embed")
-  root.render(<DevtoolsApp embedded={embedded} />)
+  const hotkey = parseHotkey(options.hotkey ?? DEFAULT_HOTKEY)
+  if (!hotkey) console.warn(`[stageboard] unknown devtools hotkey "${options.hotkey}", using ${DEFAULT_HOTKEY}`)
+  root.render(<DevtoolsApp embedded={embedded} hotkey={hotkey ?? parseHotkey(DEFAULT_HOTKEY)!} />)
   mounted = { root, host }
   return () => {
     root.unmount()

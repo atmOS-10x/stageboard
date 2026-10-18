@@ -8,6 +8,10 @@ export type PageParameters = {
   links?: string[]
   group?: string
   dream?: string
+  /** What `useParams()` returns in the story; derived from `path` when left out. */
+  params?: Record<string, string | string[]>
+  /** The concrete URL the story shows, such as `/stays/42?tab=photos`, for `usePathname()` and `useSearchParams()`. */
+  path?: string
 }
 
 export type StageParameters = {

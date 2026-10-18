@@ -1,0 +1,14 @@
+{
+  "title": "stageboard",
+  "root": true,
+  "pages": [
+    "---Start here---",
+    "index",
+    "quick-start",
+    "configuration",
+    "---Guides---",
+    "...guides",
+    "---Reference---",
+    "...reference"
+  ]
+}

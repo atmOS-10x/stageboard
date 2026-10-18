@@ -1,0 +1,31 @@
+---
+title: Introduction
+description: Learn what stageboard is, who it is for and how its annotate-and-fix loop works.
+---
+
+stageboard puts every screen, flow and component of a React app on one board. It renders your real components from Storybook-compatible stories with mock data, so no backend or login is needed. People annotate what they see, and an agent changes the real code, optionally as live variants you can switch between.
+
+## Who it is for
+
+- Teams building a React app (Vite or Next.js) with a coding agent such as Claude Code, Codex, atmOS or any CLI agent.
+- Designers, product people and reviewers who want to point at a screen and say what is wrong, without opening the code.
+- Agents themselves: `npx stageboard shot` and the MCP server let an agent screenshot any story and check its own work.
+
+## How it differs from a design canvas
+
+A design canvas holds drawings of your app. stageboard holds the app. Every frame on the board is your actual component, rendered with your CSS, your providers and mock data. A change requested on the board is made in your source files, so there is nothing to hand off and nothing drifts out of sync.
+
+## The core loop
+
+1. **Describe the app.** Write `*.stories.tsx` files for components and pages. They show up under Components and Screens, and ordered journeys through the screens become Flows.
+2. **Annotate.** Press A, drag over any screen, component or variant, and write a note. Paste reference images or sketch on the screen.
+3. **Send it to an agent.** The agent gets the note, a cropped screenshot, the component chain with source paths and the variants in view, and edits the real code.
+4. **Pick the result.** The change appears live. If the agent wrote variants (`*.variant.tsx`), you choose one or keep the original.
+
+## Next
+
+- [Quick start](/quick-start): install stageboard and see your first story.
+- [Configuration](/configuration): every field of `stageboard.config.ts`.
+- [Stories](/guides/stories), [Screens](/guides/screens) and [Flows](/guides/flows): put your app on the board.
+- [Annotate](/guides/annotate), [Variants](/guides/variants) and [Agents](/guides/agents): get changes made.
+- [Next.js](/guides/nextjs) and [Devtools in your app](/guides/devtools): framework setup and the in-app inspector.

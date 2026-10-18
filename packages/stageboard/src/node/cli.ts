@@ -8,6 +8,7 @@ import { API_BASE } from "../core/protocol"
 import { loadConfig } from "./config"
 import { buildIndex } from "./indexer"
 import { createStageboardServer, findRunningServer } from "./server"
+import { flowOutline, shootFlow } from "./flowshot"
 import { shoot } from "./shot"
 import { writeVariantsModule } from "./variants"
 
@@ -77,7 +78,7 @@ cli
     for (const s of index) console.log(`${pc.cyan(s.id.padEnd(48))} ${pc.dim(s.file)}${s.hasPage ? pc.magenta(" page") : ""}`)
   })
 
-cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, list_variants, compare_variants, select_variant, complete_job, save_flow, list_flows)").action(async (opts) => {
+cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, flow_grid, list_variants, compare_variants, select_variant, complete_job, save_flow, list_flows)").action(async (opts) => {
   const config = await loadConfig(process.cwd(), opts.config)
   const { runMcpServer } = await import("./mcp")
   await runMcpServer(config)
@@ -100,9 +101,24 @@ cli
   })
 
 cli
-  .command("flow <action> [json]", "Save a user flow to the running stageboard: stageboard flow save '<json>'")
+  .command("flow <action> [arg]", "stageboard flow shot <flow>: every screen of a flow in one grid image; stageboard flow save '<json>': save a flow")
+  .option("--device <device>", "flow shot: desktop, tablet or mobile", { default: "desktop" })
+  .option("--theme <theme>", "flow shot: light or dark")
+  .option("--cols <n>", "flow shot: screens per row")
+  .option("--out <file>", "flow shot: output PNG path")
   .action(async (action: string, json: string | undefined, opts) => {
-    if (action !== "save" || !json) throw new Error("usage: stageboard flow save '<json>'")
+    if (action === "shot") {
+      if (!json) throw new Error("usage: stageboard flow shot <flow id or name>")
+      if (!["desktop", "tablet", "mobile"].includes(opts.device)) throw new Error("--device must be desktop, tablet or mobile")
+      const config = await loadConfig(process.cwd(), opts.config)
+      const result = await shootFlow(config, { flow: json, device: opts.device, theme: opts.theme, columns: opts.cols ? Number(opts.cols) : undefined, out: opts.out })
+      console.log(result.file)
+      console.log()
+      console.log(flowOutline(result))
+      console.error(pc.dim(`${result.steps.length} screens · ${(result.durationMs / 1000).toFixed(1)}s`))
+      process.exit(0)
+    }
+    if (action !== "save" || !json) throw new Error("usage: stageboard flow shot <flow> | stageboard flow save '<json>'")
     const config = await loadConfig(process.cwd(), opts.config)
     const base = await findRunningServer(config)
     if (!base) throw new Error("No running stageboard dev server found")

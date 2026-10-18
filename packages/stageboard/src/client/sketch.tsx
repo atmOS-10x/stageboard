@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode, type WheelEvent as RWheelEvent } from "react"
 import { createPortal } from "react-dom"
 import type { SketchApi, SketchTarget } from "stageboard/react"
-import type { Region, Sketch, SketchOp } from "stageboard"
+import { sketchBounds, type Region, type Sketch, type SketchOp } from "stageboard"
 import { useScrollSync, type Surface } from "./annotate"
+import { notifyBatch } from "./flow-batch"
 import { AnnotateIcon, CloseIcon, ComponentIcon, PenIcon, PointerIcon, SearchIcon, SquareIcon, UndoIcon } from "./icons"
 import { Button, IconButton, Input } from "./kit"
 import { Thumb } from "./thumb"
@@ -29,34 +30,15 @@ export function readSketch(id: string): SketchOp[] {
 
 export function clearSketch(id: string) {
   localStorage.removeItem(KEY(id))
+  notifyBatch()
 }
+
+export { sketchBounds }
 
 function opRect(op: SketchOp): Region | undefined {
   if (op.type === "block" || op.type === "component") return op.rect
   if (op.type === "move") return op.to
   return undefined
-}
-
-export function sketchBounds(ops: SketchOp[], fallback: Region): Region {
-  const boxes: Region[] = []
-  for (const op of ops) {
-    if (op.type === "move") boxes.push(op.from, op.to)
-    else if (op.type === "block" || op.type === "component") boxes.push(op.rect)
-    else if (op.type === "stroke" && op.points.length) {
-      const xs = op.points.map((p) => p.x)
-      const ys = op.points.map((p) => p.y)
-      boxes.push({ x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs) || 1, height: Math.max(...ys) - Math.min(...ys) || 1 })
-    }
-  }
-  if (!boxes.length) return fallback
-  const x = Math.min(...boxes.map((b) => b.x))
-  const y = Math.min(...boxes.map((b) => b.y))
-  return {
-    x: Math.round(x),
-    y: Math.round(y),
-    width: Math.max(1, Math.round(Math.max(...boxes.map((b) => b.x + b.width)) - x)),
-    height: Math.max(1, Math.round(Math.max(...boxes.map((b) => b.y + b.height)) - y)),
-  }
 }
 
 function resize(r: Region, corner: Corner, dx: number, dy: number): Region {
@@ -94,7 +76,8 @@ export function SketchLayer({
   paused?: boolean
   toolbarHost?: HTMLElement | null
   componentThumb?: (id: string) => string
-  onReconcile: (sketch: Sketch, region: Region) => void
+  /** Without it (the flow viewer), the sketch waits in the flow's batch and the bar has no Reconcile. */
+  onReconcile?: (sketch: Sketch, region: Region) => void
   onExit: () => void
 }) {
   const storyId = surface.storyId
@@ -128,7 +111,11 @@ export function SketchLayer({
 
   useEffect(() => {
     api()?.apply(ops)
-    const t = setTimeout(() => localStorage.setItem(KEY(storyId), JSON.stringify(ops)), 250)
+    const t = setTimeout(() => {
+      if (ops.length) localStorage.setItem(KEY(storyId), JSON.stringify(ops))
+      else localStorage.removeItem(KEY(storyId))
+      notifyBatch()
+    }, 250)
     return () => clearTimeout(t)
   }, [ops, api, storyId])
 
@@ -377,7 +364,7 @@ export function SketchLayer({
 
   const reconcile = () => {
     const w = win()
-    if (!ops.length || !w) return
+    if (!ops.length || !w || !onReconcile) return
     const viewport = { width: w.innerWidth, height: w.innerHeight }
     const scroll = { x: Math.round(w.scrollX), y: Math.round(w.scrollY) }
     onReconcile({ ops, viewport, scroll }, sketchBounds(ops, { ...scroll, ...viewport }))
@@ -454,10 +441,14 @@ export function SketchLayer({
         <ToolButton on={false} onClick={() => (commit([]), setSelection(undefined))} label="Clear the sketch" disabled={!ops.length}>
           <CloseIcon size={13} />
         </ToolButton>
-        <span className="sbu-sketch-sep" />
-        <Button variant="solid" disabled={!ops.length} onClick={reconcile} title="Send the sketch to the agent · Enter" count={ops.length}>
-          Reconcile
-        </Button>
+        {onReconcile && (
+          <>
+            <span className="sbu-sketch-sep" />
+            <Button variant="solid" disabled={!ops.length} onClick={reconcile} title="Send the sketch to the agent · Enter" count={ops.length}>
+              Reconcile
+            </Button>
+          </>
+        )}
       </div>
   )
 

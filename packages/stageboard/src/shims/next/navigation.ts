@@ -1,7 +1,18 @@
-type Win = Window & { __STAGEBOARD_ROUTE__?: string; __STAGEBOARD_PARAMS__?: Record<string, string> }
+type Params = Record<string, string | string[]>
+type Win = Window & { __STAGEBOARD_ROUTE__?: string; __STAGEBOARD_PATH__?: string; __STAGEBOARD_PARAMS__?: Params }
 
 function win(): Win | undefined {
   return typeof window === "undefined" ? undefined : (window as Win)
+}
+
+// The story's own URL, set by the frame from parameters.page: `path` if given, else the route with its params.
+function url(): URL {
+  const w = win()
+  return new URL(w?.__STAGEBOARD_PATH__ ?? w?.__STAGEBOARD_ROUTE__ ?? "/", "http://stageboard.local")
+}
+
+function params(): Params {
+  return win()?.__STAGEBOARD_PARAMS__ ?? {}
 }
 
 function navigate(href: string) {
@@ -15,9 +26,16 @@ const router = {
   back: () => {},
   forward: () => {},
   refresh: () => {},
-  pathname: "/",
-  query: {},
-  asPath: "/",
+  get pathname() {
+    return win()?.__STAGEBOARD_ROUTE__ ?? "/"
+  },
+  get query() {
+    return { ...Object.fromEntries(url().searchParams), ...params() }
+  },
+  get asPath() {
+    const u = url()
+    return `${u.pathname}${u.search}${u.hash}`
+  },
   events: { on: () => {}, off: () => {}, emit: () => {} },
   isReady: true,
 }
@@ -26,13 +44,13 @@ export function useRouter() {
   return router
 }
 export function usePathname(): string {
-  return win()?.__STAGEBOARD_ROUTE__ ?? "/"
+  return url().pathname
 }
 export function useSearchParams(): URLSearchParams {
-  return new URLSearchParams()
+  return url().searchParams
 }
-export function useParams<T = Record<string, string>>(): T {
-  return (win()?.__STAGEBOARD_PARAMS__ ?? {}) as T
+export function useParams<T = Params>(): T {
+  return params() as T
 }
 export function useSelectedLayoutSegment(): string | null {
   return null

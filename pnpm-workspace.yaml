@@ -1,5 +1,9 @@
 packages:
   - packages/*
   - examples/*
+  - site
+  - docs
 allowBuilds:
+  core-js: false
   esbuild: true
+  sharp: true

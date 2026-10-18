@@ -47,6 +47,8 @@ export function Panel({
   )
   const pending = jobs.filter((j) => isActiveJob(j) && j.kind === "variants")
   const pendingSlots = pending.reduce((n, j) => n + Math.max(0, j.count - j.producedFiles.length), 0)
+  const adopting = jobs.some((j) => isActiveJob(j) && j.kind === "adopt")
+  const canAdopt = active !== ORIGINAL && options.some((v) => v.key === active)
 
   const components = target.components
   const focused = components[focus]
@@ -66,6 +68,16 @@ export function Panel({
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSending(false)
+    }
+  }
+
+  async function adopt() {
+    if (!variantId) return
+    setError(undefined)
+    try {
+      await submitChangeRequest({ kind: "adopt", note: "", adoptKey: active, target: { ...target, variantKeys: { ...target.variantKeys, [variantId]: active } } })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -120,6 +132,11 @@ export function Panel({
                 </div>
               ))}
             </div>
+            {canAdopt && (
+              <button className="sb-btn" style={{ marginTop: 8 }} disabled={adopting} onClick={() => void adopt()}>
+                {adopting ? "Adopting…" : "Adopt as original"}
+              </button>
+            )}
           </div>
         )}
 

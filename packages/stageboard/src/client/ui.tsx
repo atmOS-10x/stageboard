@@ -10,13 +10,14 @@ import { clearDraft, readDraft, readPrefs, savePrefs, type StoredDraft } from ".
 import { FlowsView } from "./flows"
 import { FlowViewer } from "./viewer"
 import { VariantLayer } from "./variant-layer"
-import { AnnotateIcon, MenuIcon, CopyIcon, ExternalIcon, InspectIcon, LayersIcon, MonitorIcon, MoonIcon, PlusIcon, PrevIcon, SearchIcon, SunIcon } from "./icons"
+import { AnnotateIcon, MenuIcon, CopyIcon, ExternalIcon, InspectIcon, LayersIcon, MonitorIcon, MoonIcon, NextIcon, PlusIcon, PrevIcon, SearchIcon, SunIcon } from "./icons"
 import { Button, IconButton, Input, Segmented, Tabs } from "./kit"
 import { Shimmer } from "./shimmer"
 import { clearSketch, SketchLayer } from "./sketch"
 import { PinDetails } from "./pins"
 import { pushToast, Toasts, useJobToasts } from "./toasts"
 import { uiCss } from "./styles"
+import { findScreen, hrefPath } from "./routes"
 import { resolveStory, type ClientEntry, type Loaders, type StoryModule } from "./types"
 import { WaveCanvas } from "./waves"
 
@@ -358,6 +359,26 @@ function App({ index, loaders, base }: UIOptions) {
     return () => window.removeEventListener("message", onMessage)
   }, [keyAction, setInspecting])
 
+  // A link or router.push in the open screen opens the screen whose route it matches.
+  const storyId = route.view === "story" ? route.id : undefined
+  const storyFrom = route.view === "story" ? route.from : undefined
+  useEffect(() => {
+    if (!storyId || !storyFrom) return
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.source !== "stageboard" || e.data.type !== "navigate" || !e.source || e.source !== storyFrame.current?.contentWindow) return
+      const href = String(e.data.href ?? "")
+      if (!href || href.startsWith("#")) return
+      const here = pages.find((p) => p.entry.id === storyId)
+      const path = hrefPath(href, here?.page.route)
+      const next = path ? findScreen(pages, path) : undefined
+      // Another state of the same route counts as already being there.
+      if (!next) pushToast({ tone: "info", title: `No screen for ${path?.split(/[?#]/)[0] ?? href}` })
+      else if (next.page.route !== here?.page.route) go({ view: "story", id: next.entry.id, from: storyFrom })
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [storyId, storyFrom, pages, go])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.code === "KeyC") setInspecting((v) => !v)
@@ -430,7 +451,22 @@ function App({ index, loaders, base }: UIOptions) {
       },
     [current, frameUrl],
   )
-  const componentStories = useMemo(() => index.filter((s) => !s.hasPage), [index])
+  // Page stories whose parameters never resolved to a route (e.g. a story that unsets the meta's page) would be in
+  // neither view, so once the screens have loaded they show up with the components.
+  const componentStories = useMemo(() => {
+    const screens = new Set(pages.map((p) => p.entry.id))
+    return index.filter((s) => !s.hasPage || (!pagesLoading && !screens.has(s.id) && !(s as { dream?: string }).dream))
+  }, [index, pages, pagesLoading])
+  // The open screen's parameters.page.links, as the screens they lead to.
+  const outgoing = useMemo(() => {
+    const here = current && pages.find((p) => p.entry.id === current.id)
+    const out: { link: string; screen: ScreenNode }[] = []
+    for (const link of here?.page.links ?? []) {
+      const screen = findScreen(pages, link)
+      if (screen && screen.entry.id !== here!.entry.id && !out.some((o) => o.screen.entry.id === screen.entry.id)) out.push({ link, screen })
+    }
+    return out
+  }, [current, pages])
   const tab: Tab = route.view === "story" ? route.from : route.view
   const openStory = useCallback((id: string) => go({ view: "story", id, from: tab }), [go, tab])
   const storyUrlOf = useCallback((id: string) => storyUrl(frameUrl(id)), [frameUrl])
@@ -458,7 +494,7 @@ function App({ index, loaders, base }: UIOptions) {
   }
 
   return (
-    <div className="sbu">
+    <div className="sbu" data-screens={theme ?? scheme}>
       <header className="sbu-top">
         <IconButton size="sm" variant="ghost" className="sbu-menu-btn" icon={<MenuIcon size={18} />} label="Menu" on={menuOpen} onClick={() => setMenuOpen((v) => !v)} />
         <div className="sbu-brand">
@@ -479,17 +515,12 @@ function App({ index, loaders, base }: UIOptions) {
           onChange={setDevice}
           options={(Object.keys(DEVICES) as Device[]).map((d) => ({ value: d, label: DEVICES[d].label, title: `${DEVICES[d].width}×${DEVICES[d].height}` }))}
         />
-        <Button size="sm" icon={<AnnotateIcon size={14} />} on={annotating} onClick={() => setAnnotating((v) => !v)} title="Comment on any part of a screen; on a single screen, also move, retype and draw · A">
-          Annotate
-        </Button>
-        <IconButton
-          size="sm"
-          variant="ghost"
-          className="sbu-hide-phone"
-          icon={theme === "dark" ? <MoonIcon size={14} /> : theme === "light" ? <SunIcon size={14} /> : <MonitorIcon size={14} />}
-          label={`Screens in ${theme ?? "system"} theme`}
-          onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}
-        />
+        {tab !== "flows" && (
+          <Button size="sm" icon={<AnnotateIcon size={14} />} on={annotating} onClick={() => setAnnotating((v) => !v)} title="Comment on any part of a screen; on a single screen, also move, retype and draw · A">
+            Annotate
+          </Button>
+        )}
+        <ThemeButton className="sbu-hide-phone" theme={theme} onTheme={setTheme} />
         {!connected && <span className="sbu-offline" title="The stageboard bridge is offline: start it with stageboard dev" />}
       </header>
       {menuOpen && <div className="sbu-scrim" onClick={() => setMenuOpen(false)} />}
@@ -505,13 +536,7 @@ function App({ index, loaders, base }: UIOptions) {
               onChange={setDevice}
               options={(Object.keys(DEVICES) as Device[]).map((d) => ({ value: d, label: DEVICES[d].label }))}
             />
-            <IconButton
-              size="sm"
-              variant="ghost"
-              icon={theme === "dark" ? <MoonIcon size={14} /> : theme === "light" ? <SunIcon size={14} /> : <MonitorIcon size={14} />}
-              label={`Screens in ${theme ?? "system"} theme`}
-              onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}
-            />
+            <ThemeButton theme={theme} onTheme={setTheme} />
           </div>
         }
         tab={tab}
@@ -568,6 +593,7 @@ function App({ index, loaders, base }: UIOptions) {
             index={index}
             components={componentStories}
             componentThumb={componentThumb}
+            themeButton={<ThemeButton size="md" theme={theme} onTheme={setTheme} />}
             frameUrl={frameUrl}
             thumbUrl={thumbUrl}
             annotating={annotating}
@@ -596,6 +622,15 @@ function App({ index, loaders, base }: UIOptions) {
               <span className="sbu-title" title={`${current.title} / ${current.name}`}>
                 {pages.find((p) => p.entry.id === current.id)?.page.title ?? current.name}
               </span>
+              {outgoing.length > 0 && (
+                <nav className="sbu-links sbu-hide-phone" aria-label="Links from this screen">
+                  {outgoing.map(({ link, screen }) => (
+                    <Button key={screen.entry.id} size="sm" variant="ghost" icon={<NextIcon size={12} />} title={`Open ${link}`} onClick={() => openStory(screen.entry.id)}>
+                      {screenTitle(screen)}
+                    </Button>
+                  ))}
+                </nav>
+              )}
               <span className="sbu-spacer" />
               <IconButton size="sm" icon={<InspectIcon size={14} />} label="Inspect an element · Alt+Shift+C" on={inspecting} onClick={() => setInspecting((v) => !v)} />
               <Button
@@ -683,6 +718,23 @@ function App({ index, loaders, base }: UIOptions) {
         )}
       </aside>
     </div>
+  )
+}
+
+type Theme = "light" | "dark" | undefined
+
+// Which theme the screens render in: the system's, or forced dark or light.
+function ThemeButton({ theme, onTheme, size = "sm", className }: { theme: Theme; onTheme: (next: (t: Theme) => Theme) => void; size?: "sm" | "md"; className?: string }) {
+  const s = size === "md" ? 17 : 14
+  return (
+    <IconButton
+      size={size}
+      variant="ghost"
+      className={className}
+      icon={theme === "dark" ? <MoonIcon size={s} /> : theme === "light" ? <SunIcon size={s} /> : <MonitorIcon size={s} />}
+      label={`Screens in ${theme ?? "system"} theme`}
+      onClick={() => onTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}
+    />
   )
 }
 

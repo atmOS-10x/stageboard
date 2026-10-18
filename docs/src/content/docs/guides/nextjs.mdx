@@ -1,0 +1,76 @@
+---
+title: Next.js
+description: Render a Next.js app's components and pages in stageboard with the nextPreset Vite config.
+---
+
+stageboard renders stories with Vite, not with Next.js. `nextPreset` from `stageboard/next` returns a Vite config that replaces the `next/*` modules with browser shims and copies the parts of Next's setup that components rely on (path aliases, `NEXT_PUBLIC_*` variables, `public/`). Use it for any App Router or Pages Router project.
+
+## Config
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+import { nextPreset } from "stageboard/next"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx", "stageboard/**/*.stories.tsx"],
+  preview: "./stageboard.preview.tsx",
+  vite: () => nextPreset({ root: __dirname }),
+  agent: { provider: "claude" },
+})
+```
+
+```tsx title="stageboard.preview.tsx"
+import "../src/app/globals.css"
+import type { Decorator } from "stageboard"
+import { ThemeProvider } from "../src/components/theme-provider"
+
+export const decorators: Decorator[] = [(Story) => <ThemeProvider><Story /></ThemeProvider>]
+```
+
+Tailwind v4 through `@tailwindcss/postcss` works as is, because Vite reads the project's PostCSS config. In global CSS, put `@import` lines before any `@plugin` line; Vite drops imports that come later.
+
+Server components that fetch data can't run in the browser. Write the page story against the client part of the page and pass it mock data, or mock the data layer in the preview's providers.
+
+## Options
+
+| Option | Type | Default | What it does |
+|---|---|---|---|
+| `root` | `string` | `process.cwd()` | The Next.js project root. `tsconfig.json`, the `.env` files and `public/` are read from here. |
+| `aliases` | `Record<string, string>` | `{}` | Extra import aliases, merged over the ones read from `tsconfig.json`. Keys match a whole path segment, so `"@lib"` matches `@lib` and `@lib/x`. |
+| `env` | `Record<string, string \| undefined>` | `{}` | Extra values for `process.env`, merged over the ones read from `.env` files. |
+
+To add your own Vite plugins on top, merge the preset with Vite's `mergeConfig`:
+
+```ts title="stageboard.config.ts"
+import { mergeConfig } from "vite"
+import svgr from "vite-plugin-svgr"
+import { defineConfig } from "stageboard"
+import { nextPreset } from "stageboard/next"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  vite: () => mergeConfig(nextPreset({ root: __dirname }), { plugins: [svgr()] }),
+})
+```
+
+## What the preset does
+
+| Next.js feature | In stageboard |
+|---|---|
+| `next/image`, `next/legacy/image` | A plain `<img>`. Static imports, `width`, `height` and `fill` work; `priority`, `quality`, `placeholder` and `loader` are ignored. |
+| `next/link` | An `<a>` with the resolved `href`. A click doesn't leave the story: the shim cancels it and posts a `navigate` message to the board, which opens the screen whose `route` matches the `href` (in a flow, the matching step). |
+| `next/navigation`, `next/router` | `useRouter()` whose `push` and `replace` navigate the same way; `back`, `forward`, `refresh` and `prefetch` do nothing. `useParams()`, `usePathname()` and `useSearchParams()` follow the story's `parameters.page`: `params`, else the params matched from `path`; `path`, else the `route` with the params filled in. With neither, a dynamic route gives `{}` and the route as written. `redirect()` navigates and throws, `notFound()` throws. |
+| `next/font/google`, `next/font/local` | Each font call loads the family from Google Fonts and returns `style.fontFamily`. With a `variable` option it also returns a class that sets that CSS variable. |
+| `next/dynamic` | `React.lazy` with `Suspense`, showing the `loading` component while it loads. |
+| `next/script`, `next/head` | Render nothing. |
+| `tsconfig.json` `paths` | Become Vite aliases, so `@/components/x` resolves. |
+| `.env`, `.env.development`, `.env.local`, `.env.development.local` | Their `NEXT_PUBLIC_*` variables are available on `process.env`. `NODE_ENV` is `"development"`. |
+| `public/` | Served as Vite's public directory, so `/logo.svg` works. |
+| Directory imports | `import x from "./components/ui"` resolves to the folder's `index.ts(x)`. |
+
+Anything else from Next (server actions, `cookies()`, `headers()`, middleware) is not shimmed. Keep it out of the components you put on the board, or mock it in the preview.
+
+## Next steps
+
+- [Screens](/guides/screens): add every route as a page story.
+- [Devtools in your app](/guides/devtools): the inspector in `next dev`, with a `rewrites()` example.

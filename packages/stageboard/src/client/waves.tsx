@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react"
 
 type Mode = "render" | "reveal"
 
-const CELL = 6
+const CELL = 10
 const REVEAL_MS = 1500
 const DEEP: [number, number, number] = [22, 21, 30]
 const SWELL: [number, number, number] = [74, 62, 150]

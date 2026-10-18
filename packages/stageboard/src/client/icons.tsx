@@ -18,8 +18,12 @@ import {
   MessageSquarePlus,
   MessagesSquare,
   MousePointer2,
+  MousePointerClick,
   PencilLine,
+  RotateCcw,
   Pen,
+  Pause,
+  Play,
   Plus,
   Search,
   Sparkles,
@@ -54,7 +58,11 @@ export const PenIcon = icon(Pen)
 export const SquareIcon = icon(Square)
 export const ComponentIcon = icon(Component)
 export const UndoIcon = icon(Undo2)
-export const SketchIcon = icon(PencilLine)
+export const EditIcon = icon(PencilLine)
+export const ResetIcon = icon(RotateCcw)
+export const ActionIcon = icon(MousePointerClick)
+export const PlayIcon = icon(Play)
+export const PauseIcon = icon(Pause)
 export const PrevIcon = icon(ChevronLeft, 2)
 export const NextIcon = icon(ChevronRight, 2)
 export const FlowNoteIcon = icon(MessagesSquare)

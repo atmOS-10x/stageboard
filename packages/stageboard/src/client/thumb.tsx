@@ -15,7 +15,7 @@ export function Thumb({ src, className }: { src: string; className?: string }) {
   const broken = failed === requested && !shown
 
   return (
-    <div className={`sbu-thumb ${className ?? ""}`} data-state={shown ? "ready" : broken ? "error" : "loading"}>
+    <div className={`sbu-thumb ${className ?? ""}`} data-state={shown ? "ready" : broken ? "error" : "loading"} data-stale={Boolean(shown && loading) || undefined}>
       {shown && <img className="sbu-thumb-img" src={shown} alt="" draggable={false} />}
       {shown !== requested && failed !== requested && (
         <img
@@ -28,6 +28,12 @@ export function Thumb({ src, className }: { src: string; className?: string }) {
           onLoad={() => setShown(requested)}
           onError={() => setFailed(requested)}
         />
+      )}
+      {/* A new look (theme, device, variant) is rendering: keep the old image, dimmed, and say so. */}
+      {shown && loading && (
+        <span className="sbu-thumb-note" data-on-waves="true">
+          <Shimmer>Rendering</Shimmer>
+        </span>
       )}
       {!shown && loading && (
         <>

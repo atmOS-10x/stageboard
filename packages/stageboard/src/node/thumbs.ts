@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import fs from "node:fs"
 import type { ServerResponse } from "node:http"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import type { Browser, Page } from "playwright-core"
 import { API_BASE, type BridgeState, type Region, type RegionDescription, type Sketch } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
@@ -10,6 +11,8 @@ import { launchBrowser } from "./shot"
 
 type Job = () => Promise<void>
 
+
+const RENDERER = fileURLToPath(import.meta.url)
 export type RenderOptions = {
   variants?: Record<string, string>
   width?: number
@@ -71,7 +74,9 @@ export class Thumbnailer {
     const used = this.used[id]
     const relevant = used ? Object.fromEntries(used.map((v) => [v, variants[v] ?? "original"])) : variants
     const files = used ? state.variants.filter((v) => used.includes(v.of)) : state.variants
-    const mtimes = [storyFile, this.config.variantsFile, ...files.map((v) => path.join(this.config.root, v.file))]
+    // stageboard itself and the preview (decorators, theme provider) change how every story renders, so a new
+    // build of either retires old thumbnails instead of serving renders made the old way.
+    const mtimes = [RENDERER, this.config.preview && path.resolve(this.config.root, this.config.preview), storyFile, this.config.variantsFile, ...files.map((v) => path.join(this.config.root, v.file))]
       .filter((f): f is string => Boolean(f))
       .map((f) => {
         try {
@@ -137,7 +142,7 @@ export class Thumbnailer {
         viewport: { width: options.width ?? 1440, height: options.height ?? 900 },
         deviceScaleFactor: options.scale ?? 1,
         reducedMotion: "reduce",
-        colorScheme: options.colorScheme ?? options.theme ?? "light",
+        colorScheme: options.theme ?? options.colorScheme ?? "light",
       })
       const params = new URLSearchParams({ story: id, "sb-shot": "1" })
       if (options.theme) params.set("sb-theme", options.theme)

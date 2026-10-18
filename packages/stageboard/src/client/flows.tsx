@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { createPortal } from "react-dom"
 import { createDream, createFlow, removeFlow, submitChangeRequest, updateFlow, useStageboard } from "stageboard/react"
-import { DEVICES, type Device, type Flow, type FlowStep } from "stageboard"
+import { DEVICES, type Device, type Flow, type FlowAnnotation, type FlowStep } from "stageboard"
+import type { BatchComment, BatchSketch } from "./flow-batch"
 import { groupBy, screenGroup, STORY_MIME, screenTitle, type ScreenNode } from "./browse"
 import { markReveal, pendingReveals } from "./dreams"
 import { CloseIcon, FlowNoteIcon, PlusIcon, PrevIcon, SearchIcon } from "./icons"
@@ -137,38 +138,99 @@ function NewFlow({ base, onClose }: { base: string; onClose: () => void }) {
   )
 }
 
-export function FlowNote({ flow, base, onClose }: { flow: Flow; base: string; onClose: () => void }) {
+export async function sendFlowNote(flow: Flow, note: string, attachments: string[] = [], annotations?: FlowAnnotation[]) {
+  await submitChangeRequest({
+    kind: "edit",
+    note,
+    flow,
+    attachments,
+    ...(annotations?.length ? { annotations } : {}),
+    target: { url: "", title: flow.name, selector: "", tag: "flow", rect: { x: 0, y: 0, width: 0, height: 0 }, viewport: { width: 1440, height: 900 }, components: [], storyId: flow.steps.find((s) => s.storyId)?.storyId },
+  })
+  pushToast({ tone: "info", title: "Sent to the agent", body: `Your note on “${flow.name}” is being worked on.` })
+}
+
+export const DESCRIBE_STEPS =
+  "Describe every step of this flow and change nothing else: for each screen write what is happening on it (note) and what the user does on it (actions: the clicks, typing and key presses, in order, by the elements' visible text), the last usually leading to the next screen. Open each screen to get them right, check the actions play with `npx stageboard flow shot`, then save the flow with the same steps in the same order."
+
+export type FlowBatch = {
+  comments: BatchComment[]
+  sketches: BatchSketch[]
+  annotations: () => FlowAnnotation[]
+  titleOf: (storyId: string) => string
+  onRemoveComment: (id: string) => void
+  onRemoveSketch: (storyId: string) => void
+  onSent: () => void
+}
+
+// A note on the whole flow. With a batch (comments and sketches collected on its screens) it is Reconcile: the
+// batch goes out as one request, with this note on top if there is one.
+export function FlowNote({ flow, base, batch, onClose }: { flow: Flow; base: string; batch?: FlowBatch; onClose: () => void }) {
   const [note, setNote] = useState("")
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
+  const items = batch ? batch.comments.length + batch.sketches.length : 0
   return createPortal(
     <div className="sbu-picker-scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sbu-note-dialog" role="dialog" aria-label={`Note on ${flow.name}`}>
+      <div className="sbu-note-dialog" role="dialog" aria-label={items ? `Reconcile ${flow.name}` : `Note on ${flow.name}`}>
+        {batch && items > 0 && (
+          <ol className="sbu-batch sbu-panel">
+            {[
+              ...batch.comments.map((c) => ({ key: c.id, step: c.step, title: c.title, text: c.note, remove: () => batch.onRemoveComment(c.id) })),
+              ...batch.sketches.map((k) => ({
+                key: `sketch-${k.storyId}`,
+                step: k.step,
+                title: batch.titleOf(k.storyId),
+                text: `${k.count} sketched change${k.count === 1 ? "" : "s"}`,
+                remove: () => batch.onRemoveSketch(k.storyId),
+              })),
+            ]
+              .sort((a, b) => a.step - b.step)
+              .map((it) => (
+                <li key={it.key}>
+                  <span className="sbu-batch-step">{it.step + 1}</span>
+                  <span className="sbu-batch-title">{it.title}</span>
+                  <span className="sbu-batch-text">{it.text}</span>
+                  <IconButton size="sm" variant="ghost" icon={<CloseIcon size={12} />} label="Remove from this batch" onClick={it.remove} />
+                </li>
+              ))}
+          </ol>
+        )}
         <PromptInput
           base={base}
           value={note}
           onChange={setNote}
           onClose={onClose}
-          minRows={4}
+          minRows={items ? 2 : 4}
+          allowEmpty={items > 0}
           label="Note on the whole flow"
-          placeholder="What should change across this flow? For example the order of screens, a step that is missing, or wording that should match everywhere."
+          placeholder={
+            items
+              ? "Anything that goes for all of them? (optional)"
+              : "What should change across this flow? For example the order of screens, a step that is missing, or wording that should match everywhere."
+          }
           head={
             <span className="sbu-prompt-context">
-              Whole flow · <strong>{flow.name}</strong> · {flow.steps.length} screen{flow.steps.length === 1 ? "" : "s"}
+              {items ? (
+                <>
+                  Reconcile <strong>{items}</strong> annotation{items === 1 ? "" : "s"} on <strong>{flow.name}</strong>
+                </>
+              ) : (
+                <>
+                  Whole flow · <strong>{flow.name}</strong> · {flow.steps.length} screen{flow.steps.length === 1 ? "" : "s"}
+                </>
+              )}
             </span>
           }
           onSubmit={async (uploads) => {
-            await submitChangeRequest({
-              kind: "edit",
-              note: note.trim(),
-              flow,
-              attachments: uploads.map((u) => u.id),
-              target: { url: "", title: flow.name, selector: "", tag: "flow", rect: { x: 0, y: 0, width: 0, height: 0 }, viewport: { width: 1440, height: 900 }, components: [], storyId: flow.steps.find((s) => s.storyId)?.storyId },
-            })
-            pushToast({ tone: "info", title: "Sent to the agent", body: `Your note on “${flow.name}” is being worked on.` })
+            if (batch && items) {
+              const extra = batch.comments.flatMap((c) => c.attachments.map((u) => u.id))
+              await sendFlowNote(flow, note.trim() || "Apply my annotations on the screens of this flow.", [...uploads.map((u) => u.id), ...extra], batch.annotations())
+              batch.onSent()
+            } else await sendFlowNote(flow, note.trim(), uploads.map((u) => u.id))
             onClose()
           }}
         />

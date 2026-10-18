@@ -1,0 +1,223 @@
+---
+title: API reference
+description: The public exports of stageboard, stageboard/react, stageboard/next and stageboard/node, with signatures and what each is for.
+---
+
+stageboard has four public entry points. App authors mostly use `stageboard` (config and story types), `stageboard/react` (variants and the in-app inspector) and `stageboard/next` (the Next.js preset). `stageboard/node` is for scripts that drive stageboard from Node.
+
+## stageboard
+
+Config and story types. Safe to import anywhere; it has no runtime dependencies.
+
+### defineConfig
+
+```ts
+function defineConfig(config: StageboardConfig): StageboardConfig
+```
+
+Returns the config unchanged and types it. Default-export it from `stageboard.config.ts`. See [Configuration](/configuration) for every option and [Agents](/guides/agents) for `agent`.
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  preview: "./stageboard.preview.tsx",
+  agent: { provider: "claude" },
+})
+```
+
+### Meta
+
+```ts
+type Meta<C = ComponentType<any>> = {
+  title?: string
+  component?: C
+  args?: Partial<PropsOf<C>>
+  parameters?: StageParameters
+  decorators?: Decorator<PropsOf<C>>[]
+  tags?: string[]
+}
+```
+
+The default export of a `*.stories.tsx` file. Without `title`, the title comes from the file path.
+
+### Story
+
+```ts
+type Story<C = ComponentType<any>> = {
+  name?: string
+  args?: Partial<PropsOf<C>>
+  parameters?: StageParameters
+  decorators?: Decorator<PropsOf<C>>[]
+  render?: (args: PropsOf<C>, context: StoryContext<PropsOf<C>>) => ReactNode
+  tags?: string[]
+}
+```
+
+A named export of a stories file. The story id is `kebab(title)--kebab(exportName)`.
+
+```tsx title="src/button.stories.tsx"
+import type { Meta, Story } from "stageboard"
+import { Button } from "./button"
+
+export default { title: "Primitives/Button", component: Button, args: { children: "Save" } } satisfies Meta<typeof Button>
+export const Primary: Story<typeof Button> = {}
+export const Disabled: Story<typeof Button> = { args: { disabled: true } }
+```
+
+See [Stories](/guides/stories).
+
+### Decorator
+
+```ts
+type Decorator<Args = Record<string, unknown>> = (Story: ComponentType, context: StoryContext<Args>) => ReactNode
+```
+
+Wraps a story, for example in providers. Story decorators run innermost, then the meta's, then the `decorators` exported from the preview file.
+
+### StageParameters and PageParameters
+
+```ts
+type StageParameters = {
+  layout?: "centered" | "padded" | "fullscreen"
+  viewport?: { width: number; height?: number }
+  theme?: "light" | "dark"
+  background?: string
+  page?: PageParameters
+  variants?: Record<string, string>
+  [key: string]: unknown
+}
+
+type PageParameters = { route: string; title?: string; links?: string[]; group?: string; dream?: string }
+```
+
+`parameters` of a meta or story. `layout` defaults to `fullscreen` for page stories and `centered` otherwise. `page` makes a story a screen in Screens (see [Screens and pages](/guides/screens)). `variants` pins boundary ids to variant keys for this story.
+
+### Other exports
+
+`StageboardConfig` and the `AgentConfig` types (`ClaudeAgentConfig`, `CodexAgentConfig`, `AtmosAgentConfig`, `CommandAgentConfig`) type the config. `StoryContext` is the second argument of `render` and decorators. The entry point also exports the wire protocol shared by the board and the server (`Job`, `ChangeRequest`, `Flow`, `FlowStep`, `FlowAction`, `API_BASE`, `DEVICES` and similar) and story id helpers (`toStoryId`, `kebab`, `titleFromPath`); you rarely need them.
+
+## stageboard/react
+
+Runtime for your app: variant boundaries, the variant registry and the in-app inspector. In production builds (`NODE_ENV=production`) `variant` and `Variant` render the original and nothing else.
+
+### variant
+
+```ts
+function variant<P extends object>(id: string, Original: ComponentType<P>): ComponentType<P>
+```
+
+Makes a component swappable. `id` is a stable dotted id such as `landing.hero`. The returned component renders the selected variant for that id, or `Original`.
+
+```tsx title="src/landing/hero.tsx"
+import { variant } from "stageboard/react"
+
+function HeroImpl(props: HeroProps) {
+  return <section>{props.title}</section>
+}
+
+export const Hero = variant("landing.hero", HeroImpl)
+```
+
+### Variant
+
+```ts
+function Variant(props: { id: string; children?: ReactNode; props?: Record<string, unknown> }): JSX.Element
+```
+
+The same for an inline JSX section: renders `children`, or the selected variant's default export with `props`.
+
+```tsx
+<Variant id="pricing.table">
+  <PricingTable plans={plans} />
+</Variant>
+```
+
+See [Variants](/guides/variants).
+
+### StageboardDevtools and mountDevtools
+
+```ts
+type DevtoolsOptions = { base?: string; embedded?: boolean; hotkey?: string }
+
+function StageboardDevtools(props: DevtoolsOptions): null
+function mountDevtools(options?: DevtoolsOptions): () => void
+```
+
+Mount the stageboard inspector in your running app, in development. `StageboardDevtools` is the React component; `mountDevtools` does the same without React and returns an unmount function. `base` is where the stageboard server is reachable from the app (default `/__stageboard`, which you proxy to the stageboard server). `embedded` is set automatically when the page runs inside the board (`?sb-embed`). `hotkey` is accepted but not used yet.
+
+```tsx title="app/stageboard-dev.tsx"
+"use client"
+import "@/stageboard.variants"
+import { StageboardDevtools } from "stageboard/react"
+
+export default function StageboardDev() {
+  return <StageboardDevtools base="/__stageboard" />
+}
+```
+
+See [Devtools in your app](/guides/devtools).
+
+### Variant registry and state
+
+| Export | Signature | What it does |
+| --- | --- | --- |
+| `registerVariants` | `(entries: { file: string; module: VariantModule }[]) => void` | Registers variant files. The generated `stageboard.variants.ts` calls it; import that file once in your app. |
+| `useSelectedVariant` | `(id: string) => RegisteredVariant \| undefined` | The variant selected for a boundary, or `undefined` for the original. |
+| `selectVariant` | `(id: string, key: string) => Promise<void>` | Selects a variant (`"original"` for none) and tells the server. |
+| `setVariantOverrides` | `(overrides: Record<string, string>) => void` | Forces selections locally, for example in tests. URL overrides still win. |
+| `useStageboard` | `<T>(select: (s: Snapshot) => T) => T` | Reads the client store: selections, jobs, flows, registered variants, connection state. |
+
+The remaining exports (`submitChangeRequest`, `cancelJob`, `createDream`, `updateDream`, `removeDream`, `createFlow`, `updateFlow`, `removeFlow`, `startBridge`, `setBridgeBase`, `describeElement`, `componentChain`, `nearestVariant`, `describeRegion`, `variantBoundaryRects`, `installSketch`, `Panel`, `devtoolsCss`, `StageboardVariant`) are what the board and the inspector are built from.
+
+## stageboard/next
+
+### nextPreset
+
+```ts
+type NextPresetOptions = { root?: string; aliases?: Record<string, string>; env?: Record<string, string | undefined> }
+
+function nextPreset(options?: NextPresetOptions): InlineConfig
+```
+
+Returns a Vite config that renders a Next.js app's components outside Next: it shims `next/image`, `next/legacy/image`, `next/link`, `next/navigation`, `next/router`, `next/dynamic`, `next/script`, `next/head` and `next/font`, resolves the tsconfig path aliases, loads the `.env` files into `process.env`, and serves `public/`. `root` defaults to the current folder; `aliases` and `env` add to what it finds.
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+import { nextPreset } from "stageboard/next"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  preview: "./stageboard.preview.tsx",
+  vite: () => nextPreset({ root: __dirname }),
+})
+```
+
+See [Next.js](/guides/nextjs).
+
+## stageboard/node
+
+The CLI's building blocks, for scripts and custom tooling.
+
+| Export | Signature | What it does |
+| --- | --- | --- |
+| `loadConfig` | `(from?: string, explicit?: string) => Promise<ResolvedConfig>` | Finds and loads `stageboard.config.ts`. |
+| `findConfigFile` | `(from?: string) => string \| undefined` | Searches upward for a config file. |
+| `buildIndex` | `(config: ResolvedConfig) => Promise<IndexedStory[]>` | Lists every story, as `stageboard list` does. |
+| `shoot` | `(config: ResolvedConfig, options: ShotOptions) => Promise<ShotResult>` | Screenshots a story, as `stageboard shot` does. |
+| `matchStory` | `(index: IndexedStory[], query: string) => IndexedStory` | Resolves an id, `file#Export` or search term to one story. |
+| `createStageboardServer` | `(config: ResolvedConfig, options?: ServerOptions) => Promise<StageboardServer>` | Starts the stageboard server, as `stageboard dev` does. |
+| `findRunningServer` | `(config: ResolvedConfig) => Promise<string \| undefined>` | URL of a running `stageboard dev` for this project. |
+| `scanVariants`, `writeVariantsModule` | `(config: ResolvedConfig) => Promise<...>` | Find `*.variant.tsx` files and write the registry, as `stageboard variants` does. |
+
+It also exports `stageboardPlugin`, `Bridge`, `buildPrompt` and `createProvider`, which the server uses internally.
+
+```ts title="scripts/shot-all.ts"
+import { buildIndex, loadConfig, shoot } from "stageboard/node"
+
+const config = await loadConfig()
+for (const story of await buildIndex(config)) {
+  if (story.hasPage) console.log((await shoot(config, { story: story.id, width: 1440 })).file)
+}
+```

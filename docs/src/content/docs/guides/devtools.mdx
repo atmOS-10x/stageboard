@@ -1,0 +1,115 @@
+---
+title: Devtools in your app
+description: Add the stageboard inspector to your running app so you can pick any element and send a change request from there.
+---
+
+The stageboard devtools are a small inspector you mount in your own app during development. Click the Inspect bubble (or press Alt+Shift+C, or your `hotkey`), pick any element, and a panel shows its component chain with source paths, its variants, and a box to ask the agent for an edit or for variants. Requests go to the same agent bridge as the board, so `npx stageboard dev` must be running.
+
+## Mount it
+
+`StageboardDevtools` from `stageboard/react` is a component that mounts the inspector and renders nothing itself. `mountDevtools` does the same from plain code and returns a function that unmounts it. Both mount once per page; later calls do nothing.
+
+Load it only in development, and import the generated `stageboard.variants.ts` next to it so variants you pick apply in the app too.
+
+### Vite
+
+```tsx title="src/main.tsx"
+import { createRoot } from "react-dom/client"
+import { App } from "./app"
+
+createRoot(document.getElementById("root")!).render(<App />)
+
+if (import.meta.env.DEV) {
+  import("../stageboard.variants")
+  import("stageboard/react").then(({ mountDevtools }) => mountDevtools())
+}
+```
+
+### Next.js
+
+```tsx title="src/app/stageboard-dev.tsx"
+"use client"
+import "../../stageboard.variants"
+import { StageboardDevtools } from "stageboard/react"
+
+export default function StageboardDev() {
+  return <StageboardDevtools base="/__stageboard" />
+}
+```
+
+```tsx title="src/app/layout.tsx"
+import dynamic from "next/dynamic"
+
+const StageboardDev = process.env.NODE_ENV === "development" ? dynamic(() => import("./stageboard-dev")) : () => null
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <StageboardDev />
+      </body>
+    </html>
+  )
+}
+```
+
+Adjust the variants import path to where `variantsFile` points (by default `stageboard.variants.ts` next to the config).
+
+## Options
+
+`StageboardDevtools` takes these props, and `mountDevtools` takes them as one object (`DevtoolsOptions`).
+
+| Option | Type | Default | What it does |
+|---|---|---|---|
+| `base` | `string` | `"/__stageboard"` | Where the stageboard server is reached from the page. The inspector calls `${base}/api/...`. |
+| `hotkey` | `string` | `"alt+shift+c"` | The shortcut that toggles picking, as modifiers and one key joined with `+`: `alt`, `shift`, `ctrl`, `meta` (`cmd`), and `mod`, which is Cmd on a Mac and Ctrl elsewhere. For example `"mod+shift+i"`. |
+| `embedded` | `boolean` | `true` when the URL has `?sb-embed` | Embedded mode, used inside the board's own frames: no bubble or panel, picks are sent to the parent window. Leave it unset in your app. |
+
+The options are read once, when the inspector mounts.
+
+## Proxy `/__stageboard/*` to the stageboard server
+
+The inspector talks to the stageboard server with relative URLs, so your app's dev server has to forward `/__stageboard/*` to it. The stageboard server listens on port `6060` unless you changed `port`, and serves everything under `/__stageboard/`, so forward the path unchanged.
+
+```ts title="vite.config.ts"
+import react from "@vitejs/plugin-react"
+import { defineConfig } from "vite"
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      "/__stageboard": `http://localhost:${process.env.STAGEBOARD_PORT ?? 6060}`,
+    },
+  },
+})
+```
+
+```ts title="next.config.ts"
+import type { NextConfig } from "next"
+
+const stageboard = `http://localhost:${process.env.STAGEBOARD_PORT ?? 6060}`
+
+const config: NextConfig = {
+  async rewrites() {
+    if (process.env.NODE_ENV !== "development") return []
+    return [{ source: "/__stageboard/:path*", destination: `${stageboard}/__stageboard/:path*` }]
+  },
+}
+
+export default config
+```
+
+<Callout type="info">
+The stageboard server does not send CORS headers, so pointing `base` at `http://localhost:6060/__stageboard` from another origin fails. Use the proxy.
+</Callout>
+
+## Using it
+
+- **Inspect** toggles picking. Hover shows the component name and size; click selects. Escape cancels picking or closes the panel.
+- The panel lists the component chain. Click a name to aim the request at that component instead of the innermost one.
+- If the element is inside a `variant(...)` boundary, the panel lists Original and every variant; click one to switch it live.
+- Write a note, choose **Edit** or **Variants** (1 to 4), and press Send or Cmd/Ctrl+Enter. Send is disabled while the bridge is offline. While the agent works, the affected element is outlined with a progress pill.
+
+See [Annotate](/guides/annotate) for the board's own annotation tools and [Variants](/guides/variants) for how variants are written.

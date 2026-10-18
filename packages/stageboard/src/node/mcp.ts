@@ -1,8 +1,10 @@
+import fs from "node:fs"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { API_BASE, ORIGINAL, type BridgeState } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
+import { flowOutline, shootFlow } from "./flowshot"
 import { buildIndex } from "./indexer"
 import { createStageboardServer, findRunningServer } from "./server"
 
@@ -171,18 +173,52 @@ export async function runMcpServer(config: ResolvedConfig) {
     "save_flow",
     {
       description:
-        "Save a user flow for the stageboard Flows view: an ordered list of screens (page story ids). Pass the flow id from your instructions to update it, or omit it to add a new flow. Use `pending` for screens you are still building.",
+        "Save a user flow for the stageboard Flows view: an ordered list of screens (page story ids). Pass the flow id from your instructions to update it, or omit it to add a new flow. Use `pending` for screens you are still building. Give every step a `note`, and `actions` for what the user does on it. Check them with `flow_grid`.",
       inputSchema: {
         flow: z.string().optional().describe("Flow id from your instructions; omit to create a new flow"),
         name: z.string().optional(),
         group: z.string().optional().describe("Section in the Flows sidebar, e.g. Onboarding"),
         description: z.string().optional(),
-        steps: z.array(z.object({ storyId: z.string().optional(), pending: z.string().optional(), note: z.string().optional() })),
+        steps: z.array(
+          z.object({
+            storyId: z.string().optional(),
+            pending: z.string().optional(),
+            note: z.string().optional().describe("What is happening on this screen, one short sentence"),
+            actions: z
+              .array(
+                z.object({
+                  do: z.enum(["click", "type", "press", "hover", "scroll", "wait"]),
+                  target: z.string().optional().describe("Visible text, aria-label, placeholder or label of the element, or a CSS selector"),
+                  text: z.string().optional().describe("type: the text; press: the key; wait: milliseconds"),
+                }),
+              )
+              .optional()
+              .describe("What the user does on this screen, in order, played back in the viewer; the last usually leads to the next step"),
+          }),
+        ),
       },
     },
     async (input) => {
       const flow = await api<{ id: string; steps: unknown[] }>("/flows/save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) })
       return { content: [{ type: "text", text: `Saved flow ${flow.id} with ${flow.steps.length} steps.` } satisfies Text] }
+    },
+  )
+
+  mcp.registerTool(
+    "flow_grid",
+    {
+      description:
+        "Render every screen of a user flow, in order, into one grid image, with what happens on each screen and what the user presses next. Use it to understand a whole flow at once and to check it after changing it.",
+      inputSchema: {
+        flow: z.string().describe("Flow id or name from list_flows"),
+        device: z.enum(["desktop", "tablet", "mobile"]).optional(),
+        theme: z.enum(["light", "dark"]).optional(),
+      },
+    },
+    async ({ flow, device, theme }) => {
+      const result = await shootFlow(config, { flow, device, theme })
+      const image: Image = { type: "image", data: fs.readFileSync(result.file).toString("base64"), mimeType: "image/png" }
+      return { content: [{ type: "text", text: `${flowOutline(result)}\n\nSaved to ${result.file}` } satisfies Text, image] }
     },
   )
 

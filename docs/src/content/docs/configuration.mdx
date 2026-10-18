@@ -1,0 +1,74 @@
+---
+title: Configuration
+description: Look up every field of stageboard.config.ts, its type, its default and what it changes.
+---
+
+stageboard reads its settings from `stageboard.config.ts` in your project. `npx stageboard init` creates one. Wrap the object in `defineConfig` from `stageboard` to get types.
+
+```ts title="stageboard.config.ts"
+import { defineConfig } from "stageboard"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx"],
+  preview: "./stageboard.preview.tsx",
+  agent: { provider: "claude" },
+})
+```
+
+## Finding the config file
+
+Every command looks for `stageboard.config.ts`, `stageboard.config.mts`, `stageboard.config.js` or `stageboard.config.mjs`, starting in the current directory and walking up to the filesystem root. The first match wins, and its directory becomes the project root: every relative path in the config is resolved from there. Pass `--config <file>` to any command to use a specific file.
+
+The config is loaded with [jiti](https://github.com/unjs/jiti), so TypeScript works without a build step and `__dirname` is available.
+
+## Options
+
+| Option | Type | Default | What it does |
+|---|---|---|---|
+| `stories` | `string[]` | required | Globs for story files, relative to the project root. `node_modules`, `.next`, `dist` and `.stageboard` are always skipped. |
+| `preview` | `string` | none | Path to a module whose exports apply to every story: `decorators` (wrappers such as providers) and `parameters`. Import global CSS here. |
+| `variantsFile` | `string` | `"stageboard.variants.ts"` | Path of the generated variants registry. stageboard rewrites it whenever `*.variant.tsx` files change; commit it. |
+| `variantGlobs` | `string[]` | `["**/*.variant.{tsx,jsx,ts,js}"]` | Globs for variant files. |
+| `ignore` | `string[]` | `[]` | Extra globs to skip when scanning for stories and variants, added to the built-in ones. |
+| `port` | `number` | `STAGEBOARD_PORT` or `6060` | Port for `stageboard dev`. If it is taken, the next free port is used. `--port` overrides it. |
+| `publicUrl` | `string` | `STAGEBOARD_PUBLIC_URL` | The URL the board is reached at from the browser, for example through a tunnel or a remote machine. Hot reload connects to this host, and `dev` prints it. |
+| `framework` | `"react"` | none | The UI framework. React is the only supported value, and leaving it out means React. |
+| `vite` | `UserConfig` or `() => UserConfig \| Promise<UserConfig>` | none | Vite config merged into stageboard's own: plugins, aliases, `define`, CSS options. Use `nextPreset()` from `stageboard/next` for Next.js apps. The React plugin is added unless you pass one. |
+| `agent` | `AgentConfig` | `{ provider: "claude" }` | Which agent handles annotations and variant requests. See below. |
+| `instructions` | `string` | none | Project notes appended to every agent prompt under "Project notes", for example "Use the tokens in `src/theme.ts`". |
+
+stageboard keeps local state, caches and screenshots in `.stageboard/` next to the config. Add it to `.gitignore`.
+
+## Agent
+
+`agent` picks the CLI that runs when someone sends an annotation. Each variant is a tagged object; the [Agents guide](/guides/agents) explains each one in detail.
+
+| `provider` | Fields | Defaults |
+|---|---|---|
+| `"claude"` | `background?: boolean`, `model?: string`, `permissionMode?: string`, `extraArgs?: string[]` | `background: true` (runs `claude --bg`; `false` runs `claude -p`), `permissionMode: "acceptEdits"` |
+| `"codex"` | `model?: string`, `sandbox?: "read-only" \| "workspace-write" \| "danger-full-access"`, `extraArgs?: string[]` | `sandbox: "workspace-write"` (runs `codex exec`) |
+| `"atmos"` | `project?`, `checkout?`, `device?`, `harness?`, `model?`, `permissionMode?` (all `string`), `sameWorktree?: boolean` | `device: "current"`, `harness: "claude_local"`, `permissionMode: "acceptEdits"`, `sameWorktree: true` |
+| `"command"` | `command: string` (required), `detached?: boolean` | `detached: false`. Runs in a shell. The prompt is written to a file whose path is in `$STAGEBOARD_PROMPT_FILE` and replaces `{promptFile}` in the command; the job id is in `$STAGEBOARD_JOB_ID` and replaces `{jobId}`. With `detached: true`, exit code 0 leaves the job running until the agent reports completion. |
+
+Claude and Codex agents get the stageboard MCP server attached automatically.
+
+## Complete example
+
+```ts title="stageboard.config.ts"
+import tailwind from "@tailwindcss/vite"
+import { defineConfig } from "stageboard"
+
+export default defineConfig({
+  stories: ["src/**/*.stories.tsx", "stageboard/**/*.stories.tsx"],
+  preview: "./stageboard.preview.tsx",
+  variantsFile: "stageboard.variants.ts",
+  variantGlobs: ["src/**/*.variant.tsx"],
+  ignore: ["src/legacy/**"],
+  port: 6060,
+  vite: { plugins: [tailwind()] },
+  agent: { provider: "codex", sandbox: "workspace-write" },
+  instructions: "Use the design tokens in src/theme.ts. Never add new dependencies.",
+})
+```
+
+For a Next.js app, replace `vite` with the preset described in [Next.js](/guides/nextjs).

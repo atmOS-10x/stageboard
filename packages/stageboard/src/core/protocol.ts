@@ -43,7 +43,41 @@ export const DEVICES: Record<Device, { label: string; width: number; height: num
   mobile: { label: "Mobile", width: 390, height: 844 },
 }
 
-export type FlowStep = { id: string; storyId?: string; dream?: string; pending?: string; note?: string }
+// What the user does on a screen, played back in the viewer and by `stageboard flow shot`. target is an element's
+// visible text (or aria-label, placeholder, label) or a CSS selector; text is what to type, the key to press, or ms to wait.
+export type FlowAction = { do: "click" | "type" | "press" | "hover" | "scroll" | "wait"; target?: string; text?: string }
+
+// note: what is happening on this screen. actions: what the user does on it, in order; the last one usually leads to
+// the next step.
+export type FlowStep = { id: string; storyId?: string; dream?: string; pending?: string; note?: string; actions?: FlowAction[] }
+
+export const FLOW_ACTIONS: FlowAction["do"][] = ["click", "type", "press", "hover", "scroll", "wait"]
+
+// One action per line: `click Einstellungen`, `type E-Mail-Adresse: name@praxis.de`, `press Enter`, `wait 800`.
+export function parseActions(text: string): FlowAction[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line): FlowAction => {
+      const [verb, ...rest] = line.split(/\s+/)
+      const arg = rest.join(" ")
+      const kind = (FLOW_ACTIONS as string[]).includes(verb.toLowerCase()) ? (verb.toLowerCase() as FlowAction["do"]) : "click"
+      const body = kind === "click" && verb.toLowerCase() !== "click" ? line : arg
+      if (kind === "type") {
+        const i = body.indexOf(": ")
+        return i >= 0 ? { do: "type", target: body.slice(0, i), text: body.slice(i + 2) } : { do: "type", text: body }
+      }
+      if (kind === "press" || kind === "wait") return { do: kind, text: body }
+      return { do: kind, target: body }
+    })
+}
+
+export function formatAction(a: FlowAction): string {
+  if (a.do === "type") return `type ${a.target ? `${a.target}: ` : ""}${a.text ?? ""}`
+  if (a.do === "press" || a.do === "wait") return `${a.do} ${a.text ?? ""}`
+  return `${a.do} ${a.target ?? ""}`
+}
 
 export type Flow = {
   id: string
@@ -87,6 +121,41 @@ export type Dream = {
 
 export type DreamRequest = { name?: string; prompt: string; parent?: string; parentUrl?: string; position?: Point; attachments?: string[]; flow?: { id: string; index: number } }
 
+// One screen's part of a batch of annotations on a flow: a comment on a region, the user's sketch on that screen, or both.
+export type FlowAnnotation = {
+  storyId: string
+  title?: string
+  step?: number
+  note?: string
+  region?: Region
+  viewport: { width: number; height: number }
+  scroll?: Point
+  sketch?: Sketch
+}
+
+// The page area a sketch touches, or the fallback when it has no ops with a position.
+export function sketchBounds(ops: SketchOp[], fallback: Region): Region {
+  const boxes: Region[] = []
+  for (const op of ops) {
+    if (op.type === "move") boxes.push(op.from, op.to)
+    else if (op.type === "block" || op.type === "component") boxes.push(op.rect)
+    else if (op.type === "stroke" && op.points.length) {
+      const xs = op.points.map((p) => p.x)
+      const ys = op.points.map((p) => p.y)
+      boxes.push({ x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs) || 1, height: Math.max(...ys) - Math.min(...ys) || 1 })
+    }
+  }
+  if (!boxes.length) return fallback
+  const x = Math.min(...boxes.map((b) => b.x))
+  const y = Math.min(...boxes.map((b) => b.y))
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.max(1, Math.round(Math.max(...boxes.map((b) => b.x + b.width)) - x)),
+    height: Math.max(1, Math.round(Math.max(...boxes.map((b) => b.y + b.height)) - y)),
+  }
+}
+
 export type ChangeRequest = {
   kind: ChangeRequestKind
   note: string
@@ -98,6 +167,7 @@ export type ChangeRequest = {
   sketch?: Sketch
   dream?: Dream
   flow?: Flow
+  annotations?: FlowAnnotation[]
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled"
@@ -122,6 +192,7 @@ export type Job = {
   attachments?: Upload[]
   selectionImage?: string
   sketchImage?: string
+  images?: { label: string; path: string }[]
   dream?: string
   flow?: string
 }

@@ -1,0 +1,105 @@
+---
+title: Flows
+description: Build ordered journeys through your screens, describe and play each step, store them in stageboard/board.json and render a whole flow into one image.
+---
+
+A flow is an ordered list of screens that a user goes through, such as signing up or changing a setting. Each step can say what is happening on the screen and what the user does on it, and the flow viewer plays those actions with a cursor. Flows are built from [page stories](/guides/screens).
+
+## Create a flow
+
+Open Flows and choose one of these:
+
+- **New flow.** Give it a name and describe the journey: who starts where, what they do, where they end up. You can attach reference images. The agent picks your existing screens, builds the ones that are missing, and saves the flow. Missing screens show as an animated placeholder until their story exists.
+- **Suggest flows.** The agent reads your screens and routes and proposes the main journeys through the app, grouped by area.
+- **By hand.** Drag a screen from the Screens sidebar or a screen card onto a flow, drag steps to reorder them, and use the remove button on a step to take it out. The add tile at the end of a flow opens a picker: choose an existing screen, or describe a New screen and the agent builds it next to the screen before it.
+
+Double-click a flow's name to rename it. Note on flow sends a note about the whole flow to the agent, for example a missing step or wording that should match everywhere. Delete removes the flow but keeps its screens.
+
+## The flow viewer
+
+Click a step to open the viewer. It shows one screen at the selected device size, with the step's note and its numbered actions below it. When the screen has loaded, its actions play with a cursor, a click ripple marks each click, and each action is marked done or failed as it runs. Play runs the whole flow: every screen plays its actions, then the viewer moves to the next one.
+
+| Key | What it does |
+| --- | --- |
+| `←` `→` | Previous or next screen. A horizontal trackpad swipe does the same. |
+| `Enter` | Use the screen: clicks and keys go to the page. Clicking the screen does the same. |
+| `Escape` | Hand control back to the viewer while you use the screen; otherwise close the viewer. |
+| `R` | Replay the screen from the start. |
+| `A` | Annotate. See [Annotate](/guides/annotate#annotate-a-flow). |
+
+The edit button on the step bar opens the note and the actions, one action per line. `Cmd+Enter` or `Ctrl+Enter` saves.
+
+```text title="Actions, one per line"
+click Settings
+click Edit phone menu
+type Name: Main menu
+press Enter
+hover Help
+scroll Billing
+wait 800
+```
+
+A target is an element's visible text, `aria-label`, placeholder or label, or a CSS selector. A line without a known verb is a click on that text. If no step in a flow has a note or actions yet, Describe steps asks the agent to write them.
+
+## `stageboard/board.json`
+
+Flows are stored in `stageboard/board.json` next to your `stageboard.config.ts`, together with the screens agents are building for them (`dreams`). Commit it, so the whole team sees the same flows.
+
+```json title="stageboard/board.json"
+{
+  "dreams": [],
+  "flows": [
+    {
+      "id": "a1b2c3d4",
+      "name": "Sign up",
+      "group": "Onboarding",
+      "description": "A visitor creates an account from the home page.",
+      "steps": [
+        {
+          "id": "s1",
+          "storyId": "pages--home",
+          "note": "The visitor lands on the marketing page.",
+          "actions": [{ "do": "click", "target": "Get started" }]
+        },
+        {
+          "id": "s2",
+          "storyId": "pages--login",
+          "note": "They enter their email to get a sign-in link.",
+          "actions": [{ "do": "type", "target": "Email", "text": "ada@example.com" }, { "do": "press", "text": "Enter" }]
+        },
+        { "id": "s3", "pending": "Check your inbox screen" }
+      ],
+      "status": "ready",
+      "createdAt": "2026-10-19T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+| Step field | What it is |
+| --- | --- |
+| `storyId` | The page story shown on this step. |
+| `note` | What is happening on the screen, one sentence. |
+| `actions` | What the user does, in order: `{ "do": "click" \| "type" \| "press" \| "hover" \| "scroll" \| "wait", "target"?, "text"? }`. `text` is what to type, the key to press, or milliseconds to wait. The last action usually leads to the next step. |
+| `pending` | A screen that isn't built yet, described in words. |
+| `dream` | The id of a screen an agent is building; the step shows that story once it exists. |
+
+Agents save flows with the MCP tool `save_flow` or `npx stageboard flow save '<json>'`. Both take `{ "flow"?, "name", "group", "description", "steps" }`, with steps written without an `id`; pass `flow` to update an existing flow. `flow save` also accepts a path to a JSON file and needs a running `npx stageboard dev`. See [MCP tools](/reference/mcp).
+
+## Render a flow into one image
+
+`flow shot` renders every screen of a flow into one grid image, so you or an agent can take in the whole flow at once. It plays each step's actions before capturing the screen, and works without the dev server.
+
+```bash
+npx stageboard flow shot "Sign up" --device mobile --theme dark
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `<flow>` | required | The flow's id or name, or a unique part of the name. |
+| `--device` | `desktop` | `desktop`, `tablet` or `mobile`. |
+| `--theme` | none | `light` or `dark`. |
+| `--cols` | 3 desktop, 4 tablet, 5 mobile | Screens per row. |
+| `--out` | `.stageboard/shots/flow-<id>-<device>.png`, with `-<theme>` when set | Output PNG path. |
+
+It prints the PNG path and then the flow as text: each step's title, story id and route, its note, and its actions marked `✓` when they played or `✗` with the reason when they failed. Run it before and after you change a flow. The MCP tool `flow_grid` does the same.

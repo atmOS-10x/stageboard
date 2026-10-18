@@ -1,4 +1,4 @@
-import type { ChangeRequest, Job, Region, SketchOp } from "../core/protocol"
+import { formatAction, type ChangeRequest, type FlowStep, type Job, type Region, type SketchOp } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
 
 function pageContext(request: ChangeRequest) {
@@ -114,6 +114,38 @@ function describeOp(op: SketchOp): string {
   return `- Drew a freehand ${op.color} mark around x=${Math.round(Math.min(...xs))}–${Math.round(Math.max(...xs))}, y=${Math.round(Math.min(...ys))}–${Math.round(Math.max(...ys))}.`
 }
 
+// Annotations the user collected while going through a flow: comments on regions and sketches, screen by screen.
+function batchSection(job: Job, request: ChangeRequest, screens: Screen[]): string[] {
+  const list = request.annotations ?? []
+  if (!list.length) return []
+  const byId = new Map(screens.map((s) => [s.id, s]))
+  const lines = [
+    "",
+    "## The user's annotations, screen by screen",
+    `They went through the flow and marked up ${list.length} place${list.length === 1 ? "" : "s"}. Handle every one; they belong together, so keep the screens consistent. Coordinates are page pixels in the screen's viewport.`,
+  ]
+  let sketched = false
+  for (const [i, a] of list.entries()) {
+    const screen = byId.get(a.storyId)
+    const images = (job.images ?? []).filter((img) => img.label.startsWith(`${i + 1}:`))
+    lines.push("", `### ${i + 1}. ${a.step !== undefined ? `Screen ${a.step + 1}: ` : ""}${a.title ?? screen?.title ?? a.storyId} (\`${a.storyId}\`${screen ? `, ${screen.file}` : ""})`)
+    if (a.note) lines.push(`Note: ${a.note}`)
+    if (a.region) lines.push(`About the area at ${box(a.region)} in a ${a.viewport.width}×${a.viewport.height} viewport.`)
+    if (a.sketch?.ops.length) {
+      sketched = true
+      lines.push("They sketched on this screen (nothing was changed in code; this is the state they want):", ...a.sketch.ops.map(describeOp))
+    }
+    for (const img of images) {
+      const kind = img.label.split(":")[1]
+      lines.push(`${kind === "selection" ? "Screenshot of that area" : kind === "before" ? "Before" : "After, with the sketch applied"}: \`${img.path}\``)
+    }
+  }
+  lines.push("", "Open every screenshot before you start. Screenshot each screen you change with `npx stageboard shot <story-id>` afterwards.")
+  if (sketched)
+    lines.push("Treat moves and resizes as layout intent, not pixel offsets: change the layout so the screen looks like the sketch at every width. Blocks and freehand marks are rough placeholders for what the notes ask for.")
+  return lines
+}
+
 function sketchSection(job: Job, request: ChangeRequest): string {
   const sketch = request.sketch
   if (!sketch?.ops.length) return ""
@@ -132,13 +164,27 @@ function sketchSection(job: Job, request: ChangeRequest): string {
 
 type Screen = { id: string; title: string; file: string }
 
+const STEP_FIELDS = [
+  "Describe every step, in the app's language, so someone looking at the flow knows what is going on:",
+  "- `note`: what is happening on this screen, one short sentence (e.g. The practice enters its email to get a sign-in code).",
+  "- `actions`: what the user does on this screen, in order, played back with a cursor in the viewer: `{ \"do\": \"click\" | \"type\" | \"press\" | \"hover\" | \"scroll\" | \"wait\", \"target\"?: visible text, aria-label, placeholder or label of the element (or a CSS selector), \"text\"?: what to type, the key to press, or ms to wait }`. Example: open settings, then the phone menu editor: `[{ \"do\": \"click\", \"target\": \"Einstellungen\" }, { \"do\": \"click\", \"target\": \"Telefonmenü bearbeiten\" }]`. The last action is usually what takes the user to the next step. A screen the user only looks at needs none.",
+  "- Check the actions play: `npx stageboard flow shot <flow>` plays every step's actions before capturing it and reports any that fail (a target it cannot find).",
+]
+
+function stepLine(s: FlowStep, i: number, screen?: Screen): string {
+  const head = `${i + 1}. ${s.storyId ? `\`${s.storyId}\`` : `(not built yet: ${s.pending ?? "pending"})`}${screen ? ` — ${screen.title} (${screen.file})` : ""}`
+  const parts = [s.note && `note: ${s.note}`, s.actions?.length && `actions: ${s.actions.map(formatAction).join(" → ")}`].filter(Boolean)
+  return parts.length ? `${head} (${parts.join("; ")})` : head
+}
+
 function flowPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest, screens: Screen[]): string[] {
   const flow = request.flow
   const list = screens.length ? screens.map((s) => `- \`${s.id}\` — ${s.title} (${s.file})`) : ["(no page stories yet)"]
   const save = [
     "## Saving",
     "Save with the stageboard MCP tool `save_flow`, or `npx stageboard flow save '<json>'` from " + config.root + ", where the JSON is",
-    `\`{ ${flow ? `"flow": "${flow.id}", ` : ""}"name": "…", "group": "…", "description": "…", "steps": [{ "storyId": "<page story id>", "note": "what happens here" }, { "pending": "Screen you are still building" }] }\`.`,
+    `\`{ ${flow ? `"flow": "${flow.id}", ` : ""}"name": "…", "group": "…", "description": "…", "steps": [{ "storyId": "<page story id>", "note": "what happens here", "actions": [{ "do": "click", "target": "Weiter" }] }, { "pending": "Screen you are still building" }] }\`.`,
+    ...STEP_FIELDS,
     "Steps are screens in the order the user sees them. Save early with `pending` steps for screens you still have to build, so the user watches the flow fill in, then save again with real story ids once they exist.",
   ]
   if (!flow) {
@@ -180,11 +226,9 @@ function flowNotePrompt(request: ChangeRequest, screens: Screen[]): string[] {
     `Change the user flow "${flow.name}" as the user asks below. The note is about the whole flow, not one screen: apply it to every screen it concerns, keep the screens consistent with each other, and leave screens alone that it does not touch.`,
     "",
     "## The flow, in order",
-    ...flow.steps.map((s, i) => {
-      const screen = s.storyId ? byId.get(s.storyId) : undefined
-      return `${i + 1}. ${s.storyId ? `\`${s.storyId}\`` : `(not built yet: ${s.pending ?? "pending"})`}${screen ? ` — ${screen.title} (${screen.file})` : ""}${s.note ? `: ${s.note}` : ""}`
-    }),
-    "Screenshot each screen with `npx stageboard shot <story-id>` before and after. If the note changes which screens the flow has or their order, save the new order with the stageboard MCP tool `save_flow` (or `npx stageboard flow save`), passing flow id `" + flow.id + "`.",
+    ...flow.steps.map((s, i) => stepLine(s, i, s.storyId ? byId.get(s.storyId) : undefined)),
+    "Screenshot each screen with `npx stageboard shot <story-id>` before and after. If the note changes which screens the flow has, their order or how a step is described, save the whole flow with the stageboard MCP tool `save_flow` (or `npx stageboard flow save`), passing flow id `" + flow.id + "` and every step with its `storyId`, `note` and `actions`.",
+    ...STEP_FIELDS,
   ]
 }
 
@@ -243,7 +287,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
       )
     }
   } else if (request.kind === "edit" && request.flow) {
-    lines.push(...flowNotePrompt(request, screens), "", `What the user asked for: ${request.note}`)
+    lines.push(...flowNotePrompt(request, screens), "", `What the user asked for: ${request.note}`, ...batchSection(job, request, screens))
   } else if (request.kind === "edit") {
     lines.push(
       sketched ? "Make the page match the user's sketch below, directly in place." : `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,

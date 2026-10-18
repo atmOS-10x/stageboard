@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { selectVariant, useStageboard, type SketchApi } from "stageboard/react"
+import { selectVariant, submitChangeRequest, useStageboard, type SketchApi } from "stageboard/react"
 import { ORIGINAL, type Region } from "stageboard"
 import { useScrollSync, type Surface } from "./annotate"
 import { CheckIcon, PlusIcon } from "./icons"
 import { Button } from "./kit"
 import { Shimmer } from "./shimmer"
+import { errorText, pushToast } from "./toasts"
 
 type Box = { id: string; rect: Region }
 
@@ -59,6 +60,38 @@ export function VariantLayer({
     if (!visible) setOpen(undefined)
   }, [visible])
 
+  const adopting = (id: string) => jobs.some((j) => (j.status === "queued" || j.status === "running") && j.kind === "adopt" && j.variantId === id)
+
+  // Adopting asks the agent to make the picked variant the new original; its pin sits on the boundary.
+  const adopt = async (box: Box, key: string) => {
+    const win = surface.frame?.()?.contentWindow
+    const name = variants.find((v) => v.of === box.id && v.key === key)?.label ?? key
+    try {
+      await submitChangeRequest({
+        kind: "adopt",
+        note: "",
+        adoptKey: key,
+        target: {
+          url: surface.url,
+          title: surface.title,
+          selector: "",
+          tag: "region",
+          rect: box.rect,
+          viewport: { width: win?.innerWidth ?? 1440, height: win?.innerHeight ?? 900 },
+          components: [],
+          storyId: surface.storyId,
+          region: box.rect,
+          variantId: box.id,
+          variantKeys: { [box.id]: key },
+        },
+      })
+      setOpen(undefined)
+      pushToast({ tone: "info", title: "Sent to the agent", body: `“${name}” becomes the original of ${box.id}.` })
+    } catch (e) {
+      pushToast({ tone: "error", title: "Couldn’t adopt the variant", body: errorText(e) })
+    }
+  }
+
   const label = (id: string) => {
     const key = selections[id] ?? ORIGINAL
     return key === ORIGINAL ? "Original" : (variants.find((v) => v.of === id && v.key === key)?.label ?? key)
@@ -94,6 +127,8 @@ export function VariantLayer({
             options={variants.filter((v) => v.of === open.box.id)}
             pending={pendingFor(open.box.id)}
             onPick={(key) => void selectVariant(open.box.id, key)}
+            adopting={adopting(open.box.id)}
+            onAdopt={(key) => void adopt(open.box, key)}
             onAskMore={
               onAskMore &&
               (() => {
@@ -116,6 +151,8 @@ function VariantMenu({
   options,
   pending,
   onPick,
+  adopting,
+  onAdopt,
   onAskMore,
   onClose,
 }: {
@@ -125,6 +162,8 @@ function VariantMenu({
   options: { key: string; label: string; description?: string }[]
   pending: number
   onPick: (key: string) => void
+  adopting?: boolean
+  onAdopt?: (key: string) => void
   onAskMore?: () => void
   onClose: () => void
 }) {
@@ -163,6 +202,11 @@ function VariantMenu({
         <div className="sbu-vmenu-pending">
           <Shimmer>{`${pending} more being made…`}</Shimmer>
         </div>
+      )}
+      {onAdopt && selected !== ORIGINAL && options.some((o) => o.key === selected) && (
+        <Button size="sm" variant="solid" icon={<CheckIcon size={13} />} className="sbu-vmenu-adopt" disabled={adopting} onClick={() => onAdopt(selected)}>
+          {adopting ? "Adopting…" : "Adopt as original"}
+        </Button>
       )}
       {onAskMore && (
         <Button size="sm" variant="ghost" icon={<PlusIcon size={13} />} className="sbu-vmenu-more" onClick={onAskMore}>
