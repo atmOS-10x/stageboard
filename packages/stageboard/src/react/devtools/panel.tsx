@@ -22,7 +22,7 @@ export function Panel({
 }) {
   const [focus, setFocus] = useState(0)
   const [note, setNote] = useState("")
-  const [mode, setMode] = useState<Mode>("variants")
+  const [mode, setMode] = useState<Mode>("edit")
   const [count, setCount] = useState(3)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string>()
@@ -125,7 +125,7 @@ export function Panel({
 
         <div className="sb-sec">
           <div className="sb-h">
-            <span>Request a change</span>
+            <span>Ask the agent</span>
             <span className="sb-dot" data-on={connected} title={connected ? "Bridge connected" : "Bridge offline"} />
           </div>
           <textarea
@@ -140,11 +140,11 @@ export function Panel({
           />
           <div className="sb-row">
             <div className="sb-seg">
-              <button data-on={mode === "variants"} onClick={() => setMode("variants")}>
-                Variants
-              </button>
               <button data-on={mode === "edit"} onClick={() => setMode("edit")}>
                 Edit
+              </button>
+              <button data-on={mode === "variants"} onClick={() => setMode("variants")}>
+                Variants
               </button>
             </div>
             {mode === "variants" && (

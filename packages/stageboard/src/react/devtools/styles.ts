@@ -154,4 +154,49 @@ export const devtoolsCss = `
 a.sb-link { color: var(--sb-accent-2); text-decoration: none; }
 a.sb-link:hover { text-decoration: underline; }
 .sb-kbd { font-size: 10.5px; color: var(--sb-muted); border: 1px solid var(--sb-line); border-radius: 4px; padding: 0 4px; }
+
+/* The stageboard UI kit: pill buttons, one segmented control, one panel, normal-case labels. */
+.sb-root { --sb-bg: #1b1a22; --sb-bg-solid: #1b1a22; --sb-line: rgba(255,255,255,.08); --sb-line-strong: rgba(255,255,255,.1); --sb-accent: #8d7af6; --sb-accent-2: #8d7af6; }
+.sb-bubble { height: 40px; padding: 0 14px 0 12px; background: rgba(27,26,34,.94); border: 1px solid rgba(255,255,255,.1); box-shadow: 0 12px 32px rgba(0,0,0,.4); }
+.sb-bubble:hover { transform: none; background: rgba(40,39,48,.96); border-color: rgba(255,255,255,.14); }
+.sb-bubble[data-active="true"] { background: #ebebf0; color: #16161b; border-color: transparent; }
+.sb-bubble[data-active="true"] .sb-count { color: #55555e; }
+.sb-hover { outline-color: #8d7af6; background: rgba(141,122,246,.08); }
+.sb-hover-label { background: #8d7af6; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+.sb-panel { background: #1b1a22; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; box-shadow: 0 18px 48px rgba(0,0,0,.5); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.sb-panel[data-docked="false"] { border-radius: 0; border: 0; }
+.sb-sec { padding: 14px 16px; border-top-color: rgba(255,255,255,.06); }
+.sb-title { font-size: 15px; font-weight: 500; }
+.sb-h { font-size: 12.5px; text-transform: none; letter-spacing: 0; font-weight: 500; color: #9a9aa5; }
+.sb-crumb { height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: rgba(255,255,255,.07); color: #b4b4be; font-size: 11.5px; }
+.sb-crumb:hover { background: rgba(255,255,255,.12); color: #f2f2f5; }
+.sb-crumb[data-on="true"] { background: #ebebf0; color: #16161b; border: 0; }
+.sb-variant { border: 0; border-radius: 10px; background: transparent; padding: 9px 10px; }
+.sb-variant:hover { background: rgba(255,255,255,.06); border: 0; }
+.sb-variant[data-on="true"] { background: rgba(245,200,75,.12); border: 0; }
+.sb-variant .sb-radio { border-color: rgba(255,255,255,.25); }
+.sb-variant[data-on="true"] .sb-radio { border-color: #f5c84b; }
+.sb-textarea { min-height: 72px; padding: 10px 12px; border: 0; border-radius: 12px; background: rgba(255,255,255,.05); font-size: 13.5px; line-height: 1.45; resize: none; }
+.sb-textarea::placeholder { color: #7e7e89; }
+.sb-textarea:focus { border: 0; box-shadow: 0 0 0 2px rgba(190,176,255,.45); }
+.sb-row { gap: 6px; margin-top: 10px; }
+.sb-seg { gap: 2px; padding: 2px; border: 0; border-radius: 999px; background: rgba(255,255,255,.06); overflow: visible; }
+.sb-seg button { height: 22px; padding: 0 9px; border-radius: 999px; color: #9a9aa5; font-weight: 500; }
+.sb-seg button:hover { color: #e6e6ec; }
+.sb-seg button[data-on="true"] { background: rgba(255,255,255,.14); color: #fff; }
+.sb-btn { height: 30px; padding: 0 14px; border-radius: 999px; background: #ebebf0; color: #16161b; font-weight: 500; box-shadow: none; }
+.sb-btn:hover:not(:disabled) { background: #fff; }
+.sb-btn:disabled { opacity: .35; cursor: default; }
+.sb-btn-ghost { height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: rgba(255,255,255,.08); font-weight: 500; }
+.sb-btn-ghost:hover { background: rgba(255,255,255,.13); }
+.sb-icon-btn { width: 26px; height: 26px; display: inline-grid; place-items: center; padding: 0; border-radius: 999px; font-size: 15px; }
+.sb-icon-btn:hover { background: rgba(255,255,255,.07); }
+.sb-status { font-size: 11.5px; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.sb-status[data-s="running"], .sb-status[data-s="queued"] { color: #b9b0e8; }
+.sb-job-row { border-top: 1px solid rgba(255,255,255,.05); }
+a.sb-link { color: #b4add8; text-decoration: underline; text-decoration-color: rgba(180,173,216,.35); text-underline-offset: 3px; }
+.sb-chip { height: 26px; padding: 0 11px; border: 0; border-radius: 999px; background: rgba(255,255,255,.08); font-weight: 500; }
+.sb-chip:hover { background: rgba(255,255,255,.13); border: 0; }
+.sb-job-pill { background: #1b1a22; border-color: rgba(255,255,255,.1); }
+.sb-b:focus-visible, .sb-btn:focus-visible, .sb-btn-ghost:focus-visible, .sb-seg button:focus-visible, .sb-crumb:focus-visible, .sb-chip:focus-visible, .sb-bubble:focus-visible { outline: 2px solid rgba(190,176,255,.7); outline-offset: 2px; }
 `
