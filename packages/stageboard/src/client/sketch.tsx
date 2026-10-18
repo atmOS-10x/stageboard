@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode, type WheelEvent as RWheelEvent } from "react"
+import { createPortal } from "react-dom"
 import type { SketchApi, SketchTarget } from "stageboard/react"
 import type { Region, Sketch, SketchOp } from "stageboard"
 import { useScrollSync, type Surface } from "./annotate"
@@ -83,10 +84,12 @@ export function SketchLayer({
   onReconcile,
   onExit,
   paused = false,
+  toolbarHost,
 }: {
   surface: Surface
   components: ClientEntry[]
   paused?: boolean
+  toolbarHost?: HTMLElement | null
   onReconcile: (sketch: Sketch, region: Region) => void
   onExit: () => void
 }) {
@@ -387,6 +390,34 @@ export function SketchLayer({
     } catch {}
   }
 
+  const bar = (
+      <div className="sbu-sketch-bar" data-docked={Boolean(toolbarHost)} role="toolbar" aria-label="Sketch tools" onPointerDown={(e) => e.stopPropagation()}>
+        <ToolButton on={tool === "select"} onClick={() => setTool("select")} label="Select, move and resize · V · double-click text to edit">
+          <PointerIcon size={15} />
+        </ToolButton>
+        <ToolButton on={tool === "pen"} onClick={() => setTool("pen")} label="Draw · P">
+          <PenIcon size={15} />
+        </ToolButton>
+        <ToolButton on={tool === "block"} onClick={() => setTool("block")} label="Block · B">
+          <SquareIcon size={15} />
+        </ToolButton>
+        <ToolButton on={palette} onClick={() => setPalette((v) => !v)} label="Components from this app · C">
+          <ComponentIcon size={15} />
+        </ToolButton>
+        <span className="sbu-sketch-sep" />
+        <ToolButton on={false} onClick={undo} label="Undo · ⌘Z" disabled={!history.current.length}>
+          <UndoIcon size={15} />
+        </ToolButton>
+        <ToolButton on={false} onClick={() => (commit([]), setSelection(undefined))} label="Clear the sketch" disabled={!ops.length}>
+          <CloseIcon size={13} />
+        </ToolButton>
+        <span className="sbu-sketch-count sbu-tnum">{ops.length ? `${ops.length} change${ops.length === 1 ? "" : "s"}` : "Move things, draw, drop components"}</span>
+        <button type="button" className="sbu-sketch-go" disabled={!ops.length} onClick={reconcile} title="Send the sketch to the agent · Enter">
+          Reconcile <ArrowUpIcon size={13} />
+        </button>
+      </div>
+  )
+
   const rect = selectedRect()
   const label = selection?.kind === "el" ? selection.target.components[0]?.name ?? selection.target.selector.split(" > ").pop() : undefined
   const shown = components.filter((c) => !filter || `${c.title} ${c.name}`.toLowerCase().includes(filter.toLowerCase()))
@@ -496,31 +527,7 @@ export function SketchLayer({
         </div>
       )}
 
-      <div className="sbu-sketch-bar" role="toolbar" aria-label="Sketch tools" onPointerDown={(e) => e.stopPropagation()}>
-        <ToolButton on={tool === "select"} onClick={() => setTool("select")} label="Select, move and resize · V · double-click text to edit">
-          <PointerIcon size={15} />
-        </ToolButton>
-        <ToolButton on={tool === "pen"} onClick={() => setTool("pen")} label="Draw · P">
-          <PenIcon size={15} />
-        </ToolButton>
-        <ToolButton on={tool === "block"} onClick={() => setTool("block")} label="Block · B">
-          <SquareIcon size={15} />
-        </ToolButton>
-        <ToolButton on={palette} onClick={() => setPalette((v) => !v)} label="Components from this app · C">
-          <ComponentIcon size={15} />
-        </ToolButton>
-        <span className="sbu-sketch-sep" />
-        <ToolButton on={false} onClick={undo} label="Undo · ⌘Z" disabled={!history.current.length}>
-          <UndoIcon size={15} />
-        </ToolButton>
-        <ToolButton on={false} onClick={() => (commit([]), setSelection(undefined))} label="Clear the sketch" disabled={!ops.length}>
-          <CloseIcon size={13} />
-        </ToolButton>
-        <span className="sbu-sketch-count sbu-tnum">{ops.length ? `${ops.length} change${ops.length === 1 ? "" : "s"}` : "Move things, draw, drop components"}</span>
-        <button type="button" className="sbu-sketch-go" disabled={!ops.length} onClick={reconcile} title="Send the sketch to the agent · Enter">
-          Reconcile <ArrowUpIcon size={13} />
-        </button>
-      </div>
+      {toolbarHost ? createPortal(bar, toolbarHost) : bar}
     </div>
   )
 }

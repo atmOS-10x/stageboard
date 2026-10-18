@@ -4,12 +4,15 @@ import { DEVICES, type Device, type Flow, type Region, type Sketch } from "stage
 import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { screenTitle, type ScreenNode } from "./browse"
-import { AnnotateIcon, CloseIcon, SketchIcon } from "./icons"
+import { AnnotateIcon, CloseIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
+import { Shimmer } from "./shimmer"
+import { WaveCanvas } from "./waves"
 import { SketchLayer } from "./sketch"
-import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
 
 const SWIPE = 70
+const GAP = 32
+const PRELOAD = 2
 
 export function FlowViewer({
   flow,
@@ -50,7 +53,9 @@ export function FlowViewer({
   const dreams = useStageboard((s) => s.dreams)
   const d = DEVICES[device]
   const stage = useRef<HTMLDivElement>(null)
-  const frame = useRef<HTMLIFrameElement>(null)
+  const frames = useRef(new Map<string, HTMLIFrameElement>())
+  const [ready, setReady] = useState<Set<string>>(() => new Set())
+  const [tools, setTools] = useState<HTMLDivElement | null>(null)
   const [box, setBox] = useState({ width: 0, height: 0 })
   const [sketching, setSketching] = useState(false)
   const [info, setInfo] = useState(false)
@@ -67,8 +72,8 @@ export function FlowViewer({
   const entry = storyId ? index.find((e) => e.id === storyId) : undefined
   const screen = storyId ? screens.find((s) => s.entry.id === storyId) : undefined
   const count = flow.steps.length
-  const prev = step > 0 ? storyOf(step - 1) : undefined
-  const next = step < count - 1 ? storyOf(step + 1) : undefined
+  const currentStep = flow.steps[step]
+  const frameOfCurrent = useCallback(() => (currentStep ? frames.current.get(currentStep.id) : undefined), [currentStep])
   const busy = annotating || sketching || draftOpen
 
   useLayoutEffect(() => {
@@ -91,6 +96,19 @@ export function FlowViewer({
     setSketching(false)
     setInfo(false)
   }, [step, flow.id])
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.source !== "stageboard" || e.data.type !== "ready") return
+      for (const [id, el] of frames.current) {
+        if (el.contentWindow === e.source) setReady((r) => (r.has(id) ? r : new Set(r).add(id)))
+      }
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [])
+
+  useEffect(() => setReady(new Set()), [device])
 
   useEffect(() => {
     const onSent = () => setSketching(false)
@@ -137,10 +155,10 @@ export function FlowViewer({
         storyId: entry.id,
         title: screenTitle(screen, entry),
         url: storyUrl(frameUrl(entry.id)),
-        frame: () => frame.current,
+        frame: frameOfCurrent,
         scrollsFrame: true,
       },
-    [entry, screen, frameUrl],
+    [entry, screen, frameUrl, frameOfCurrent],
   )
   const also = flows
     .filter((f) => f.id !== flow.id)
@@ -177,28 +195,77 @@ export function FlowViewer({
       >
         {scale > 0 && (
           <div className="sbu-viewer-track" style={{ height: h }}>
-            <Peek id={prev} side="prev" w={w} h={h} thumbUrl={thumbUrl} onClick={() => go(-1)} />
-            <div className="sbu-viewer-current" style={{ width: w, height: h }}>
-              {entry && surface ? (
-                <div className="sbu-viewer-scale" style={{ width: d.width, height: d.height, transform: `scale(${scale})` }}>
-                  <iframe key={`${entry.id}-${device}`} ref={frame} className="sbu-viewer-frame" src={frameUrl(entry.id)} title={surface.title} />
-                  <AnnotationLayer surface={surface} viewport={{ width: d.width, height: d.height }} />
-                  {sketching && (
-                    <SketchLayer
-                      key={entry.id}
-                      surface={surface}
-                      components={components}
-                      paused={draftOpen}
-                      onExit={() => setSketching(false)}
-                      onReconcile={(sketch: Sketch, region: Region) => onDraft({ surface, region, viewport: sketch.viewport, scroll: sketch.scroll, sketch })}
-                    />
+            {flow.steps.map((st, i) => {
+              if (Math.abs(i - step) > PRELOAD) return null
+              const id = storyOf(i)
+              const current = i === step
+              const offset = (i - step) * (w + GAP)
+              return (
+                <div
+                  key={st.id}
+                  className="sbu-viewer-slot"
+                  data-current={current}
+                  style={{ width: w, height: h, transform: `translateX(calc(-50% + ${offset}px))` }}
+                  onClick={current ? undefined : () => onStep(i)}
+                  aria-hidden={!current}
+                >
+                  {id ? (
+                    <div className="sbu-viewer-scale" style={{ width: d.width, height: d.height, transform: `scale(${scale})` }}>
+                      <iframe
+                        key={`${id}-${device}`}
+                        ref={(el) => {
+                          if (el) frames.current.set(st.id, el)
+                          else frames.current.delete(st.id)
+                        }}
+                        className="sbu-viewer-frame"
+                        src={frameUrl(id)}
+                        title={id}
+                        tabIndex={current ? 0 : -1}
+                      />
+                      {current && surface && <AnnotationLayer surface={surface} viewport={{ width: d.width, height: d.height }} />}
+                      {current && surface && sketching && (
+                        <SketchLayer
+                          key={id}
+                          surface={surface}
+                          components={components}
+                          paused={draftOpen}
+                          toolbarHost={tools}
+                          onExit={() => setSketching(false)}
+                          onReconcile={(sketch: Sketch, region: Region) => onDraft({ surface, region, viewport: sketch.viewport, scroll: sketch.scroll, sketch })}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="sbu-viewer-missing">This screen isn’t built yet</div>
+                  )}
+                  {id && !ready.has(st.id) && (
+                    <div className="sbu-viewer-loading">
+                      <WaveCanvas mode="render" fps={30} />
+                      <span className="sbu-thumb-note" data-on-waves="true">
+                        <Shimmer>Rendering</Shimmer>
+                      </span>
+                    </div>
                   )}
                 </div>
-              ) : (
-                <div className="sbu-viewer-missing">This screen isn’t built yet</div>
-              )}
-            </div>
-            <Peek id={next} side="next" w={w} h={h} thumbUrl={thumbUrl} onClick={() => go(1)} />
+              )
+            })}
+            {step > 0 && (
+              <button type="button" className="sbu-viewer-nav" data-side="prev" style={{ transform: `translateX(calc(-50% - ${w / 2 + GAP / 2}px))` }} onClick={() => go(-1)} aria-label="Previous screen" title="Previous · ←">
+                <PrevIcon size={22} />
+              </button>
+            )}
+            {step < count - 1 && (
+              <button type="button" className="sbu-viewer-nav" data-side="next" style={{ transform: `translateX(calc(-50% + ${w / 2 + GAP / 2}px))` }} onClick={() => go(1)} aria-label="Next screen" title="Next · →">
+                <NextIcon size={22} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <div ref={setTools} className="sbu-viewer-tools">
+        {annotating && !sketching && !draftOpen && (
+          <div className="sbu-viewer-hint">
+            Drag over the screen to annotate, or click a spot <span className="sbu-key">esc</span>
           </div>
         )}
       </div>
@@ -263,17 +330,5 @@ export function FlowViewer({
         </div>
       </footer>
     </div>
-  )
-}
-
-function Peek({ id, side, w, h, thumbUrl, onClick }: { id?: string; side: "prev" | "next"; w: number; h: number; thumbUrl: (id: string) => string; onClick: () => void }) {
-  if (!id) return <div className="sbu-viewer-peek" data-side={side} data-empty="true" style={{ width: w, height: h }} />
-  return (
-    <button type="button" className="sbu-viewer-peek" data-side={side} style={{ width: w, height: h }} onClick={onClick} aria-label={side === "next" ? "Next screen" : "Previous screen"}>
-      <Thumb src={thumbUrl(id)} />
-      <span className="sbu-viewer-arrow" aria-hidden="true">
-        {side === "next" ? "→" : "←"}
-      </span>
-    </button>
   )
 }
