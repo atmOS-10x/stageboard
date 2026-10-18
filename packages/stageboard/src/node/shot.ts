@@ -115,7 +115,8 @@ export async function shoot(config: ResolvedConfig, options: ShotOptions): Promi
     const out = path.resolve(options.out ?? path.join(config.stateDir, "shots", `${story.id}${options.variants?.length ? "~" + options.variants.join(",").replace(/[^\w.,=-]/g, "_") : ""}.png`))
     fs.mkdirSync(path.dirname(out), { recursive: true })
     const layout = await page.evaluate(() => (window as any).__STAGEBOARD_LAYOUT__ as string | undefined)
-    if (options.full || layout === "fullscreen") {
+    const stage = await page.locator("#sb-stage").boundingBox()
+    if (options.full || layout === "fullscreen" || !stage?.width || !stage.height) {
       await page.screenshot({ path: out, fullPage: Boolean(options.full) })
     } else {
       await page.locator("#sb-stage").screenshot({ path: out })
