@@ -173,7 +173,7 @@ function Sidebar({
           screenGroup,
         ).map(([group, list]) => (
           <div className="sbu-group" key={group}>
-            <div className="sbu-group-title">{group}</div>
+            <div className="sbu-group-title">{group.replaceAll("/", " / ")}</div>
             {list.map((s) => (
               <button key={s.entry.id} className="sbu-story" data-on={active === s.entry.id} onClick={() => onPick(s.entry.id)} draggable onDragStart={dragStory(s.entry.id)}>
                 {screenTitle(s)}
@@ -192,7 +192,7 @@ function Sidebar({
             (f) => f.group ?? "Flows",
           ).map(([group, list]) => (
             <div className="sbu-group" key={group}>
-              <div className="sbu-group-title">{group}</div>
+              <div className="sbu-group-title">{group.replaceAll("/", " / ")}</div>
               {list.map((f) => (
                 <button key={f.id} className="sbu-story" onClick={() => onFlow(f.id)}>
                   {f.name}
@@ -217,7 +217,7 @@ function Sidebar({
       {tab === "components" &&
         groupBy(components.filter((c) => match(`${c.title} ${c.name}`)), componentGroup).map(([group, list]) => (
           <div className="sbu-group" key={group}>
-            <div className="sbu-group-title">{group}</div>
+            <div className="sbu-group-title">{group.replaceAll("/", " / ")}</div>
             {list.map((c) => (
               <button key={c.id} className="sbu-story" data-on={active === c.id} onClick={() => onPick(c.id)}>
                 {c.name}
@@ -444,13 +444,13 @@ function App({ index, loaders, base }: UIOptions) {
         <div className="sbu-brand">
           <Mark /> stageboard
         </div>
-        <div className="sbu-tabs">
+        <nav className="sbu-nav" aria-label="Browse">
           {TABS.map((t) => (
             <button key={t.id} data-on={tab === t.id} onClick={() => go({ view: t.id })}>
               {t.label}
             </button>
           ))}
-        </div>
+        </nav>
         <div className="sbu-tabs sbu-devices" role="radiogroup" aria-label="Device">
           {(Object.keys(DEVICES) as Device[]).map((d) => (
             <button key={d} role="radio" aria-checked={device === d} data-on={device === d} onClick={() => setDevice(d)} title={`${DEVICES[d].width}×${DEVICES[d].height}`}>

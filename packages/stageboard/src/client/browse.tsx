@@ -90,7 +90,7 @@ export function Grid({
       {sections.map(([name, entries]) => (
         <section key={name} className="sbu-browse-section" id={`sec-${name}`}>
           <h2 className="sbu-browse-title">
-            {name} <span className="sbu-dim">{entries.length}</span>
+            {name.replaceAll("/", " / ")} <span className="sbu-dim">{entries.length}</span>
           </h2>
           <div className="sbu-grid">{entries.map(render)}</div>
         </section>
