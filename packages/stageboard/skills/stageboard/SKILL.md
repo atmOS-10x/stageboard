@@ -1,11 +1,11 @@
 ---
 name: stageboard
-description: Set up and grow stageboard in a web app. Use it to write stories with mock data, put every page on the site map, create or edit *.variant.tsx variants, or screenshot a component without running the app. Trigger on "set up stageboard", "add stories", "site map", "make variants", or a stageboard annotation prompt.
+description: Set up and grow stageboard in a web app. Use it to write stories with mock data, put every page in Screens, assemble flows, create or edit *.variant.tsx variants, or screenshot a component without running the app. Trigger on "set up stageboard", "add stories", "site map", "flows", "make variants", or a stageboard annotation prompt.
 ---
 
 # stageboard
 
-stageboard renders an app's components and pages as **stories** with mock data, lays every page out on a **site map**, and lets people annotate anything and ask agents for **variants**. Most of a project's stageboard code is written by agents, so follow this skill closely.
+stageboard renders an app's components and pages as **stories** with mock data, lists every page as **screens** and strings them into **flows** (shown as desktop, tablet or mobile), and lets people annotate anything and ask agents for **variants**. Most of a project's stageboard code is written by agents, so follow this skill closely.
 
 ## Ground rules
 
@@ -50,9 +50,11 @@ export const Disabled: Story<typeof Button> = { args: { disabled: true } }
 - `parameters.layout` is `"centered"` (the default for components), `"padded"` or `"fullscreen"` (the default for pages). Use `parameters.viewport.width` for wide components.
 - Use realistic data in the product's language and domain. Never use lorem ipsum.
 
-## Site map
+## Screens and flows
 
-Pages are stories with `parameters.page = { route, title, group, links }`. To cover a whole app, follow [site-map.md](references/site-map.md): enumerate routes, build a mock backend once, then add page stories area by area and verify each with `shot`.
+Pages are stories with `parameters.page = { route, title, group, links }`; they show up under Screens, grouped by `group`. To cover a whole app, follow [site-map.md](references/site-map.md): enumerate routes, build a mock backend once, then add page stories area by area and verify each with `shot`. Flows need specific states (a dialog open, a form filled in), so give those their own page stories too.
+
+Flows are ordered lists of screens kept in `stageboard/board.json`. Save one with the MCP tool `save_flow` (or `npx stageboard flow save '<json>'`): `{ "flow"?: id, "name", "group", "description", "steps": [{ "storyId", "note"? } | { "pending": "screen you are still building" }] }`. `list_flows` shows what exists.
 
 ## Variants
 
@@ -64,5 +66,5 @@ To make a component swappable, write `export const Hero = variant("landing.hero"
 |---|---|
 | `npx stageboard shot <id> [--variant id=key] [--width 1440] [--full] [--out file]` | PNG of a story |
 | `npx stageboard list [filter]` | story ids |
-| `npx stageboard dev` | catalog, site map and bridge at `/__stageboard/` |
-| MCP `stageboard` | `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant`, `complete_job` (run with `npx stageboard mcp`) |
+| `npx stageboard dev` | screens, flows, components and bridge at `/__stageboard/` |
+| MCP `stageboard` | `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant`, `complete_job`, `save_flow`, `list_flows` (run with `npx stageboard mcp`) |

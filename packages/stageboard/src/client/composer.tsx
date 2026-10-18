@@ -109,6 +109,7 @@ function previewUrl(base: string, draft: Draft): string {
     rw: region.width + pad * 2,
     rh: region.height + pad * 2,
     variant: surface.variant ? `${surface.variant.id}:${surface.variant.key}` : undefined,
+    cs: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : undefined,
   })
 }
 

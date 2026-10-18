@@ -1,12 +1,13 @@
-import { useMemo } from "react"
+import { createContext, useContext, useMemo } from "react"
 import { selectVariant, useStageboard } from "stageboard/react"
 import { ORIGINAL, type VariantFile } from "stageboard"
 import { AnnotationLayer, isActive, type Surface } from "./annotate"
 import { withQuery } from "./api"
 import { CheckIcon } from "./icons"
 import { Thumb } from "./thumb"
+import { WaveCanvas } from "./waves"
 
-const VIEWPORT = { width: 1440, height: 900 }
+const ViewportContext = createContext({ width: 1440, height: 900 })
 
 type Card = { key: string; label: string; description?: string }
 
@@ -17,6 +18,7 @@ export function Gallery({
   base,
   frameUrl,
   selectionKey,
+  viewport = { width: 1440, height: 900 },
 }: {
   storyId: string
   title: string
@@ -24,6 +26,7 @@ export function Gallery({
   base: string
   frameUrl: string
   selectionKey: string
+  viewport?: { width: number; height: number }
 }) {
   const variants = useStageboard((s) => s.serverVariants)
   const rows = useMemo(() => {
@@ -53,11 +56,13 @@ export function Gallery({
     )
   }
   return (
-    <div className="sbu-gallery">
-      {rows.map((row) => (
-        <GalleryRow key={row.id} id={row.id} variants={row.variants} storyId={storyId} title={title} base={base} frameUrl={frameUrl} selectionKey={selectionKey} />
-      ))}
-    </div>
+    <ViewportContext.Provider value={viewport}>
+      <div className="sbu-gallery">
+        {rows.map((row) => (
+          <GalleryRow key={row.id} id={row.id} variants={row.variants} storyId={storyId} title={title} base={base} frameUrl={frameUrl} selectionKey={selectionKey} />
+        ))}
+      </div>
+    </ViewportContext.Provider>
   )
 }
 
@@ -82,6 +87,7 @@ function GalleryRow({
   const pending = useStageboard((s) =>
     s.jobs.filter((j) => isActive(j) && j.kind === "variants" && j.variantId === id).reduce((n, j) => n + Math.max(0, j.count - j.producedFiles.length), 0),
   )
+  const viewport = useContext(ViewportContext)
   const cards: Card[] = [{ key: ORIGINAL, label: "Original", description: "What’s committed today" }, ...variants]
   return (
     <section className="sbu-row">
@@ -105,10 +111,8 @@ function GalleryRow({
         ))}
         {Array.from({ length: pending }, (_, i) => (
           <div key={`pending-${i}`} className="sbu-card" data-pending="true">
-            <div className="sbu-card-shot">
-              <div className="sbu-thumb" data-state="loading">
-                <span className="sbu-thumb-note">Sketching…</span>
-              </div>
+            <div className="sbu-card-shot" style={{ aspectRatio: `${viewport.width} / ${viewport.height}` }}>
+              <WaveCanvas mode="render" fps={30} />
             </div>
             <div className="sbu-card-meta">
               <span className="sbu-card-label sbu-dim">New variant</span>
@@ -149,12 +153,13 @@ function VariantCard({
     }),
     [storyId, id, card.key, card.label, title, frameUrl],
   )
-  const src = withQuery(`${base}/api/thumb/${storyId}.jpg`, { variant: `${id}:${card.key}`, s: selectionKey.slice(0, 200) })
+  const viewport = useContext(ViewportContext)
+  const src = withQuery(`${base}/api/thumb/${storyId}.jpg`, { variant: `${id}:${card.key}`, s: selectionKey.slice(0, 200), w: viewport.width, h: viewport.height, cs: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : undefined })
   return (
     <article className="sbu-card" data-on={on}>
-      <div className="sbu-card-shot">
+      <div className="sbu-card-shot" style={{ aspectRatio: `${viewport.width} / ${viewport.height}` }}>
         <Thumb src={src} />
-        <AnnotationLayer surface={surface} viewport={VIEWPORT} />
+        <AnnotationLayer surface={surface} viewport={viewport} />
       </div>
       <div className="sbu-card-meta">
         <div className="sbu-card-line">

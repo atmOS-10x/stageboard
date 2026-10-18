@@ -163,7 +163,14 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
         if (thumb && thumbs) {
           const index = await buildIndex(config)
           const entry = index.find((e) => e.id === thumb[1])
-          await thumbs.serve(res, thumb[1], entry?.absFile, url.searchParams.has("refresh"), parseVariantParam(url.searchParams.get("variant")))
+          const q = url.searchParams
+          const scheme = (v: string | null) => (v === "dark" || v === "light" ? v : undefined)
+          await thumbs.serve(res, thumb[1], entry?.absFile, q.has("refresh"), parseVariantParam(q.get("variant")), {
+            width: q.get("w") ? Number(q.get("w")) : undefined,
+            height: q.get("h") ? Number(q.get("h")) : undefined,
+            theme: scheme(q.get("t")),
+            colorScheme: scheme(q.get("cs")),
+          })
           return
         }
         if (sub === "/api/shot" && thumbs) {
@@ -177,6 +184,8 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
               height: num("h"),
               full: q.has("full"),
               region,
+              theme: q.get("t") === "dark" || q.get("t") === "light" ? (q.get("t") as "dark" | "light") : undefined,
+              colorScheme: q.get("cs") === "dark" ? "dark" : undefined,
             })
             res.setHeader("content-type", "image/png")
             res.end(png)

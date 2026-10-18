@@ -33,7 +33,30 @@ export type RegionDescription = {
 
 export type Upload = { id: string; name: string; type: string; url: string; path: string }
 
-export type ChangeRequestKind = "variants" | "edit" | "adopt" | "page"
+export type ChangeRequestKind = "variants" | "edit" | "adopt" | "page" | "flow"
+
+export type Device = "desktop" | "tablet" | "mobile"
+
+export const DEVICES: Record<Device, { label: string; width: number; height: number }> = {
+  desktop: { label: "Desktop", width: 1440, height: 900 },
+  tablet: { label: "Tablet", width: 834, height: 1194 },
+  mobile: { label: "Mobile", width: 390, height: 844 },
+}
+
+export type FlowStep = { id: string; storyId?: string; dream?: string; pending?: string; note?: string }
+
+export type Flow = {
+  id: string
+  name: string
+  description?: string
+  group?: string
+  steps: FlowStep[]
+  status: "ready" | "assembling" | "failed"
+  jobId?: string
+  createdAt: string
+}
+
+export type FlowRequest = { name?: string; description?: string; group?: string; steps?: FlowStep[]; assemble?: boolean; suggest?: boolean }
 
 export type Point = { x: number; y: number }
 
@@ -43,15 +66,10 @@ export type SketchOp =
   | { type: "block"; rect: Region; color: string; label?: string }
   | { type: "component"; rect: Region; storyId: string; title: string }
   | { type: "stroke"; points: Point[]; color: string; width: number }
-  | { type: "arrow"; from: Point; to: Point; color: string; width?: number; label?: string; fromStory?: string; toStory?: string }
 
 export type Sketch = { ops: SketchOp[]; viewport: { width: number; height: number }; scroll: Point }
 
-export type MapPage = { storyId: string; title: string; route: string; rect: Region; scale: number }
 
-export type MapSketch = { ops: SketchOp[]; pages: MapPage[] }
-
-export type PageImages = { storyId: string; title: string; before?: string; after?: string }
 
 export type DreamStatus = "rendering" | "done" | "failed"
 
@@ -60,14 +78,14 @@ export type Dream = {
   name?: string
   prompt: string
   parent?: string
-  position: Point
+  position?: Point
   status: DreamStatus
   jobId?: string
   storyId?: string
   createdAt: string
 }
 
-export type DreamRequest = { name?: string; prompt: string; parent?: string; parentUrl?: string; position: Point; attachments?: string[] }
+export type DreamRequest = { name?: string; prompt: string; parent?: string; parentUrl?: string; position?: Point; attachments?: string[]; flow?: { id: string; index: number } }
 
 export type ChangeRequest = {
   kind: ChangeRequestKind
@@ -78,8 +96,8 @@ export type ChangeRequest = {
   attachments?: string[]
   showVariants?: boolean
   sketch?: Sketch
-  map?: MapSketch
   dream?: Dream
+  flow?: Flow
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled"
@@ -104,8 +122,8 @@ export type Job = {
   attachments?: Upload[]
   selectionImage?: string
   sketchImage?: string
-  pageImages?: PageImages[]
   dream?: string
+  flow?: string
 }
 
 export type VariantMeta = {
@@ -130,6 +148,7 @@ export type BridgeState = {
   jobs: Job[]
   variants: VariantFile[]
   dreams: Dream[]
+  flows: Flow[]
 }
 
 export const ORIGINAL = "original"

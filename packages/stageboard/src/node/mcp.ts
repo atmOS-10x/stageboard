@@ -167,6 +167,34 @@ export async function runMcpServer(config: ResolvedConfig) {
     },
   )
 
+  mcp.registerTool(
+    "save_flow",
+    {
+      description:
+        "Save a user flow for the stageboard Flows view: an ordered list of screens (page story ids). Pass the flow id from your instructions to update it, or omit it to add a new flow. Use `pending` for screens you are still building.",
+      inputSchema: {
+        flow: z.string().optional().describe("Flow id from your instructions; omit to create a new flow"),
+        name: z.string().optional(),
+        group: z.string().optional().describe("Section in the Flows sidebar, e.g. Onboarding"),
+        description: z.string().optional(),
+        steps: z.array(z.object({ storyId: z.string().optional(), pending: z.string().optional(), note: z.string().optional() })),
+      },
+    },
+    async (input) => {
+      const flow = await api<{ id: string; steps: unknown[] }>("/flows/save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) })
+      return { content: [{ type: "text", text: `Saved flow ${flow.id} with ${flow.steps.length} steps.` } satisfies Text] }
+    },
+  )
+
+  mcp.registerTool(
+    "list_flows",
+    { description: "List the user flows in stageboard with their steps (page story ids).", inputSchema: {} },
+    async () => {
+      const state = await api<BridgeState>("/state")
+      return { content: [{ type: "text", text: JSON.stringify(state.flows ?? [], null, 2) } satisfies Text] }
+    },
+  )
+
   const transport = new StdioServerTransport()
   await mcp.connect(transport)
   const shutdown = async () => {

@@ -7,6 +7,8 @@ import {
   type ChangeRequest,
   type Dream,
   type DreamRequest,
+  type Flow,
+  type FlowRequest,
   type Job,
   type VariantFile,
   type VariantMeta,
@@ -33,6 +35,7 @@ type Snapshot = {
   overrides: Record<string, string>
   jobs: Job[]
   dreams: Dream[]
+  flows: Flow[]
   serverVariants: VariantFile[]
   registry: Record<string, RegisteredVariant[]>
   connected: boolean
@@ -61,6 +64,7 @@ function createStore(): Store {
       overrides: readUrlOverrides(),
       jobs: [],
       dreams: [],
+      flows: [],
       serverVariants: [],
       registry: {},
       connected: false,
@@ -84,7 +88,7 @@ function store(): Store {
 function emit(next: Partial<Snapshot>) {
   const s = store()
   s.snapshot = { ...s.snapshot, ...next }
-  if ("registry" in next || "serverVariants" in next || "jobs" in next || "dreams" in next || "connected" in next) {
+  if ("registry" in next || "serverVariants" in next || "jobs" in next || "dreams" in next || "flows" in next || "connected" in next) {
     s.serverSnapshot = hydrationSnapshot(s.snapshot)
   }
   s.listeners.forEach((l) => l())
@@ -225,6 +229,26 @@ export async function updateDream(id: string, patch: { position?: { x: number; y
   schedulePoll(100)
 }
 
+export async function createFlow(input: FlowRequest): Promise<Flow | undefined> {
+  const flow = await request<Flow | { ok: true }>("/flows", { method: "POST", body: JSON.stringify(input) })
+  schedulePoll(200)
+  if (!("id" in flow)) return undefined
+  emit({ flows: [...getSnapshot().flows.filter((f) => f.id !== flow.id), flow] })
+  return flow
+}
+
+export async function updateFlow(id: string, patch: Partial<Pick<Flow, "name" | "description" | "group" | "steps">>) {
+  emit({ flows: getSnapshot().flows.map((f) => (f.id === id ? { ...f, ...patch } : f)) })
+  await request(`/flows/${id}`, { method: "POST", body: JSON.stringify(patch) })
+  schedulePoll(100)
+}
+
+export async function removeFlow(id: string) {
+  emit({ flows: getSnapshot().flows.filter((f) => f.id !== id) })
+  await request(`/flows/${id}/remove`, { method: "POST" })
+  schedulePoll(100)
+}
+
 export async function removeDream(id: string) {
   emit({ dreams: getSnapshot().dreams.filter((d) => d.id !== id) })
   await request(`/dreams/${id}/remove`, { method: "POST" })
@@ -244,6 +268,7 @@ function applyState(state: BridgeState) {
     selections: state.selections,
     jobs: state.jobs,
     dreams: state.dreams ?? [],
+    flows: state.flows ?? [],
     serverVariants: state.variants,
     connected: true,
     version: state.version,

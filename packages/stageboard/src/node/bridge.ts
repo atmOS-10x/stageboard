@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
-import type { BridgeState, ChangeRequest, Dream, DreamRequest, Job, MapPage, PageImages, Point, SketchOp, VariantFile } from "../core/protocol"
+import type { BridgeState, ChangeRequest, Dream, DreamRequest, Flow, FlowRequest, FlowStep, Job, VariantFile } from "../core/protocol"
 import { createRequire } from "node:module"
 import { createProvider, type AgentProvider, type AgentRun, type McpLaunch } from "./agents"
 import type { ResolvedConfig } from "./config"
@@ -14,7 +14,7 @@ import { readUpload, writeUpload } from "./uploads"
 import { scanVariants, writeVariantsModule } from "./variants"
 
 type Persisted = { selections: Record<string, string>; jobs: Job[] }
-type Board = { dreams: Dream[] }
+type Board = { dreams: Dream[]; flows: Flow[] }
 
 const MAX_LOG = 60
 const MAX_JOBS = 100
@@ -37,6 +37,7 @@ export class Bridge {
   private rescanTimer?: ReturnType<typeof setTimeout>
   private listeners = new Set<() => void>()
   private renderer?: Thumbnailer
+  flowIndex: { id: string; title: string; file: string }[] = []
   readonly agentCwd: string
 
   constructor(private config: ResolvedConfig) {
@@ -44,7 +45,8 @@ export class Bridge {
     this.stateFile = path.join(config.stateDir, "state.json")
     const persisted = this.load()
     this.boardFile = path.join(config.root, "stageboard", "board.json")
-    this.state = { version: 1, selections: persisted.selections, jobs: persisted.jobs, variants: [], dreams: this.loadBoard().dreams }
+    const board = this.loadBoard()
+    this.state = { version: 1, selections: persisted.selections, jobs: persisted.jobs, variants: [], dreams: board.dreams, flows: board.flows }
     this.provider = createProvider(config.agent)
     this.agentCwd = gitRoot(config.root)
     for (const job of this.state.jobs) {
@@ -52,6 +54,9 @@ export class Bridge {
         job.status = "failed"
         job.error = "stageboard restarted while the agent was running"
       }
+    }
+    for (const flow of this.state.flows) {
+      if (flow.status === "assembling" && !this.state.jobs.some((j) => j.id === flow.jobId && (j.status === "running" || j.status === "queued"))) flow.status = "failed"
     }
     for (const dream of this.state.dreams) {
       if (dream.status === "rendering" && !this.state.jobs.some((j) => j.id === dream.jobId && (j.status === "running" || j.status === "queued"))) dream.status = "failed"
@@ -70,15 +75,15 @@ export class Bridge {
   private loadBoard(): Board {
     try {
       const raw = JSON.parse(fs.readFileSync(this.boardFile, "utf8"))
-      return { dreams: raw.dreams ?? [] }
+      return { dreams: raw.dreams ?? [], flows: raw.flows ?? [] }
     } catch {
-      return { dreams: [] }
+      return { dreams: [], flows: [] }
     }
   }
 
   private saveBoard() {
     fs.mkdirSync(path.dirname(this.boardFile), { recursive: true })
-    const board: Board = { dreams: this.state.dreams }
+    const board: Board = { dreams: this.state.dreams, flows: this.state.flows }
     fs.writeFileSync(this.boardFile, JSON.stringify(board, null, 2) + "\n")
   }
 
@@ -175,6 +180,7 @@ export class Bridge {
       variantId: request.target.variantId,
       target: request.target,
       ...(request.dream ? { dream: request.dream.id } : {}),
+      ...(request.flow ? { flow: request.flow.id } : {}),
       provider: this.provider.name,
       createdAt: now,
       updatedAt: now,
@@ -191,8 +197,11 @@ export class Bridge {
     job.attachments = (request.attachments ?? []).map((id) => readUpload(this.config, id)).filter((u): u is NonNullable<typeof u> => Boolean(u))
     const target = request.target
     if (request.kind === "page") return this.enrichPage(job, request)
+    if (request.kind === "flow") {
+      this.flowIndex = (await buildIndex(this.config)).filter((s) => s.hasPage).map((s) => ({ id: s.id, title: `${s.title} / ${s.name}`, file: s.file }))
+      return
+    }
     if (request.sketch) return this.enrichSketch(job, request)
-    if (request.map) return this.enrichMap(job, request)
     if (!this.renderer || !target.storyId || !target.region) return
     const variants = target.variantKeys ?? {}
     const viewport = target.viewport?.width ? { width: target.viewport.width, height: target.viewport.height } : {}
@@ -250,26 +259,11 @@ export class Bridge {
     this.bump()
   }
 
-  private async enrichMap(job: Job, request: ChangeRequest) {
-    const map = request.map
-    if (!this.renderer || !map) return
-    const images: PageImages[] = []
-    for (const page of map.pages) {
-      const ops = toPageOps(map.ops, page)
-      if (!ops.length) continue
-      if (images.length >= 4) break
-      const base = { width: 1440, height: 900, region: { x: 0, y: 0, width: 1440, height: 900 } }
-      const img: PageImages = { storyId: page.storyId, title: page.title }
-      try {
-        img.before = writeUpload(this.config, await this.renderer.shot(page.storyId, base), "image/png", `map-before-${job.id}.png`).path
-        img.after = writeUpload(this.config, await this.renderer.shot(page.storyId, { ...base, sketch: { ops, viewport: { width: 1440, height: 900 }, scroll: { x: 0, y: 0 } } }), "image/png", `map-after-${job.id}.png`).path
-      } catch (e) {
-        this.log(job, `Could not render the marks on ${page.storyId}: ${(e as Error).message.slice(0, 160)}`)
-      }
-      images.push(img)
-    }
-    job.pageImages = images
-    this.bump()
+  private settleFlow(id: string, ok: boolean) {
+    const flow = this.state.flows.find((f) => f.id === id)
+    if (!flow || flow.status !== "assembling") return
+    flow.status = ok ? "ready" : "failed"
+    this.saveBoard()
   }
 
   private async settleDream(job: Job, ok: boolean) {
@@ -278,6 +272,7 @@ export class Bridge {
     const story = (await buildIndex(this.config)).find((s) => s.dream === dream.id)
     if (story) dream.storyId = story.id
     dream.status = ok && story ? "done" : "failed"
+    if (story) for (const flow of this.state.flows) for (const step of flow.steps) if (step.dream === dream.id) step.storyId = story.id
     if (ok && !story) this.log(job, `The agent finished but no story declares page.dream "${dream.id}"`)
     this.saveBoard()
   }
@@ -293,6 +288,8 @@ export class Bridge {
       createdAt: new Date().toISOString(),
     }
     this.state.dreams.push(dream)
+    const flow = input.flow && this.state.flows.find((f) => f.id === input.flow!.id)
+    if (flow) flow.steps.splice(Math.max(0, Math.min(flow.steps.length, input.flow!.index)), 0, { id: randomUUID().slice(0, 8), dream: dream.id })
     await this.startDream(dream, input.parentUrl, input.attachments)
     return dream
   }
@@ -330,6 +327,74 @@ export class Bridge {
     return dream
   }
 
+  async createFlow(input: FlowRequest): Promise<Flow | undefined> {
+    if (input.suggest) {
+      await this.createJob({ kind: "flow", note: input.description?.trim() || "Suggest the main user flows of this app.", target: emptyTarget() })
+      return undefined
+    }
+    const flow: Flow = {
+      id: randomUUID().slice(0, 8),
+      name: input.name?.trim() || input.description?.trim().slice(0, 60) || "New flow",
+      description: input.description?.trim() || undefined,
+      group: input.group?.trim() || undefined,
+      steps: (input.steps ?? []).map((s) => ({ ...s, id: s.id || randomUUID().slice(0, 8) })),
+      status: "ready",
+      createdAt: new Date().toISOString(),
+    }
+    this.state.flows.push(flow)
+    if (input.assemble && flow.description) {
+      flow.status = "assembling"
+      const job = await this.createJob({ kind: "flow", note: flow.description, flow, target: emptyTarget() })
+      flow.jobId = job.id
+    }
+    this.saveBoard()
+    this.bump()
+    return flow
+  }
+
+  updateFlow(id: string, patch: Partial<Pick<Flow, "name" | "description" | "group" | "steps">>): Flow | undefined {
+    const flow = this.state.flows.find((f) => f.id === id)
+    if (!flow) return undefined
+    if (patch.name !== undefined) flow.name = patch.name.trim() || flow.name
+    if (patch.description !== undefined) flow.description = patch.description.trim() || undefined
+    if (patch.group !== undefined) flow.group = patch.group.trim() || undefined
+    if (patch.steps) flow.steps = patch.steps.map((s) => ({ ...s, id: s.id || randomUUID().slice(0, 8) }))
+    this.saveBoard()
+    this.bump()
+    return flow
+  }
+
+  removeFlow(id: string) {
+    const flow = this.state.flows.find((f) => f.id === id)
+    if (flow?.jobId && this.runs.has(flow.jobId)) this.cancel(flow.jobId)
+    this.state.flows = this.state.flows.filter((f) => f.id !== id)
+    this.saveBoard()
+    this.bump()
+  }
+
+  // An agent saves a flow it assembled: it updates the flow it was given, or adds a new one.
+  saveFlowFromAgent(input: { flow?: string; name?: string; description?: string; group?: string; steps: Omit<FlowStep, "id">[] }): Flow {
+    const steps = input.steps.map((s) => ({ ...s, id: randomUUID().slice(0, 8) }))
+    const existing = input.flow ? this.state.flows.find((f) => f.id === input.flow) : undefined
+    if (existing) {
+      this.updateFlow(existing.id, { name: input.name, description: input.description, group: input.group, steps })
+      return existing
+    }
+    const flow: Flow = {
+      id: randomUUID().slice(0, 8),
+      name: input.name?.trim() || "Untitled flow",
+      description: input.description,
+      group: input.group,
+      steps,
+      status: "ready",
+      createdAt: new Date().toISOString(),
+    }
+    this.state.flows.push(flow)
+    this.saveBoard()
+    this.bump()
+    return flow
+  }
+
   removeDream(id: string) {
     const dream = this.state.dreams.find((d) => d.id === id)
     if (!dream) return
@@ -341,7 +406,7 @@ export class Bridge {
 
   private async run(job: Job, request: ChangeRequest) {
     await this.enrich(job, request)
-    const prompt = buildPrompt(this.config, job, request)
+    const prompt = buildPrompt(this.config, job, request, this.flowIndex)
     fs.writeFileSync(path.join(this.config.stateDir, `prompt-${job.id}.md`), prompt)
     try {
       job.status = "running"
@@ -359,10 +424,12 @@ export class Bridge {
       job.status = result.ok ? "done" : "failed"
       job.error = result.error
       if (job.dream) await this.settleDream(job, result.ok)
+      if (job.flow) this.settleFlow(job.flow, result.ok)
     } catch (e) {
       job.status = "failed"
       job.error = (e as Error).message
       if (job.dream) await this.settleDream(job, false)
+      if (job.flow) this.settleFlow(job.flow, false)
     } finally {
       this.runs.delete(job.id)
       this.completions.delete(job.id)
@@ -386,6 +453,8 @@ export class Bridge {
     if (!job) return
     job.status = "cancelled"
     this.runs.get(id)?.cancel()
+    const flow = this.state.flows.find((f) => f.jobId === id && f.status === "assembling")
+    if (flow) flow.status = "failed"
     const dream = this.state.dreams.find((d) => d.jobId === id && d.status === "rendering")
     if (dream) {
       dream.status = "failed"
@@ -426,9 +495,32 @@ export class Bridge {
         send(200, await this.createJob(body))
         return true
       }
+      if (req.method === "POST" && pathname === "/flows") {
+        const flow = await this.createFlow((await readJson(req)) as FlowRequest)
+        send(200, flow ?? { ok: true })
+        return true
+      }
+      if (req.method === "POST" && pathname === "/flows/save") {
+        const body = await readJson(req)
+        if (!Array.isArray(body?.steps)) return send(400, { error: "steps are required" }), true
+        send(200, this.saveFlowFromAgent(body))
+        return true
+      }
+      const flowRoute = /^\/flows\/([\w-]+)(\/remove)?$/.exec(pathname)
+      if (req.method === "POST" && flowRoute) {
+        if (flowRoute[2]) {
+          this.removeFlow(flowRoute[1])
+          send(200, { ok: true })
+          return true
+        }
+        const flow = this.updateFlow(flowRoute[1], await readJson(req))
+        if (!flow) return send(404, { error: `no flow ${flowRoute[1]}` }), true
+        send(200, flow)
+        return true
+      }
       if (req.method === "POST" && pathname === "/dreams") {
         const body = (await readJson(req)) as DreamRequest
-        if (!body?.prompt?.trim() || !body.position) return send(400, { error: "prompt and position are required" }), true
+        if (!body?.prompt?.trim()) return send(400, { error: "prompt is required" }), true
         send(200, await this.createDream(body))
         return true
       }
@@ -473,23 +565,8 @@ export class Bridge {
   }
 }
 
-function inside(page: MapPage, p: Point): boolean {
-  const r = page.rect
-  return p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height
-}
-
-// Marks drawn over a page's frame on the site map, moved into that page's own pixels.
-function toPageOps(ops: SketchOp[], page: MapPage): SketchOp[] {
-  const at = (p: Point): Point => ({ x: Math.round((p.x - page.rect.x) / page.scale), y: Math.round((p.y - page.rect.y) / page.scale) })
-  const out: SketchOp[] = []
-  for (const op of ops) {
-    if (op.type === "stroke" && op.points.some((p) => inside(page, p))) out.push({ ...op, points: op.points.map(at), width: op.width / page.scale })
-    else if (op.type === "block" && inside(page, { x: op.rect.x + op.rect.width / 2, y: op.rect.y + op.rect.height / 2 })) {
-      const o = at(op.rect)
-      out.push({ ...op, rect: { ...o, width: Math.round(op.rect.width / page.scale), height: Math.round(op.rect.height / page.scale) } })
-    } else if (op.type === "arrow" && inside(page, op.from) && inside(page, op.to)) out.push({ ...op, from: at(op.from), to: at(op.to), width: (op.width ?? 3) / page.scale })
-  }
-  return out
+function emptyTarget(): ChangeRequest["target"] {
+  return { url: "", selector: "", tag: "flow", rect: { x: 0, y: 0, width: 0, height: 0 }, viewport: { width: 1440, height: 900 }, components: [] }
 }
 
 function readJson(req: IncomingMessage): Promise<any> {

@@ -27,7 +27,7 @@
 ```text
 Set up stageboard in this repo. Run `npm i -D stageboard` (use this repo's package manager), then
 `npx stageboard skill` to install the stageboard skill, and follow it: write the config and a preview
-with mock providers, add stories for the main components, put every page on the site map with realistic
+with mock providers, add stories for the main components, put every page in Screens with realistic
 mock data, and check each one with `npx stageboard shot`. Finish by listing the stories that look weak.
 ```
 
@@ -36,10 +36,9 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 ## What it does
 
 - **Stories with mock data.** A Storybook-compatible `*.stories.tsx` format. Pages are stories too, so no backend or login is needed.
-- **Site map.** Every page on a pan-and-zoom canvas with UX-flow edges, using cached thumbnails until you focus a page.
-- **Annotate.** Drag over anything in the site map, a story or the variants gallery. Write a note, paste reference images, and send it to an agent.
-- **Draw new pages.** Drag the + out of any page on the site map, name it, say what it should be. An agent builds the page and its story while the frame renders as a pixel ocean, then the real page washes in. Dream frames live in `stageboard/board.json`; commit it.
-- **Sketch on the site map.** Press S on the site map: draw arrows from screen to screen, leave notes, mark up pages without opening them. Arrows become navigation, marks on a page come with before/after screenshots of it.
+- **Screens, Flows, Components.** Browse every page, every UI component and the user flows through the app, as Desktop, Tablet or Mobile. The sidebar searches whichever you are looking at.
+- **Flows.** Ordered journeys through your screens, like Mobbin's. Describe a new flow and an agent assembles it from existing screens, building the missing ones while they render as a pixel ocean; or add, drag and remove screens yourself. Flows live in `stageboard/board.json`; commit it.
+- **Annotate.** Drag over any screen, component, story or variant. Write a note, paste reference images, and send it to an agent.
 - **Sketch on a page.** Press S in a page: move, resize and retype elements, draw, add blocks, drop in your own components, then Reconcile. The agent gets every change plus before/after screenshots.
 - **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Production renders the original.
 - **`stageboard shot`.** A headless screenshot of any story, variant or region. Agents use it to check their own work.
@@ -54,7 +53,7 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 ```bash
 npm i -D stageboard
 npx stageboard init        # writes stageboard.config.ts
-npx stageboard dev         # catalog, site map and agent bridge on :6060/__stageboard/
+npx stageboard dev         # screens, flows, components and agent bridge on :6060/__stageboard/
 ```
 
 ```ts
@@ -89,7 +88,7 @@ To get the inspector bubble in your running app, render `<StageboardDevtools />`
 
 | command | |
 |---|---|
-| `stageboard dev` | catalog, site map, annotation bridge |
+| `stageboard dev` | screens, flows, components, annotation bridge |
 | `stageboard shot <story> [--variant id=key] [--width 1440] [--full]` | PNG of a story, no app needed |
 | `stageboard list [filter]` | story ids |
 | `stageboard mcp` | MCP server on stdio |

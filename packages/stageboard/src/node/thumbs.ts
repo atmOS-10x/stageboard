@@ -16,7 +16,11 @@ export type RenderOptions = {
   height?: number
   scale?: number
   useSelections?: boolean
+  theme?: "light" | "dark"
+  colorScheme?: "light" | "dark"
 }
+
+export type ThumbLook = { width?: number; height?: number; theme?: "light" | "dark"; colorScheme?: "light" | "dark" }
 
 export type ShotRequest = RenderOptions & {
   full?: boolean
@@ -133,8 +137,10 @@ export class Thumbnailer {
         viewport: { width: options.width ?? 1440, height: options.height ?? 900 },
         deviceScaleFactor: options.scale ?? 1,
         reducedMotion: "reduce",
+        colorScheme: options.colorScheme ?? options.theme ?? "light",
       })
       const params = new URLSearchParams({ story: id, "sb-shot": "1" })
+      if (options.theme) params.set("sb-theme", options.theme)
       for (const [vid, key] of Object.entries(this.effectiveVariants(options))) {
         if (key && key !== "original") params.append("sb-variant", `${vid}:${key}`)
       }
@@ -159,11 +165,12 @@ export class Thumbnailer {
     }
   }
 
-  private renderThumb(id: string, file: string, variants: Record<string, string>): Promise<string> {
+  private renderThumb(id: string, file: string, variants: Record<string, string>, look: ThumbLook = {}): Promise<string> {
     return this.schedule(async () => {
       let page: Page | undefined
       try {
-        page = await this.openStory(id, { variants, scale: 0.5, useSelections: false })
+        const scale = look.width ? Math.min(1, 720 / look.width) : 0.5
+        page = await this.openStory(id, { variants, scale, useSelections: false, ...look })
         await page.screenshot({ path: file, type: "jpeg", quality: 72 })
         return file
       } catch (e) {
@@ -175,14 +182,16 @@ export class Thumbnailer {
     })
   }
 
-  private ensure(id: string, storyFile: string | undefined, extra: Record<string, string> = {}, refresh = false): Promise<string> {
+  private ensure(id: string, storyFile: string | undefined, extra: Record<string, string> = {}, refresh = false, look: ThumbLook = {}): Promise<string> {
     const variants = this.effectiveVariants({ variants: extra })
     const key = this.cacheKey(id, storyFile, variants)
-    const file = path.join(this.dir, `${id.replace(/[^\w.-]/g, "_")}.${key}.jpg`)
+    const size = look.width ? `.${look.width}x${look.height ?? 0}` : ""
+    const scheme = look.theme ? `.t-${look.theme}` : look.colorScheme === "dark" ? ".dark" : ""
+    const file = path.join(this.dir, `${id.replace(/[^\w.-]/g, "_")}.${key}${size}${scheme}.jpg`)
     if (!refresh && fs.existsSync(file)) return Promise.resolve(file)
     let pending = this.inflight.get(file)
     if (!pending) {
-      pending = this.renderThumb(id, file, variants).finally(() => this.inflight.delete(file))
+      pending = this.renderThumb(id, file, variants, look).finally(() => this.inflight.delete(file))
       this.inflight.set(file, pending)
     }
     return pending
@@ -192,9 +201,9 @@ export class Thumbnailer {
     for (const s of stories) this.ensure(s.id, s.absFile).catch(() => {})
   }
 
-  async serve(res: ServerResponse, id: string, storyFile: string | undefined, refresh: boolean, variants: Record<string, string> = {}) {
+  async serve(res: ServerResponse, id: string, storyFile: string | undefined, refresh: boolean, variants: Record<string, string> = {}, look: ThumbLook = {}) {
     try {
-      const file = await this.ensure(id, storyFile, variants, refresh)
+      const file = await this.ensure(id, storyFile, variants, refresh, look)
       res.setHeader("content-type", "image/jpeg")
       res.setHeader("cache-control", "no-cache")
       fs.createReadStream(file).pipe(res)

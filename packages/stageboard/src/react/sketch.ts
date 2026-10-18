@@ -67,14 +67,6 @@ function strokePath(points: { x: number; y: number }[]): string {
   return `M${first.x},${first.y}` + rest.map((p) => `L${p.x},${p.y}`).join("")
 }
 
-export function arrowSvg(from: { x: number; y: number }, to: { x: number; y: number }, color: string, width: number): string {
-  const angle = Math.atan2(to.y - from.y, to.x - from.x)
-  const head = Math.max(10, width * 4)
-  const a1 = { x: to.x - head * Math.cos(angle - 0.45), y: to.y - head * Math.sin(angle - 0.45) }
-  const a2 = { x: to.x - head * Math.cos(angle + 0.45), y: to.y - head * Math.sin(angle + 0.45) }
-  return `<path d="M${from.x},${from.y}L${to.x},${to.y}M${a1.x},${a1.y}L${to.x},${to.y}L${a2.x},${a2.y}" stroke="${color}" stroke-width="${width}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
-}
-
 export function installSketch(base: string) {
   let touched: Touched[] = []
 
@@ -149,8 +141,6 @@ export function installSketch(base: string) {
           layer().appendChild(frame)
         } else if (op.type === "stroke") {
           svg.push(`<path d="${strokePath(op.points)}" stroke="${op.color}" stroke-width="${op.width}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)
-        } else if (op.type === "arrow") {
-          svg.push(arrowSvg(op.from, op.to, op.color, op.width ?? 3))
         }
       }
       if (svg.length) {

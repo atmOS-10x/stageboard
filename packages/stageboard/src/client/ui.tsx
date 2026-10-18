@@ -1,35 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { devtoolsCss, Panel, startBridge, useStageboard } from "stageboard/react"
-import type { ElementTarget } from "stageboard"
+import { DEVICES, type Device, type ElementTarget } from "stageboard"
 import { AnnotateProvider, AnnotationLayer, useDismissedPins, type Draft, type Surface } from "./annotate"
 import { fetchUsedVariants, storyUrl } from "./api"
-import { Canvas, SiteMapLoading, type PageNode } from "./canvas"
+import { componentGroup, Grid, groupBy, ScreenCard, screenGroup, screenTitle, dragStory, useSurfaces, type ScreenNode } from "./browse"
 import { Composer } from "./composer"
 import { clearDraft, readDraft, type StoredDraft } from "./draft-store"
+import { FlowsView } from "./flows"
 import { Gallery } from "./gallery"
-import { AnnotateIcon, InspectIcon, LayersIcon, SketchIcon } from "./icons"
+import { AnnotateIcon, InspectIcon, LayersIcon, PlusIcon, SketchIcon } from "./icons"
 import { clearSketch, SketchLayer } from "./sketch"
 import { PinDetails } from "./pins"
 import { uiCss } from "./styles"
 import { resolveStory, type ClientEntry, type Loaders, type StoryModule } from "./types"
+import { WaveCanvas } from "./waves"
 
 type UIOptions = { index: ClientEntry[]; loaders: Loaders; base: string }
 
-type Route = { view: "canvas" } | { view: "story"; id: string }
+type Tab = "screens" | "flows" | "components"
+type Route = { view: Tab; focus?: string } | { view: "story"; id: string; from: Tab }
 
-const WIDTHS: { label: string; value?: number }[] = [
-  { label: "Fill" },
-  { label: "390", value: 390 },
-  { label: "768", value: 768 },
-  { label: "1280", value: 1280 },
-  { label: "1440", value: 1440 },
+const TABS: { id: Tab; label: string }[] = [
+  { id: "screens", label: "Screens" },
+  { id: "flows", label: "Flows" },
+  { id: "components", label: "Components" },
 ]
+const DEVICE_KEY = "stageboard:device"
 
 function parseHash(): Route {
-  const m = /^#\/story\/(.+)$/.exec(location.hash)
-  if (m) return { view: "story", id: decodeURIComponent(m[1]) }
-  return { view: "canvas" }
+  const story = /^#\/story\/([^?]+)(?:\?from=(\w+))?$/.exec(location.hash)
+  if (story) return { view: "story", id: decodeURIComponent(story[1]), from: (TABS.find((t) => t.id === story[2])?.id ?? "screens") as Tab }
+  const tab = /^#\/(screens|flows|components)(?:\/(.+))?$/.exec(location.hash)
+  if (tab) return { view: tab[1] as Tab, focus: tab[2] ? decodeURIComponent(tab[2]) : undefined }
+  return { view: "screens" }
 }
 
 function useRoute(): [Route, (r: Route) => void] {
@@ -40,13 +44,25 @@ function useRoute(): [Route, (r: Route) => void] {
     return () => window.removeEventListener("hashchange", on)
   }, [])
   const go = useCallback((r: Route) => {
-    location.hash = r.view === "story" ? `#/story/${encodeURIComponent(r.id)}` : "#/canvas"
+    location.hash = r.view === "story" ? `#/story/${encodeURIComponent(r.id)}?from=${r.from}` : `#/${r.view}${r.focus ? `/${encodeURIComponent(r.focus)}` : ""}`
   }, [])
   return [route, go]
 }
 
-function usePages(index: ClientEntry[], loaders: Loaders): { pages: PageNode[]; loading: boolean } {
-  const [pages, setPages] = useState<PageNode[]>([])
+function useSystemScheme(): "light" | "dark" {
+  const query = "(prefers-color-scheme: dark)"
+  const [dark, setDark] = useState(() => matchMedia(query).matches)
+  useEffect(() => {
+    const m = matchMedia(query)
+    const on = () => setDark(m.matches)
+    m.addEventListener("change", on)
+    return () => m.removeEventListener("change", on)
+  }, [])
+  return dark ? "dark" : "light"
+}
+
+function usePages(index: ClientEntry[], loaders: Loaders): { pages: ScreenNode[]; loading: boolean } {
+  const [pages, setPages] = useState<ScreenNode[]>([])
   const [loading, setLoading] = useState(() => index.some((s) => s.hasPage))
   useEffect(() => {
     let cancelled = false
@@ -64,7 +80,7 @@ function usePages(index: ClientEntry[], loaders: Loaders): { pages: PageNode[]; 
       }),
     ).then((mods) => {
       if (cancelled) return
-      const out: PageNode[] = []
+      const out: ScreenNode[] = []
       for (const entry of candidates) {
         const mod = mods.find((m) => m.file === entry.file)?.mod
         if (!mod) continue
@@ -79,6 +95,31 @@ function usePages(index: ClientEntry[], loaders: Loaders): { pages: PageNode[]; 
     }
   }, [index, loaders])
   return { pages, loading }
+}
+
+function LoadingGrid({ entries, device }: { entries: ClientEntry[]; device: Device }) {
+  const d = DEVICES[device]
+  return (
+    <div className="sbu-browse" data-device={device} role="status" aria-label={`Loading ${entries.length} screens`}>
+      <section className="sbu-browse-section">
+        <h2 className="sbu-browse-title">
+          Loading {entries.length} screen{entries.length === 1 ? "" : "s"}…
+        </h2>
+        <div className="sbu-grid">
+          {entries.slice(0, 12).map((e) => (
+            <div key={e.id} className="sbu-card-screen">
+              <div className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }}>
+                <WaveCanvas mode="render" fps={30} />
+              </div>
+              <div className="sbu-card-caption">
+                <span className="sbu-card-title">{e.name}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
 }
 
 function Mark() {
@@ -97,54 +138,105 @@ function isEditable(el: EventTarget | null): boolean {
   return Boolean(node && (node.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName)))
 }
 
-function Sidebar({ index, active, onPick }: { index: ClientEntry[]; active?: string; onPick: (id: string) => void }) {
+function Sidebar({
+  tab,
+  screens,
+  components,
+  active,
+  onPick,
+  onFlow,
+  onNewFlow,
+}: {
+  tab: Tab
+  screens: ScreenNode[]
+  components: ClientEntry[]
+  active?: string
+  onPick: (id: string) => void
+  onFlow: (id: string) => void
+  onNewFlow: () => void
+}) {
   const [q, setQ] = useState("")
-  const groups = useMemo(() => {
-    const filtered = index.filter((s) => !q || `${s.title} ${s.name}`.toLowerCase().includes(q.toLowerCase()))
-    const out = new Map<string, Map<string, ClientEntry[]>>()
-    for (const s of filtered) {
-      const parts = s.title.split("/")
-      const group = parts.length > 1 ? parts[0] : "Stories"
-      const comp = parts.length > 1 ? parts.slice(1).join(" / ") : parts[0]
-      if (!out.has(group)) out.set(group, new Map())
-      const g = out.get(group)!
-      if (!g.has(comp)) g.set(comp, [])
-      g.get(comp)!.push(s)
-    }
-    return out
-  }, [index, q])
+  const flows = useStageboard((s) => s.flows)
+  const match = (text: string) => !q || text.toLowerCase().includes(q.toLowerCase())
+  const placeholder = tab === "flows" ? "Search flows" : tab === "components" ? "Search components" : "Search screens"
   return (
     <aside className="sbu-side">
-      <input className="sbu-search" placeholder="Search stories" value={q} onChange={(e) => setQ(e.target.value)} />
-      {[...groups].map(([group, comps]) => (
-        <div className="sbu-group" key={group}>
-          <div className="sbu-group-title">{group}</div>
-          {[...comps].map(([comp, stories]) => (
-            <div key={comp}>
-              <div className="sbu-comp">{comp}</div>
-              {stories.map((s) => (
-                <button key={s.id} className="sbu-story" data-on={active === s.id} onClick={() => onPick(s.id)}>
-                  {s.name}
-                  {s.hasPage && <span className="sbu-badge">page</span>}
+      <input className="sbu-search" placeholder={placeholder} value={q} onChange={(e) => setQ(e.target.value)} />
+      {tab === "screens" &&
+        groupBy(
+          screens.filter((s) => match(`${s.page.title ?? ""} ${s.entry.title} ${s.entry.name} ${s.page.route}`)),
+          screenGroup,
+        ).map(([group, list]) => (
+          <div className="sbu-group" key={group}>
+            <div className="sbu-group-title">{group}</div>
+            {list.map((s) => (
+              <button key={s.entry.id} className="sbu-story" data-on={active === s.entry.id} onClick={() => onPick(s.entry.id)} draggable onDragStart={dragStory(s.entry.id)}>
+                {screenTitle(s)}
+                <span className="sbu-badge">{s.page.route}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+      {tab === "flows" && (
+        <>
+          <button className="sbu-story sbu-side-action" onClick={onNewFlow}>
+            <PlusIcon size={12} /> New flow
+          </button>
+          {groupBy(
+            flows.filter((f) => match(`${f.name} ${f.group ?? ""} ${f.description ?? ""}`)),
+            (f) => f.group ?? "Flows",
+          ).map(([group, list]) => (
+            <div className="sbu-group" key={group}>
+              <div className="sbu-group-title">{group}</div>
+              {list.map((f) => (
+                <button key={f.id} className="sbu-story" onClick={() => onFlow(f.id)}>
+                  {f.name}
+                  <span className="sbu-badge">{f.steps.length}</span>
                 </button>
               ))}
             </div>
           ))}
-        </div>
-      ))}
-      {index.length === 0 && <p className="sbu-dim" style={{ padding: 8 }}>No stories found. Check the <span className="sbu-mono">stories</span> globs in stageboard.config.ts.</p>}
+          {!flows.length && <p className="sbu-dim" style={{ padding: 8 }}>No flows yet.</p>}
+          <div className="sbu-group">
+            <div className="sbu-group-title">Screens · drag into a flow</div>
+            {screens
+              .filter((s) => match(`${s.page.title ?? ""} ${s.entry.name} ${s.page.route}`))
+              .map((s) => (
+                <button key={s.entry.id} className="sbu-story" onClick={() => onPick(s.entry.id)} draggable onDragStart={dragStory(s.entry.id)}>
+                  {screenTitle(s)}
+                </button>
+              ))}
+          </div>
+        </>
+      )}
+      {tab === "components" &&
+        groupBy(components.filter((c) => match(`${c.title} ${c.name}`)), componentGroup).map(([group, list]) => (
+          <div className="sbu-group" key={group}>
+            <div className="sbu-group-title">{group}</div>
+            {list.map((c) => (
+              <button key={c.id} className="sbu-story" data-on={active === c.id} onClick={() => onPick(c.id)}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        ))}
     </aside>
   )
 }
 
 function App({ index, loaders, base }: UIOptions) {
   const [route, go] = useRoute()
-  const [width, setWidth] = useState<number | undefined>()
+  const [device, setDeviceState] = useState<Device>(() => (localStorage.getItem(DEVICE_KEY) as Device | null) ?? "desktop")
+  const setDevice = (d: Device) => {
+    localStorage.setItem(DEVICE_KEY, d)
+    setDeviceState(d)
+  }
+  const [composingFlow, setComposingFlow] = useState(false)
+  const scheme = useSystemScheme()
   const [theme, setTheme] = useState<"light" | "dark" | undefined>()
   const [inspecting, setInspectingState] = useState(false)
   const [annotating, setAnnotatingState] = useState(false)
   const [sketching, setSketching] = useState(false)
-  const [mapSketching, setMapSketching] = useState(false)
   const [draft, setDraft] = useState<Draft>()
   const [restore, setRestore] = useState<StoredDraft | undefined>(readDraft)
   const [openPin, setOpenPin] = useState<string>()
@@ -174,7 +266,6 @@ function App({ index, loaders, base }: UIOptions) {
       if (on) {
         setInspectingState(false)
         setSketching(false)
-        setMapSketching(false)
       } else setDraft(undefined)
       return on
     })
@@ -191,10 +282,9 @@ function App({ index, loaders, base }: UIOptions) {
         return
       }
       if (key === "a" || key === "A") setAnnotating((v) => !v)
-      if (key === "s" || key === "S") {
+      if ((key === "s" || key === "S") && parseHash().view === "story") {
         setAnnotatingState(false)
-        if (parseHash().view === "story") setSketching((v) => !v)
-        else setMapSketching((v) => !v)
+        setSketching((v) => !v)
       }
       if (key === "Escape") {
         setInspecting(false)
@@ -215,8 +305,13 @@ function App({ index, loaders, base }: UIOptions) {
 
   const selectionKey = useStageboard((s) => JSON.stringify(s.selections))
   const thumbUrl = useCallback(
-    (id: string) => `${base}/api/thumb/${id}.jpg?s=${encodeURIComponent(selectionKey).slice(0, 200)}`,
-    [base, selectionKey],
+    (id: string) => {
+      const d = DEVICES[device]
+      const p = new URLSearchParams({ w: String(d.width), h: String(d.height), cs: scheme, s: selectionKey.slice(0, 200) })
+      if (theme) p.set("t", theme)
+      return `${base}/api/thumb/${id}.jpg?${p}`
+    },
+    [base, selectionKey, device, theme, scheme],
   )
 
   const allFrames = useCallback(() => {
@@ -251,11 +346,11 @@ function App({ index, loaders, base }: UIOptions) {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.code === "KeyC") setInspecting((v) => !v)
       if (e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return
-      if (["a", "A", "s", "S"].includes(e.key) || (e.key === "Escape" && !sketching && !mapSketching)) keyAction(e.key)
+      if (["a", "A", "s", "S"].includes(e.key) || (e.key === "Escape" && !sketching)) keyAction(e.key)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [keyAction, setInspecting, sketching, mapSketching])
+  }, [keyAction, setInspecting, sketching])
 
   useEffect(() => {
     fetchUsedVariants(base).then((known) => setUsed((u) => ({ ...known, ...u })))
@@ -270,7 +365,6 @@ function App({ index, loaders, base }: UIOptions) {
     setDraft(undefined)
     setOpenPin(undefined)
     setSketching(false)
-    setMapSketching(false)
   }, [routeKey])
 
   const begin = useCallback((next: Draft) => {
@@ -320,6 +414,17 @@ function App({ index, loaders, base }: UIOptions) {
     [current, frameUrl],
   )
   const componentStories = useMemo(() => index.filter((s) => !s.hasPage), [index])
+  const tab: Tab = route.view === "story" ? route.from : route.view
+  const openStory = useCallback((id: string) => go({ view: "story", id, from: tab }), [go, tab])
+  const storyUrlOf = useCallback((id: string) => storyUrl(frameUrl(id)), [frameUrl])
+  const screenSurfaces = useSurfaces(
+    pages.map((p) => p.entry),
+    "screen",
+    (e) => e.name,
+    storyUrlOf,
+  )
+  const componentSurfaces = useSurfaces(componentStories, "component", (e) => `${e.title} / ${e.name}`, storyUrlOf)
+  const frameSize = DEVICES[device]
   const galleryRows = current
     ? (used[current.id] ?? []).filter((id) => variantFiles.some((v) => v.of === id)).length
     : 0
@@ -331,76 +436,94 @@ function App({ index, loaders, base }: UIOptions) {
           <Mark /> stageboard
         </div>
         <div className="sbu-tabs">
-          <button data-on={route.view === "canvas"} onClick={() => go({ view: "canvas" })}>
-            Site map
-          </button>
-          <button data-on={route.view === "story"} onClick={() => current ? undefined : index[0] && go({ view: "story", id: index[0].id })}>
-            Catalog
-          </button>
+          {TABS.map((t) => (
+            <button key={t.id} data-on={tab === t.id} onClick={() => go({ view: t.id })}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="sbu-tabs sbu-devices" role="radiogroup" aria-label="Device">
+          {(Object.keys(DEVICES) as Device[]).map((d) => (
+            <button key={d} role="radio" aria-checked={device === d} data-on={device === d} onClick={() => setDevice(d)} title={`${DEVICES[d].width}×${DEVICES[d].height}`}>
+              {DEVICES[d].label}
+            </button>
+          ))}
         </div>
         <div className="sbu-spacer" />
         {activeJobs > 0 && <span className="sbu-dim">{activeJobs} agent{activeJobs === 1 ? "" : "s"} working…</span>}
-        <button className="sbu-btn" data-on={inspecting} onClick={() => setInspecting((v) => !v)} title="Inspect an element · Alt+Shift+C">
-          <InspectIcon size={13} />
-          Inspect
-        </button>
-        {route.view === "canvas" && (
-          <button
-            className="sbu-btn"
-            data-on={mapSketching}
-            aria-pressed={mapSketching}
-            onClick={() => {
-              setAnnotatingState(false)
-              setMapSketching((v) => !v)
-            }}
-            title="Draw on the site map: link screens with arrows, leave notes, mark up pages · S"
-          >
-            <SketchIcon size={13} />
-            Sketch
-            <span className="sbu-key">S</span>
+        {route.view === "story" && (
+          <button className="sbu-btn" data-on={inspecting} onClick={() => setInspecting((v) => !v)} title="Inspect an element · Alt+Shift+C">
+            <InspectIcon size={13} />
+            Inspect
           </button>
         )}
-        <button className="sbu-btn" data-on={annotating} aria-pressed={annotating} onClick={() => setAnnotating((v) => !v)} title="Drag over a page to annotate · A">
+        <button className="sbu-btn" data-on={annotating} aria-pressed={annotating} onClick={() => setAnnotating((v) => !v)} title="Drag over a screen to annotate · A">
           <AnnotateIcon size={13} />
           Annotate
           <span className="sbu-key">A</span>
         </button>
         <button className="sbu-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : t === "light" ? undefined : "dark"))}>
-          Theme: {theme ?? "story"}
+          Theme: {theme ?? "system"}
         </button>
         {!connected && <span className="sbu-dim" title="Start it with stageboard dev">Bridge offline</span>}
       </header>
-      <Sidebar index={index} active={current?.id} onPick={(id) => go({ view: "story", id })} />
+      <Sidebar
+        tab={tab}
+        screens={pages}
+        components={componentStories}
+        active={current?.id}
+        onPick={openStory}
+        onFlow={(id) => go({ view: "flows", focus: id })}
+        onNewFlow={() => {
+          setComposingFlow(true)
+          go({ view: "flows" })
+        }}
+      />
       <AnnotateProvider base={base} active={annotating} draft={draft} restore={restore} onBegin={begin} openPin={openPin} onTogglePin={setOpenPin} dismissed={dismissed}>
       <main className="sbu-main" data-annotating={annotating}>
-        {route.view === "canvas" &&
+        {route.view === "screens" &&
           (pagesLoading && !pages.length ? (
-            <SiteMapLoading entries={index.filter((s) => s.hasPage)} />
+            <LoadingGrid entries={index.filter((s) => s.hasPage)} device={device} />
           ) : pages.length ? (
-            <Canvas
-              nodes={pages}
-              frameUrl={frameUrl}
-              thumbUrl={thumbUrl}
-              inspecting={inspecting}
-              annotating={annotating}
-              sketching={mapSketching}
-              onSketchExit={() => setMapSketching(false)}
-              onOpen={(id) => go({ view: "story", id })}
-              registerFrame={(id, el) => (el ? frames.current.set(id, el) : frames.current.delete(id))}
+            <Grid
+              device={device}
+              sections={groupBy(pages, screenGroup).map(([g, list]) => [g, list.map((p) => p.entry)])}
+              render={(e) => {
+                const s = pages.find((p) => p.entry.id === e.id)
+                return <ScreenCard key={e.id} entry={e} title={screenTitle(s)} subtitle={s?.page.route} device={device} thumbUrl={thumbUrl} surface={screenSurfaces.get(e.id)!} onOpen={() => openStory(e.id)} />
+              }}
             />
           ) : (
             <div className="sbu-empty">
               <div>
-                <p style={{ fontSize: 15, color: "#ededf0" }}>No pages on the site map yet</p>
+                <p style={{ fontSize: 15, color: "#ededf0" }}>No screens yet</p>
                 <p>
-                  Add <span className="sbu-mono">parameters: {"{ page: { route: \"/\", links: [\"/pricing\"] } }"}</span> to a story to place it here.
+                  Add <span className="sbu-mono">parameters: {"{ page: { route: \"/\" } }"}</span> to a story to list it as a screen.
                 </p>
               </div>
             </div>
           ))}
+        {route.view === "flows" && (
+          <FlowsView
+            ctx={{ device, screens: pages, index, thumbUrl, frameUrl, onOpen: openStory }}
+            focus={route.focus}
+            composing={composingFlow}
+            onCompose={setComposingFlow}
+          />
+        )}
+        {route.view === "components" && (
+          <Grid
+            device={device}
+            sections={groupBy(componentStories, componentGroup)}
+            render={(e) => <ScreenCard key={e.id} entry={e} title={e.name} device={device} thumbUrl={thumbUrl} surface={componentSurfaces.get(e.id)!} onOpen={() => openStory(e.id)} />}
+          />
+        )}
         {route.view === "story" && current && (
           <div className="sbu-story-view">
             <div className="sbu-toolbar">
+              <button className="sbu-btn" onClick={() => go({ view: route.from })}>
+                ← {TABS.find((t) => t.id === route.from)?.label}
+              </button>
               <span className="sbu-title">{current.title}</span>
               <span className="sbu-dim">/ {current.name}</span>
               <span className="sbu-spacer" />
@@ -427,24 +550,19 @@ function App({ index, loaders, base }: UIOptions) {
                 </button>
               )}
               <span className="sbu-tool-gap" />
-              {!gallery && WIDTHS.map((w) => (
-                <button key={w.label} className="sbu-btn" data-on={width === w.value} onClick={() => setWidth(w.value)}>
-                  {w.label}
-                </button>
-              ))}
               <button className="sbu-btn" onClick={() => window.open(frameUrl(current.id).replace("sb-embed=1&", ""), "_blank")}>
                 Open
               </button>
               <button
                 className="sbu-btn"
                 title="Copy screenshot command"
-                onClick={() => navigator.clipboard?.writeText(`npx stageboard shot ${current.id}${width ? ` --width ${width}` : ""}`)}
+                onClick={() => navigator.clipboard?.writeText(`npx stageboard shot ${current.id} --width ${frameSize.width} --height ${frameSize.height}`)}
               >
                 Copy shot cmd
               </button>
             </div>
             <div className="sbu-stage" data-hidden={gallery}>
-              <div className="sbu-frame-wrap" style={{ width: width ?? "100%" }}>
+              <div className="sbu-frame-wrap" data-device={device} style={device === "desktop" ? { width: "100%" } : { width: frameSize.width, height: Math.min(frameSize.height, 2000), flex: "none" }}>
                 <iframe
                   key={`${current.id}-${theme}`}
                   ref={storyFrame}
@@ -474,6 +592,7 @@ function App({ index, loaders, base }: UIOptions) {
                 base={base}
                 frameUrl={storySurface.url}
                 selectionKey={selectionKey}
+                viewport={{ width: frameSize.width, height: frameSize.height }}
               />
             )}
           </div>
@@ -481,7 +600,7 @@ function App({ index, loaders, base }: UIOptions) {
         {route.view === "story" && !current && <div className="sbu-empty">Pick a story on the left.</div>}
         {annotating && !draft && (
           <div className="sbu-annot-hint" role="status">
-            Drag over {route.view === "canvas" ? "a page" : gallery ? "any variant" : "the story"} to annotate, or click a spot
+            Drag over {route.view === "story" ? (gallery ? "any variant" : "the screen") : "any screen"} to annotate, or click a spot
             <span className="sbu-key">esc</span>
           </div>
         )}

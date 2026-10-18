@@ -1,4 +1,4 @@
-import type { ChangeRequest, Job, MapPage, Point, Region, SketchOp } from "../core/protocol"
+import type { ChangeRequest, Job, Region, SketchOp } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
 
 function pageContext(request: ChangeRequest) {
@@ -109,7 +109,6 @@ function describeOp(op: SketchOp): string {
   if (op.type === "text") return `- Changed the text of \`${op.selector}\`${who(op.components)} from "${op.before}" to "${op.after}".`
   if (op.type === "block") return `- Drew a ${op.color} block at ${box(op.rect)}${op.label ? ` labelled "${op.label}"` : ""}: something should go there.`
   if (op.type === "component") return `- Placed the existing component from story \`${op.storyId}\` (${op.title}) at ${box(op.rect)}: reuse that component there.`
-  if (op.type === "arrow") return `- Drew an arrow from x=${Math.round(op.from.x)}, y=${Math.round(op.from.y)} to x=${Math.round(op.to.x)}, y=${Math.round(op.to.y)}${op.label ? ` labelled "${op.label}"` : ""}.`
   const xs = op.points.map((p) => p.x)
   const ys = op.points.map((p) => p.y)
   return `- Drew a freehand ${op.color} mark around x=${Math.round(Math.min(...xs))}–${Math.round(Math.max(...xs))}, y=${Math.round(Math.min(...ys))}–${Math.round(Math.max(...ys))}.`
@@ -131,50 +130,47 @@ function sketchSection(job: Job, request: ChangeRequest): string {
   return lines.join("\n")
 }
 
-function pageAt(pages: MapPage[], p: Point): MapPage | undefined {
-  return pages.find((g) => p.x >= g.rect.x && p.x <= g.rect.x + g.rect.width && p.y >= g.rect.y && p.y <= g.rect.y + g.rect.height)
-}
+type Screen = { id: string; title: string; file: string }
 
-function nearest(pages: MapPage[], p: Point): string {
-  const best = [...pages].sort((a, b) => Math.hypot(a.rect.x + a.rect.width / 2 - p.x, a.rect.y + a.rect.height / 2 - p.y) - Math.hypot(b.rect.x + b.rect.width / 2 - p.x, b.rect.y + b.rect.height / 2 - p.y))[0]
-  if (!best) return "on empty canvas"
-  const cx = best.rect.x + best.rect.width / 2
-  const cy = best.rect.y + best.rect.height / 2
-  const side = Math.abs(p.x - cx) > Math.abs(p.y - cy) ? (p.x > cx ? "right of" : "left of") : p.y > cy ? "below" : "above"
-  return `on empty canvas ${side} \`${best.route}\` (${best.title})`
-}
-
-const named = (g: MapPage) => `\`${g.route}\` (${g.title}, story \`${g.storyId}\`)`
-
-function mapSection(job: Job, request: ChangeRequest): string {
-  const map = request.map
-  if (!map?.ops.length) return ""
-  const byId = new Map(map.pages.map((g) => [g.storyId, g]))
-  const lines = ["## What the user sketched on the site map", "The site map shows every page as a frame. They drew over it, without opening any page:"]
-  for (const op of map.ops) {
-    if (op.type === "arrow") {
-      const from = (op.fromStory && byId.get(op.fromStory)) || pageAt(map.pages, op.from)
-      const to = (op.toStory && byId.get(op.toStory)) || pageAt(map.pages, op.to)
-      const label = op.label ? ` labelled "${op.label}"` : ""
-      if (from && to && from !== to) lines.push(`- An arrow from ${named(from)} to ${named(to)}${label}: the user wants to get from the first page to the second. Add that navigation in the app (a link, button or menu entry where it fits) and add the route to the first page story's \`links\`.`)
-      else if (from && !to) lines.push(`- An arrow out of ${named(from)} pointing ${nearest(map.pages, op.to)}${label}: something should lead from that page to whatever the note describes there.`)
-      else if (!from && to) lines.push(`- An arrow ${nearest(map.pages, op.from)} pointing into ${named(to)}${label}.`)
-      else lines.push(`- An arrow ${nearest(map.pages, op.from)}${label}.`)
-    } else if (op.type === "block") {
-      const on = pageAt(map.pages, { x: op.rect.x + op.rect.width / 2, y: op.rect.y + op.rect.height / 2 })
-      const text = op.label ? ` reading "${op.label}"` : ""
-      lines.push(on ? `- A block${text} on ${named(on)} (see its sketch screenshots below).` : `- A note${text} ${nearest(map.pages, { x: op.rect.x + op.rect.width / 2, y: op.rect.y + op.rect.height / 2 })}. A block on empty canvas next to a page can mean a new page there; build one only if the note or the user's message asks for it.`)
-    } else if (op.type === "stroke") {
-      const mid = op.points[Math.floor(op.points.length / 2)] ?? { x: 0, y: 0 }
-      const on = pageAt(map.pages, mid)
-      lines.push(on ? `- Freehand marks on ${named(on)} (see its sketch screenshots below).` : `- Freehand marks ${nearest(map.pages, mid)}.`)
-    }
+function flowPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest, screens: Screen[]): string[] {
+  const flow = request.flow
+  const list = screens.length ? screens.map((s) => `- \`${s.id}\` — ${s.title} (${s.file})`) : ["(no page stories yet)"]
+  const save = [
+    "## Saving",
+    "Save with the stageboard MCP tool `save_flow`, or `npx stageboard flow save '<json>'` from " + config.root + ", where the JSON is",
+    `\`{ ${flow ? `"flow": "${flow.id}", ` : ""}"name": "…", "group": "…", "description": "…", "steps": [{ "storyId": "<page story id>", "note": "what happens here" }, { "pending": "Screen you are still building" }] }\`.`,
+    "Steps are screens in the order the user sees them. Save early with `pending` steps for screens you still have to build, so the user watches the flow fill in, then save again with real story ids once they exist.",
+  ]
+  if (!flow) {
+    return [
+      "Suggest the main user flows of this app for the stageboard Flows view (like Mobbin's flows): the 5–10 journeys a real user goes through, each an ordered list of screens.",
+      "",
+      `What the user asked for: ${request.note}`,
+      "",
+      "Use the existing page stories below as steps; read the app's routes and navigation to get the order right. Only build a new screen or state story when a flow cannot make sense without it. Group related flows with the same `group` (for example Onboarding, Inbox, Settings).",
+      "Save each flow separately (no `flow` id).",
+      "",
+      "## Screens that exist (page stories)",
+      ...list,
+      "",
+      ...save,
+    ]
   }
-  for (const img of job.pageImages ?? []) {
-    lines.push(`- ${img.title} (\`${img.storyId}\`): before \`${img.before ?? "n/a"}\`, with the marks drawn on it \`${img.after ?? "n/a"}\`.`)
-  }
-  lines.push("Arrows are navigation, notes are instructions; marks on a page point at the part of that page the note is about. Open every screenshot before you start.")
-  return lines.join("\n")
+  return [
+    `Assemble the user flow "${flow.name}" for the stageboard Flows view: an ordered list of screens a user goes through.`,
+    "",
+    `What the user described: ${flow.description ?? request.note}`,
+    "",
+    "## How",
+    "1. Pick the screens from the existing page stories below, in the order the user sees them. A flow usually needs specific states (a dialog open, a form half filled, a success message): find a story that shows that state or create one.",
+    "2. For every screen or state that does not exist yet, add a page story with mock data next to the related ones, copying how they render pages (`parameters.page` with `route`, `title`, `group`). Build new screens as real app code when the flow needs a page the app does not have.",
+    "3. Render each new story with `npx stageboard shot <story-id>` and look at it.",
+    "",
+    "## Screens that exist (page stories)",
+    ...list,
+    "",
+    ...save,
+  ]
 }
 
 function pagePrompt(job: Job, request: ChangeRequest): string[] {
@@ -186,26 +182,27 @@ function pagePrompt(job: Job, request: ChangeRequest): string[] {
     `What the user asked for: ${dream.prompt}`,
     "",
     parent
-      ? `They drew it out of the page story \`${parent}\` on the stageboard site map, so it belongs next to that page: same shell, navigation and layout, reached from it.${job.selectionImage ? ` A screenshot of that page is at \`${job.selectionImage}\`; open it first.` : ""}`
-      : "They drew it on the stageboard site map.",
+      ? `They added it to a flow right after the page story \`${parent}\`, so it belongs next to that page: same shell, navigation and layout, reached from it.${job.selectionImage ? ` A screenshot of that page is at \`${job.selectionImage}\`; open it first.` : ""}`
+      : "They added it in stageboard.",
     "",
     "## What to build",
     "1. The page itself as real app code, following the project's conventions for pages and routes (look at how the parent page is built and routed). Reuse existing components; keep strings, data access and styling in the project's patterns.",
-    "2. A page story so it appears on the site map, next to the parent's page story (read that story file and copy how it renders a page with mock data):",
-    `   \`parameters: { page: { route: "<its route>", title: "<page title>", group: "<the parent's group>", links: [...], dream: "${dream.id}" } }\` — the \`dream\` id is how stageboard swaps the drawn frame for your page, so it must be exactly \`${dream.id}\`.`,
+    "2. A page story so it appears in stageboard's Screens, next to the parent's page story (read that story file and copy how it renders a page with mock data):",
+    `   \`parameters: { page: { route: "<its route>", title: "<page title>", group: "<the parent's group>", links: [...], dream: "${dream.id}" } }\` — the \`dream\` id is how stageboard swaps the placeholder for your page, so it must be exactly \`${dream.id}\`.`,
     "3. Add the new route to the parent page story's `links` (and real navigation to it in the app, if the request implies one).",
     "Render the new story with `npx stageboard shot <story-id> --width 1440` and look at it until it is right.",
   ]
 }
 
-export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest): string {
+export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest, screens: Screen[] = []): string {
   const target = request.target
   const top = target.components[0]
   const lines: string[] = []
 
   const sketched = Boolean(request.sketch?.ops.length)
-  const mapped = Boolean(request.map?.ops.length)
-  if (request.kind === "page") {
+  if (request.kind === "flow") {
+    lines.push(...flowPrompt(config, job, request, screens))
+  } else if (request.kind === "page") {
     lines.push(...pagePrompt(job, request))
   } else if (request.kind === "variants") {
     lines.push(
@@ -232,7 +229,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     }
   } else if (request.kind === "edit") {
     lines.push(
-      mapped ? "Change the app as the user sketched it on the stageboard site map (below), directly in place." : sketched ? "Make the page match the user's sketch below, directly in place." : `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,
+      sketched ? "Make the page match the user's sketch below, directly in place." : `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,
       "",
       `What the user asked for: ${request.note}`,
     )
@@ -244,12 +241,10 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     )
   }
 
-  const context = request.kind === "page" || mapped ? "" : contextSection(job, request)
+  const context = request.kind === "page" || request.kind === "flow" ? "" : contextSection(job, request)
   if (context) lines.push("", context)
   const sketch = sketchSection(job, request)
   if (sketch) lines.push("", sketch)
-  const map = mapSection(job, request)
-  if (map) lines.push("", map)
   lines.push("", MCP_HINT)
   lines.push("", shotHint(config, job, request))
   lines.push(

@@ -77,7 +77,7 @@ cli
     for (const s of index) console.log(`${pc.cyan(s.id.padEnd(48))} ${pc.dim(s.file)}${s.hasPage ? pc.magenta(" page") : ""}`)
   })
 
-cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, list_variants, compare_variants, select_variant, complete_job)").action(async (opts) => {
+cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, list_variants, compare_variants, select_variant, complete_job, save_flow, list_flows)").action(async (opts) => {
   const config = await loadConfig(process.cwd(), opts.config)
   const { runMcpServer } = await import("./mcp")
   await runMcpServer(config)
@@ -97,6 +97,20 @@ cli
     })
     if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
     console.log(`job ${job} marked ${opts.failed ? "failed" : "done"}`)
+  })
+
+cli
+  .command("flow <action> [json]", "Save a user flow to the running stageboard: stageboard flow save '<json>'")
+  .action(async (action: string, json: string | undefined, opts) => {
+    if (action !== "save" || !json) throw new Error("usage: stageboard flow save '<json>'")
+    const config = await loadConfig(process.cwd(), opts.config)
+    const base = await findRunningServer(config)
+    if (!base) throw new Error("No running stageboard dev server found")
+    const body = fs.existsSync(json) ? fs.readFileSync(json, "utf8") : json
+    const res = await fetch(`${base}${API_BASE}/api/flows/save`, { method: "POST", headers: { "content-type": "application/json" }, body })
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
+    const flow = (await res.json()) as { id: string; steps: unknown[] }
+    console.log(`saved flow ${flow.id} (${flow.steps.length} steps)`)
   })
 
 cli
