@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { devtoolsCss, Panel, startBridge, useStageboard } from "stageboard/react"
-import { DEVICES, type Device, type ElementTarget } from "stageboard"
+import { DEVICES, type Device, type ElementTarget, type Region } from "stageboard"
 import { AnnotateProvider, AnnotationLayer, useDismissedPins, type Draft, type Surface } from "./annotate"
 import { fetchUsedVariants, storyUrl } from "./api"
 import { componentGroup, Grid, groupBy, ScreenCard, screenGroup, screenTitle, dragStory, useSurfaces, type ScreenNode } from "./browse"
 import { Composer } from "./composer"
-import { clearDraft, readDraft, type StoredDraft } from "./draft-store"
+import { clearDraft, readDraft, readPrefs, savePrefs, type StoredDraft } from "./draft-store"
 import { FlowsView } from "./flows"
 import { FlowViewer } from "./viewer"
-import { Gallery } from "./gallery"
+import { VariantLayer } from "./variant-layer"
 import { AnnotateIcon, InspectIcon, LayersIcon, PlusIcon, SketchIcon } from "./icons"
 import { clearSketch, SketchLayer } from "./sketch"
 import { PinDetails } from "./pins"
@@ -247,7 +247,8 @@ function App({ index, loaders, base }: UIOptions) {
   const [restore, setRestore] = useState<StoredDraft | undefined>(readDraft)
   const [openPin, setOpenPin] = useState<string>()
   const [dismissed, dismiss] = useDismissedPins()
-  const [gallery, setGallery] = useState(false)
+  const [showVariants, setShowVariants] = useState(false)
+  const [variantCount, setVariantCount] = useState(0)
   const [used, setUsed] = useState<Record<string, string[]>>({})
   const [target, setTarget] = useState<ElementTarget>()
   const frames = useRef(new Map<string, HTMLIFrameElement>())
@@ -310,6 +311,14 @@ function App({ index, loaders, base }: UIOptions) {
   )
 
   const selectionKey = useStageboard((s) => JSON.stringify(s.selections))
+  const componentThumb = useCallback(
+    (id: string) => {
+      const p = new URLSearchParams({ w: "720", h: "450", cs: scheme })
+      if (theme) p.set("t", theme)
+      return `${base}/api/thumb/${id}.jpg?${p}`
+    },
+    [base, theme, scheme],
+  )
   const thumbUrl = useCallback(
     (id: string) => {
       const d = DEVICES[device]
@@ -371,6 +380,7 @@ function App({ index, loaders, base }: UIOptions) {
     setDraft(undefined)
     setOpenPin(undefined)
     setSketching(false)
+    setShowVariants(false)
   }, [routeKey])
 
   const begin = useCallback((next: Draft) => {
@@ -434,9 +444,18 @@ function App({ index, loaders, base }: UIOptions) {
   const frameSize = DEVICES[device]
   const flows = useStageboard((s) => s.flows)
   const viewerFlow = route.view === "flows" && route.step !== undefined ? flows.find((f) => f.id === route.focus) : undefined
-  const galleryRows = current
-    ? (used[current.id] ?? []).filter((id) => variantFiles.some((v) => v.of === id)).length
-    : 0
+  const askMoreVariants = (frame: HTMLIFrameElement | null | undefined, surface: Surface, box: { rect: Region }) => {
+    savePrefs({ ...readPrefs(), mode: "variants" })
+    setShowVariants(false)
+    setAnnotatingState(false)
+    const win = frame?.contentWindow
+    setDraft({
+      surface,
+      region: box.rect,
+      viewport: { width: win?.innerWidth ?? frameSize.width, height: win?.innerHeight ?? frameSize.height },
+      scroll: { x: win?.scrollX ?? 0, y: win?.scrollY ?? 0 },
+    })
+  }
 
   return (
     <div className="sbu">
@@ -530,6 +549,7 @@ function App({ index, loaders, base }: UIOptions) {
             screens={pages}
             index={index}
             components={componentStories}
+            componentThumb={componentThumb}
             frameUrl={frameUrl}
             thumbUrl={thumbUrl}
             annotating={annotating}
@@ -561,12 +581,19 @@ function App({ index, loaders, base }: UIOptions) {
               <span className="sbu-title">{current.title}</span>
               <span className="sbu-dim">/ {current.name}</span>
               <span className="sbu-spacer" />
-              <button className="sbu-btn" data-on={gallery} aria-pressed={gallery} onClick={() => setGallery((v) => !v)} title="Show every variant side by side">
+              <button
+                className="sbu-btn"
+                data-on={showVariants}
+                aria-pressed={showVariants}
+                disabled={!variantCount && !showVariants}
+                onClick={() => setShowVariants((v) => !v)}
+                title={variantCount ? "Outline the parts of this screen that have variants, then click one to switch" : "No variants on this screen yet: annotate a part and ask for Variants"}
+              >
                 <LayersIcon size={13} />
-                Show variants
-                {galleryRows > 0 && <span className="sbu-count">{galleryRows}</span>}
+                Variants
+                {variantCount > 0 && <span className="sbu-count">{variantCount}</span>}
               </button>
-              {!gallery && (
+              {(
                 <button
                   className="sbu-btn"
                   data-on={sketching}
@@ -595,7 +622,7 @@ function App({ index, loaders, base }: UIOptions) {
                 Copy shot cmd
               </button>
             </div>
-            <div className="sbu-stage" data-hidden={gallery}>
+            <div className="sbu-stage">
               <div className="sbu-frame-wrap" data-device={device} style={device === "desktop" ? { width: "100%" } : { width: frameSize.width, height: Math.min(frameSize.height, 2000), flex: "none" }}>
                 <iframe
                   key={`${current.id}-${theme}`}
@@ -605,12 +632,22 @@ function App({ index, loaders, base }: UIOptions) {
                   title={current.id}
                   onLoad={() => storyFrame.current?.contentWindow?.postMessage({ source: "stageboard", type: "pick", on: inspecting }, "*")}
                 />
-                {storySurface && !gallery && <AnnotationLayer surface={storySurface} />}
-                {storySurface && !gallery && sketching && (
+                {storySurface && <AnnotationLayer surface={storySurface} />}
+                {storySurface && (
+                  <VariantLayer
+                    key={`v-${current.id}`}
+                    surface={storySurface}
+                    visible={showVariants && !sketching}
+                    onCount={setVariantCount}
+                    onAskMore={(box) => askMoreVariants(storyFrame.current, storySurface, box)}
+                  />
+                )}
+                {storySurface && sketching && (
                   <SketchLayer
                     key={current.id}
                     surface={storySurface}
                     components={componentStories}
+                    componentThumb={componentThumb}
                     paused={Boolean(draft)}
                     onExit={() => setSketching(false)}
                     onReconcile={(sketch, region) => setDraft({ surface: storySurface, region, viewport: sketch.viewport, scroll: sketch.scroll, sketch })}
@@ -618,23 +655,12 @@ function App({ index, loaders, base }: UIOptions) {
                 )}
               </div>
             </div>
-            {gallery && storySurface && (
-              <Gallery
-                storyId={current.id}
-                title={storySurface.title}
-                used={used[current.id]}
-                base={base}
-                frameUrl={storySurface.url}
-                selectionKey={selectionKey}
-                viewport={{ width: frameSize.width, height: frameSize.height }}
-              />
-            )}
           </div>
         )}
         {route.view === "story" && !current && <div className="sbu-empty">Pick a story on the left.</div>}
         {annotating && !draft && (
           <div className="sbu-annot-hint" role="status">
-            Drag over {route.view === "story" ? (gallery ? "any variant" : "the screen") : "any screen"} to annotate, or click a spot
+            Drag over {route.view === "story" ? "the screen" : "any screen"} to annotate, or click a spot
             <span className="sbu-key">esc</span>
           </div>
         )}
@@ -646,7 +672,7 @@ function App({ index, loaders, base }: UIOptions) {
           job={openJob}
           onClose={() => setOpenPin(undefined)}
           onDismiss={dismiss}
-          onShowVariants={route.view === "story" ? () => (setGallery(true), setOpenPin(undefined)) : undefined}
+          onShowVariants={route.view === "story" ? () => (setShowVariants(true), setOpenPin(undefined)) : undefined}
         />
       )}
       </AnnotateProvider>

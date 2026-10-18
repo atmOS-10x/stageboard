@@ -1,5 +1,5 @@
 import type { Region, SketchOp } from "../core/protocol"
-import { componentChain } from "./fiber"
+import { componentChain, variantBoundaryRects } from "./fiber"
 
 export type SketchTarget = {
   selector: string
@@ -14,6 +14,7 @@ export type SketchApi = {
   at: (clientX: number, clientY: number) => SketchTarget | undefined
   parentOf: (selector: string) => SketchTarget | undefined
   find: (selector: string) => SketchTarget | undefined
+  boundaries: () => { id: string; rect: Region }[]
 }
 
 type Touched = { el: HTMLElement; style: string | null; text?: { node: Text; value: string } }
@@ -188,6 +189,14 @@ export function installSketch(base: string) {
     },
     find(selector) {
       return describe(query(selector))
+    },
+    boundaries() {
+      const used = (globalThis as { __STAGEBOARD_USED__?: Set<string> }).__STAGEBOARD_USED__ ?? new Set<string>()
+      return [...used].flatMap((id) =>
+        variantBoundaryRects(id)
+          .filter((r) => r.width && r.height)
+          .map((r) => ({ id, rect: { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), width: Math.round(r.width), height: Math.round(r.height) } })),
+      )
     },
   }
   ;(window as unknown as { __stageboard_sketch?: SketchApi }).__stageboard_sketch = api

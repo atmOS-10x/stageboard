@@ -5,10 +5,12 @@ import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { screenTitle, type ScreenNode } from "./browse"
 import { FlowNote } from "./flows"
-import { AnnotateIcon, CloseIcon, FlowNoteIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
+import { AnnotateIcon, CloseIcon, FlowNoteIcon, LayersIcon, NextIcon, PrevIcon, SketchIcon } from "./icons"
 import { Shimmer } from "./shimmer"
 import { WaveCanvas } from "./waves"
+import { readPrefs, savePrefs } from "./draft-store"
 import { SketchLayer } from "./sketch"
+import { VariantLayer } from "./variant-layer"
 import type { ClientEntry } from "./types"
 
 const SWIPE = 70
@@ -23,6 +25,7 @@ export function FlowViewer({
   screens,
   index,
   components,
+  componentThumb,
   frameUrl,
   thumbUrl,
   annotating,
@@ -41,6 +44,7 @@ export function FlowViewer({
   screens: ScreenNode[]
   index: ClientEntry[]
   components: ClientEntry[]
+  componentThumb: (id: string) => string
   frameUrl: (id: string) => string
   thumbUrl: (id: string) => string
   annotating: boolean
@@ -63,6 +67,8 @@ export function FlowViewer({
   const [sketching, setSketching] = useState(false)
   const [info, setInfo] = useState(false)
   const [noting, setNoting] = useState(false)
+  const [variantsOn, setVariantsOn] = useState(false)
+  const [variantCount, setVariantCount] = useState(0)
 
   const storyOf = useCallback(
     (i: number) => {
@@ -99,6 +105,8 @@ export function FlowViewer({
   useEffect(() => {
     setSketching(false)
     setInfo(false)
+    setVariantsOn(false)
+    setVariantCount(0)
   }, [step, flow.id])
 
   useEffect(() => {
@@ -247,11 +255,27 @@ export function FlowViewer({
                         tabIndex={current ? 0 : -1}
                       />
                       {current && surface && <AnnotationLayer surface={surface} viewport={{ width: d.width, height: d.height }} />}
+                      {current && surface && (
+                        <VariantLayer
+                          key={`v-${id}`}
+                          surface={surface}
+                          visible={variantsOn && !sketching}
+                          onCount={setVariantCount}
+                          onAskMore={(box) => {
+                            savePrefs({ ...readPrefs(), mode: "variants" })
+                            setVariantsOn(false)
+                            onAnnotate(false)
+                            const win = frameOfCurrent()?.contentWindow
+                            onDraft({ surface, region: box.rect, viewport: { width: d.width, height: d.height }, scroll: { x: win?.scrollX ?? 0, y: win?.scrollY ?? 0 } })
+                          }}
+                        />
+                      )}
                       {current && surface && sketching && (
                         <SketchLayer
                           key={id}
                           surface={surface}
                           components={components}
+                          componentThumb={componentThumb}
                           paused={draftOpen}
                           toolbarHost={tools}
                           onExit={() => setSketching(false)}
@@ -314,6 +338,20 @@ export function FlowViewer({
           >
             <SketchIcon size={14} /> Sketch <span className="sbu-key">S</span>
           </button>
+          {(variantCount > 0 || variantsOn) && (
+            <button
+              type="button"
+              className="sbu-viewer-pill"
+              data-on={variantsOn}
+              onClick={() => {
+                setSketching(false)
+                setVariantsOn((v) => !v)
+              }}
+              title="Outline the parts of this screen that have variants, then click one to switch"
+            >
+              <LayersIcon size={14} /> Variants <span className="sbu-count">{variantCount}</span>
+            </button>
+          )}
           <button
             type="button"
             className="sbu-viewer-pill"

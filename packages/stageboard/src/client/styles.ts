@@ -138,8 +138,6 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-picker-new-shot > svg { position: relative; z-index: 1; padding: 10px; box-sizing: content-box; border-radius: 999px; background: rgba(20,19,28,.75); }
 .sbu-picker-new:hover .sbu-picker-new-shot { box-shadow: 0 0 0 2px #8d7af6; }
 .sbu-picker-describe { padding: 18px 18px 20px; }
-.sbu-picker-prompt { min-height: 140px; resize: vertical; padding: 12px 14px; border: 0; border-radius: 12px; background: rgba(255,255,255,.05); color: #f4f4f7; font: inherit; font-size: 15px; line-height: 1.5; outline: none; }
-.sbu-picker-prompt:focus { box-shadow: 0 0 0 2px rgba(190,176,255,.45); }
 .sbu-flows-hero-card[data-busy="false"] .sbu-waves { opacity: .35; }
 .sbu-flows-hero-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px 40px; text-align: center; color: #c9c5df; font-size: 13.5px; line-height: 1.55; background: radial-gradient(ellipse at center, rgba(14,13,20,.82) 0%, rgba(14,13,20,.55) 60%, rgba(14,13,20,.2) 100%); }
 .sbu-flows-hero-text p { margin: 0; max-width: 400px; }
@@ -176,10 +174,6 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
   border-radius: 14px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.5);
 }
 .sbu-newflow { max-width: 680px; margin-bottom: 30px; animation: sbu-composer-in .22s cubic-bezier(.32,.72,0,1) both; }
-.sbu-newflow-row { display: flex; gap: 8px; }
-.sbu-newflow-name, .sbu-newflow-group { height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: rgba(255,255,255,.04); color: #f2f2f5; font: inherit; font-size: 14px; outline: none; }
-.sbu-newflow-name { flex: 1; font-weight: 500; }
-.sbu-newflow-group { width: 180px; font-size: 12.5px; }
 .sbu-chip { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 999px; background: rgba(255,255,255,.06); color: #b9b9c4; font-size: 11.5px; }
 .sbu-chip[data-tone="busy"] { background: rgba(141,122,246,.16); color: #d4cbff; }
 .sbu-chip[data-tone="warn"] { background: rgba(211,162,148,.14); color: #e2b7aa; }
@@ -187,9 +181,6 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-frame-wrap[data-device="mobile"], .sbu-frame-wrap[data-device="tablet"] { margin: 0 auto; }
 .sbu-frame-wrap[data-device="mobile"] .sbu-frame, .sbu-frame-wrap[data-device="mobile"] > .sbu-annot { border-radius: 26px; }
 .sbu-waves { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.sbu-dream-prompt { display: block; width: 100%; min-height: 64px; resize: none; border: 0; outline: none; background: transparent; color: #f2f2f5; font: inherit; font-size: 13.5px; line-height: 20px; padding: 4px 6px; box-sizing: border-box; }
-.sbu-dream-prompt::placeholder { color: #6c6c77; }
-.sbu-dream-bar { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding-left: 6px; }
 .sbu-sketch { position: absolute; inset: 0; z-index: 4; border-radius: 10px; overflow: hidden; }
 .sbu-sketch-catch { position: absolute; inset: 0; cursor: default; touch-action: none; box-shadow: inset 0 0 0 1.5px rgba(150,132,255,.55); border-radius: inherit; }
 .sbu-sketch[data-tool="pen"] .sbu-sketch-catch { cursor: crosshair; }
@@ -216,13 +207,17 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-sketch-go { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 14px; border: 0; border-radius: 10px; background: #ebebf0; color: #17171c; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
 .sbu-sketch-go:disabled { opacity: .3; cursor: default; }
 .sbu-sketch-palette {
-  position: absolute; right: 12px; top: 12px; bottom: 70px; z-index: 6; width: 260px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  position: absolute; right: 12px; top: 12px; bottom: 70px; z-index: 6; width: 360px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
   border-radius: 14px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.45);
 }
 .sbu-sketch-filter { height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04); color: #ececf1; font: inherit; font-size: 12.5px; outline: none; }
-.sbu-sketch-palette ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.sbu-sketch-palette li > button { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: #e4e4ea; font: inherit; font-size: 12.5px; text-align: left; cursor: grab; }
-.sbu-sketch-palette li > button:hover { background: rgba(255,255,255,.06); }
+.sbu-sketch-palette ul { list-style: none; margin: 0; padding: 2px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; align-content: start; }
+.sbu-sketch-palette li > button { width: 100%; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #e4e4ea; font: inherit; font-size: 12.5px; text-align: left; cursor: grab; }
+.sbu-palette-shot { position: relative; display: block; aspect-ratio: 16 / 10; margin-bottom: 4px; border-radius: 8px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+.sbu-sketch-palette li > button:hover .sbu-palette-shot { box-shadow: 0 0 0 2px #8d7af6; }
+.sbu-palette-name, .sbu-sketch-palette li > button .sbu-dim { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbu-palette-name { font-weight: 500; }
+.sbu-thumb-center .sbu-thumb-img { object-fit: contain; object-position: center; }
 .sbu-sketch-palette .sbu-dim { font-size: 11.5px; }
 .sbu-sketch-ghost { position: fixed; z-index: 70; translate: -50% -50%; padding: 8px 12px; border-radius: 10px; background: rgba(141,122,246,.92); color: #fff; font-size: 12px; font-weight: 500; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 .sbu-hud { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; background: rgba(18,18,22,.9); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 4px; }
@@ -328,6 +323,23 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-prompt-context strong { color: #ececf1; font-weight: 500; }
 .sbu-note-dialog { width: min(640px, 100%); animation: sbu-composer-in .22s cubic-bezier(.32,.72,0,1) both; }
 .sbu-viewer { overflow: clip; }
+.sbu-vlayer { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.sbu-vbox { position: absolute; padding: 0; border: 2px solid #f5c84b; border-radius: 6px; background: rgba(245,200,75,.07); box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 18px rgba(245,200,75,.25); cursor: pointer; pointer-events: auto; animation: sbu-fade .18s ease both; }
+.sbu-vbox:hover, .sbu-vbox[data-open="true"] { background: rgba(245,200,75,.16); }
+.sbu-vbox[data-inside="true"] .sbu-vbox-label { translate: none; left: 0; top: 0; border-radius: 0 0 6px 0; }
+.sbu-vbox-label { position: absolute; left: -2px; top: -2px; translate: 0 -100%; max-width: 280px; padding: 3px 8px; border-radius: 6px 6px 6px 0; background: #f5c84b; color: #1e1a0c; font: 600 11.5px/16px system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sbu-vmenu { position: fixed; z-index: 80; display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; padding: 6px; border-radius: 14px; background: #1b1a22; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 18px 48px rgba(0,0,0,.5); animation: sbu-composer-in .18s cubic-bezier(.32,.72,0,1) both; }
+.sbu-vmenu-head { padding: 6px 8px 6px; font: 500 12px ui-monospace, Menlo, monospace; color: #e9c35a; }
+.sbu-vmenu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: transparent; color: #ececf1; font: inherit; text-align: left; cursor: pointer; }
+.sbu-vmenu-item:hover { background: rgba(255,255,255,.06); }
+.sbu-vmenu-item[data-on="true"] { background: rgba(245,200,75,.12); }
+.sbu-vmenu-item > svg { flex: none; color: #f5c84b; }
+.sbu-vmenu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sbu-vmenu-label { font-size: 13px; font-weight: 500; }
+.sbu-vmenu-desc { font-size: 12px; color: #9a9aa5; line-height: 1.4; }
+.sbu-vmenu-pending { padding: 8px 10px; font-size: 12.5px; }
+.sbu-vmenu-more { display: flex; align-items: center; gap: 8px; margin-top: 4px; padding: 9px 10px; border: 0; border-top: 1px solid rgba(255,255,255,.07); border-radius: 0 0 9px 9px; background: transparent; color: #d4cbff; font: inherit; font-size: 13px; cursor: pointer; }
+.sbu-vmenu-more:hover { background: rgba(255,255,255,.05); }
 .sbu-composer-head {
   position: relative; display: flex; align-items: center; gap: 6px;
   width: calc(100% - 40px); margin: 0 auto -16px; padding: 3px 4px 19px; box-sizing: border-box;
@@ -390,22 +402,9 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-ghost:disabled { opacity: .5; cursor: default; }
 .sbu-ghost-sm { height: 22px; padding: 0 9px; font-size: 11.5px; }
 
-.sbu-gallery { flex: 1; overflow: auto; padding: 22px 24px 56px; display: flex; flex-direction: column; gap: 34px; }
-.sbu-row-head { display: flex; align-items: baseline; gap: 10px; margin: 0 2px 12px; }
-.sbu-row-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: #d0d0d8; }
-.sbu-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 22px 18px; }
 .sbu-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.sbu-card-shot { position: relative; aspect-ratio: 1440 / 900; border-radius: 10px; background: #f2f2f4; box-shadow: 0 0 0 1px rgba(255,255,255,.07), 0 10px 28px rgba(0,0,0,.35); transition: box-shadow .2s ease; }
 .sbu-card[data-on="true"] .sbu-card-shot { box-shadow: 0 0 0 1.5px rgba(190,176,255,.62), 0 10px 28px rgba(0,0,0,.35); }
 .sbu-card-shot > .sbu-annot { border-radius: 10px; }
-.sbu-card-meta { padding: 0 2px; }
-.sbu-card-line { display: flex; align-items: center; gap: 8px; min-height: 22px; }
-.sbu-card-label { font-size: 13px; font-weight: 500; color: #ececf1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sbu-card-inuse { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #aaa4cf; }
-.sbu-card-desc { margin: 3px 0 0; font-size: 12px; line-height: 1.45; color: #85858f; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.sbu-gallery-empty { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 24px; color: #7d7d88; text-align: center; }
-.sbu-gallery-empty p { margin: 4px 0; max-width: 360px; }
-.sbu-gallery-empty-title { color: #d8d8df; font-size: 14px; }
 
 @media (prefers-reduced-motion: reduce) {
   .sbu-thumb[data-state="loading"] { animation: none; }

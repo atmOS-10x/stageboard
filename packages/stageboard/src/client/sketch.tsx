@@ -4,6 +4,7 @@ import type { SketchApi, SketchTarget } from "stageboard/react"
 import type { Region, Sketch, SketchOp } from "stageboard"
 import { useScrollSync, type Surface } from "./annotate"
 import { ArrowUpIcon, CloseIcon, ComponentIcon, PenIcon, PointerIcon, SquareIcon, UndoIcon } from "./icons"
+import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
 
 type Tool = "select" | "pen" | "block"
@@ -85,11 +86,13 @@ export function SketchLayer({
   onExit,
   paused = false,
   toolbarHost,
+  componentThumb,
 }: {
   surface: Surface
   components: ClientEntry[]
   paused?: boolean
   toolbarHost?: HTMLElement | null
+  componentThumb?: (id: string) => string
   onReconcile: (sketch: Sketch, region: Region) => void
   onExit: () => void
 }) {
@@ -526,7 +529,12 @@ export function SketchLayer({
                   onClick={() => placeComponent(c)}
                   title="Drag onto the page, or click to drop it in the middle"
                 >
-                  <span>{c.title.split("/").pop()}</span>
+                  {componentThumb && (
+                    <span className="sbu-palette-shot">
+                      <Thumb src={componentThumb(c.id)} className="sbu-thumb-center" />
+                    </span>
+                  )}
+                  <span className="sbu-palette-name">{c.title.split("/").pop()}</span>
                   <span className="sbu-dim">{c.name}</span>
                 </button>
               </li>
