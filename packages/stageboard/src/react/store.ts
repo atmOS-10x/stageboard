@@ -237,8 +237,9 @@ export async function createFlow(input: FlowRequest): Promise<Flow | undefined> 
   return flow
 }
 
-export async function updateFlow(id: string, patch: Partial<Pick<Flow, "name" | "description" | "group" | "steps">>) {
-  emit({ flows: getSnapshot().flows.map((f) => (f.id === id ? { ...f, ...patch } : f)) })
+export async function updateFlow(id: string, patch: Partial<Pick<Flow, "name" | "description" | "group" | "steps">> & { retry?: boolean }) {
+  const { retry, ...fields } = patch
+  emit({ flows: getSnapshot().flows.map((f) => (f.id === id ? { ...f, ...fields, ...(retry ? { status: "assembling" as const } : {}) } : f)) })
   await request(`/flows/${id}`, { method: "POST", body: JSON.stringify(patch) })
   schedulePoll(100)
 }

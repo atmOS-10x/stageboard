@@ -6,6 +6,8 @@ import { markReveal, pendingReveals } from "./dreams"
 import { ArrowUpIcon, CloseIcon, PlusIcon } from "./icons"
 import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
+import { Shimmer } from "./shimmer"
+import { errorText, pushToast } from "./toasts"
 import { WaveCanvas } from "./waves"
 
 const STEP_MIME = "application/x-stageboard-step"
@@ -25,7 +27,9 @@ function newId() {
 
 export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focus?: string; composing: boolean; onCompose: (on: boolean) => void }) {
   const flows = useStageboard((s) => s.flows)
-  const suggesting = useStageboard((s) => s.jobs.some((j) => j.kind === "flow" && !j.flow && (j.status === "queued" || j.status === "running")))
+  const suggestJob = useStageboard((s) => s.jobs.filter((j) => j.kind === "flow" && !j.flow && (j.status === "queued" || j.status === "running")).at(-1))
+  const suggesting = Boolean(suggestJob)
+  const suggest = () => void createFlow({ suggest: true }).catch((e) => pushToast({ tone: "error", title: "Couldn’t start the agent", body: errorText(e) }))
   useEffect(() => {
     if (focus) document.getElementById(`flow-${focus}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
   }, [focus])
@@ -36,23 +40,42 @@ export function FlowsView({ ctx, focus, composing, onCompose }: { ctx: Ctx; focu
         <h1>Flows</h1>
         <span className="sbu-dim">{flows.length}</span>
         <span className="sbu-spacer" />
-        <button className="sbu-btn" disabled={suggesting} onClick={() => void createFlow({ suggest: true })} title="Let the agent propose the main flows from your screens">
-          {suggesting ? "Suggesting…" : "Suggest flows"}
-        </button>
+        {flows.length > 0 && (
+          <button className="sbu-btn" disabled={suggesting} onClick={suggest} title="Let the agent propose more flows from your screens">
+            {suggesting ? "Suggesting…" : "Suggest flows"}
+          </button>
+        )}
         <button className="sbu-btn" data-on={composing} onClick={() => onCompose(!composing)}>
           <PlusIcon size={13} /> New flow
         </button>
       </div>
       {composing && <NewFlow onClose={() => onCompose(false)} />}
       {!flows.length && !composing && (
-        <div className="sbu-flows-empty">
-          <p className="sbu-gallery-empty-title">No flows yet</p>
-          <p>Describe a journey through the app and the agent puts it together from your screens, building the ones that are missing. Or let it suggest the main flows.</p>
-          {suggesting && (
-            <div className="sbu-flows-suggesting">
-              <WaveCanvas mode="render" fps={30} />
+        <div className="sbu-flows-hero">
+          <div className="sbu-flows-hero-card" data-busy={suggesting}>
+            <WaveCanvas mode="render" fps={30} />
+            <div className="sbu-flows-hero-text">
+              {suggesting ? (
+                <>
+                  <p className="sbu-flows-hero-title">
+                    <Shimmer>Suggesting flows</Shimmer>
+                  </p>
+                  <p className="sbu-flows-hero-log">{suggestJob?.log.at(-1) ?? "Starting the agent…"}</p>
+                </>
+              ) : (
+                <>
+                  <p className="sbu-flows-hero-title">No flows yet</p>
+                  <p>The agent reads your screens and routes and lays out the main journeys through the app, building screens that are missing.</p>
+                  <button type="button" className="sbu-flows-hero-go" onClick={suggest}>
+                    Suggest flows
+                  </button>
+                  <button type="button" className="sbu-flows-hero-alt" onClick={() => onCompose(true)}>
+                    or describe one yourself
+                  </button>
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
       {flows.map((flow) => (
@@ -75,7 +98,7 @@ function NewFlow({ onClose }: { onClose: () => void }) {
       await createFlow({ name, description, group, assemble: assemble && Boolean(description.trim()) })
       onClose()
     } catch (e) {
-      setError((e as Error).message.replace(/^\d+\s*/, ""))
+      setError(errorText(e))
       setSending(false)
     }
   }

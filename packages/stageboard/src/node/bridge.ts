@@ -352,9 +352,16 @@ export class Bridge {
     return flow
   }
 
-  updateFlow(id: string, patch: Partial<Pick<Flow, "name" | "description" | "group" | "steps">>): Flow | undefined {
+  updateFlow(id: string, patch: Partial<Pick<Flow, "name" | "description" | "group" | "steps">> & { retry?: boolean }): Flow | undefined {
     const flow = this.state.flows.find((f) => f.id === id)
     if (!flow) return undefined
+    if (patch.retry && flow.description && flow.status !== "assembling") {
+      flow.status = "assembling"
+      void this.createJob({ kind: "flow", note: flow.description, flow, target: emptyTarget() }).then((job) => {
+        flow.jobId = job.id
+        this.saveBoard()
+      })
+    }
     if (patch.name !== undefined) flow.name = patch.name.trim() || flow.name
     if (patch.description !== undefined) flow.description = patch.description.trim() || undefined
     if (patch.group !== undefined) flow.group = patch.group.trim() || undefined
@@ -422,7 +429,7 @@ export class Bridge {
       if ((job.status as Job["status"]) === "cancelled") return
       await this.refreshVariants()
       job.status = result.ok ? "done" : "failed"
-      job.error = result.error
+      job.error = result.ok ? undefined : explainFailure(job, result.error)
       if (job.dream) await this.settleDream(job, result.ok)
       if (job.flow) this.settleFlow(job.flow, result.ok)
     } catch (e) {
@@ -563,6 +570,14 @@ export class Bridge {
     }
     return false
   }
+}
+
+// "exit code 1" says little; the agent's own error line usually says what to fix.
+function explainFailure(job: Job, error?: string): string | undefined {
+  const line = [...job.log].reverse().find((l) => /\b(error|failed|refused|denied|not found|unauthori[sz]ed|forbidden)\b/i.test(l) && !/^\s*at\s/.test(l))
+  if (!line) return error
+  const cleaned = line.replace(/^\s*(Uncaught\s+)?Error:\s*/i, "").trim()
+  return error && !cleaned.includes(error) ? `${cleaned} (${error})` : cleaned
 }
 
 function emptyTarget(): ChangeRequest["target"] {

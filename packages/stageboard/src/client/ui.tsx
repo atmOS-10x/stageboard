@@ -12,6 +12,7 @@ import { Gallery } from "./gallery"
 import { AnnotateIcon, InspectIcon, LayersIcon, PlusIcon, SketchIcon } from "./icons"
 import { clearSketch, SketchLayer } from "./sketch"
 import { PinDetails } from "./pins"
+import { Toasts, useJobToasts } from "./toasts"
 import { uiCss } from "./styles"
 import { resolveStory, type ClientEntry, type Loaders, type StoryModule } from "./types"
 import { WaveCanvas } from "./waves"
@@ -233,6 +234,7 @@ function App({ index, loaders, base }: UIOptions) {
   }
   const [composingFlow, setComposingFlow] = useState(false)
   const scheme = useSystemScheme()
+  useJobToasts()
   const [theme, setTheme] = useState<"light" | "dark" | undefined>()
   const [inspecting, setInspectingState] = useState(false)
   const [annotating, setAnnotatingState] = useState(false)
@@ -616,6 +618,7 @@ function App({ index, loaders, base }: UIOptions) {
         />
       )}
       </AnnotateProvider>
+      <Toasts />
       <aside className="sbu-inspector">
         {target && (
           <div className="sb-root">

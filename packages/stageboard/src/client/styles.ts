@@ -57,6 +57,24 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-card-sub { margin-left: auto; font: 11.5px ui-monospace, Menlo, monospace; color: #7d7d88; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sbu-flows-head { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
 .sbu-flows-head h1 { margin: 0; font-size: 18px; font-weight: 500; }
+.sbu-flows-hero { display: grid; place-items: center; min-height: calc(100% - 80px); }
+.sbu-flows-hero-card { position: relative; width: min(560px, 100%); aspect-ratio: 16 / 10; border-radius: 18px; overflow: hidden; box-shadow: 0 0 0 1px rgba(150,132,255,.25), 0 30px 80px rgba(0,0,0,.5); }
+.sbu-flows-hero-card[data-busy="false"] .sbu-waves { opacity: .35; }
+.sbu-flows-hero-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px 40px; text-align: center; color: #c9c5df; font-size: 13.5px; line-height: 1.55; background: radial-gradient(ellipse at center, rgba(14,13,20,.82) 0%, rgba(14,13,20,.55) 60%, rgba(14,13,20,.2) 100%); }
+.sbu-flows-hero-text p { margin: 0; max-width: 400px; }
+.sbu-flows-hero-title { font-size: 19px; font-weight: 500; color: #f4f2ff; }
+.sbu-flows-hero-log { font: 12px/1.5 ui-monospace, Menlo, monospace; color: #a9a3cb; max-width: 440px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbu-flows-hero-go { margin-top: 8px; height: 38px; padding: 0 20px; border: 0; border-radius: 12px; background: #ebebf0; color: #17171c; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.sbu-flows-hero-go:hover { background: #fff; }
+.sbu-flows-hero-alt { border: 0; background: none; color: #b4add8; font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(180,173,216,.35); text-underline-offset: 3px; }
+.sbu-toasts { position: fixed; right: 16px; bottom: 16px; z-index: 90; display: flex; flex-direction: column; gap: 8px; width: min(420px, calc(100vw - 32px)); }
+.sbu-toast { display: flex; align-items: flex-start; gap: 10px; padding: 12px 10px 12px 14px; border-radius: 14px; background: #1b1a22; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 18px 48px rgba(0,0,0,.5); color: #ececf1; animation: sbu-composer-in .22s cubic-bezier(.32,.72,0,1) both; }
+.sbu-toast[data-tone="error"] { border-color: rgba(226,150,130,.35); }
+.sbu-toast[data-tone="error"] > svg { flex: none; margin-top: 2px; color: #eaa48f; }
+.sbu-toast-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sbu-toast-title { font-size: 13px; font-weight: 500; }
+.sbu-toast-body { font: 12px/1.5 ui-monospace, Menlo, monospace; color: #c4bfd0; word-break: break-word; max-height: 7.5em; overflow: auto; }
+.sbu-toast-actions { display: flex; gap: 6px; margin-top: 4px; }
 .sbu-flows-empty { max-width: 560px; color: #9a9aa5; font-size: 13px; line-height: 1.55; }
 .sbu-flows-suggesting { position: relative; height: 140px; margin-top: 16px; border-radius: 12px; overflow: hidden; }
 .sbu-flow { margin-bottom: 40px; scroll-margin-top: 16px; }
