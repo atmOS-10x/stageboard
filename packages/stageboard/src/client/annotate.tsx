@@ -14,7 +14,7 @@ import {
   type WheelEvent as RWheelEvent,
 } from "react"
 import { useStageboard } from "stageboard/react"
-import type { Job, Region } from "stageboard"
+import type { Job, Region, Sketch } from "stageboard"
 import { frameScroll, type VariantRef, type Viewport } from "./api"
 import type { StoredDraft } from "./draft-store"
 import { Pin } from "./pins"
@@ -29,7 +29,7 @@ export type Surface = {
   scrollsFrame?: boolean
 }
 
-export type Draft = { surface: Surface; region: Region; viewport: Viewport; scroll?: { x: number; y: number }; restored?: StoredDraft }
+export type Draft = { surface: Surface; region: Region; viewport: Viewport; scroll?: { x: number; y: number }; sketch?: Sketch; restored?: StoredDraft }
 
 type AnnotateValue = {
   base: string
@@ -176,7 +176,7 @@ function boxStyle(region: Region, vp: Viewport): CSSProperties {
   }
 }
 
-function useScrollSync(
+export function useScrollSync(
   frame: Surface["frame"],
   host: RefObject<HTMLDivElement | null>,
   layer: RefObject<HTMLDivElement | null>,
@@ -237,7 +237,7 @@ export function AnnotationLayer({
   useEffect(() => {
     const saved = ctx.restore
     if (saved?.surfaceKey !== surface.key) return
-    ctx.begin({ surface, region: saved.region, viewport: saved.viewport, scroll: saved.scroll, restored: saved })
+    ctx.begin({ surface, region: saved.region, viewport: saved.viewport, scroll: saved.scroll, sketch: saved.sketch, restored: saved })
   }, [ctx.restore, ctx.begin, surface])
 
   const measure = () => {

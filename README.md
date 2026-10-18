@@ -38,6 +38,8 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 - **Stories with mock data.** A Storybook-compatible `*.stories.tsx` format. Pages are stories too, so no backend or login is needed.
 - **Site map.** Every page on a pan-and-zoom canvas with UX-flow edges, using cached thumbnails until you focus a page.
 - **Annotate.** Drag over anything in the site map, a story or the variants gallery. Write a note, paste reference images, and send it to an agent.
+- **Draw new pages.** Drag the + out of any page on the site map, name it, say what it should be. An agent builds the page and its story while the frame renders as a pixel ocean, then the real page washes in. Dream frames live in `stageboard/board.json`; commit it.
+- **Sketch on a page.** Press S in a page: move, resize and retype elements, draw, add blocks, drop in your own components, then Reconcile. The agent gets every change plus before/after screenshots.
 - **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Production renders the original.
 - **`stageboard shot`.** A headless screenshot of any story, variant or region. Agents use it to check their own work.
 - **MCP server.** `list_stories`, `screenshot`, `list_variants`, `compare_variants`, `select_variant` and `complete_job` (agents report when they are done), attached to Claude and Codex agents automatically.

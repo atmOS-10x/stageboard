@@ -7,6 +7,7 @@ export type PageParameters = {
   title?: string
   links?: string[]
   group?: string
+  dream?: string
 }
 
 export type StageParameters = {

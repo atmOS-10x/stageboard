@@ -24,6 +24,7 @@ export const Tickets: Story = {
 }
 ```
 
+- **`dream`:** set only when stageboard asks you to build a page the user drew on the site map; copy the id from the prompt exactly, so the drawn frame turns into your page.
 - **`route`:** the real route pattern, with dynamic segments in brackets. `links` match against it.
 - **`group`:** one column on the canvas. Use the same group names across the app.
 - **Tabs and states of one page:** write extra stories without `page`, or with the same route; they stay in the catalog.

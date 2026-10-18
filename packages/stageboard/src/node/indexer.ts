@@ -4,12 +4,13 @@ import fg from "fast-glob"
 import { storyNameFromExport, titleFromPath, toStoryId, type StoryEntry } from "../core/stories"
 import type { ResolvedConfig } from "./config"
 
-export type IndexedStory = StoryEntry & { absFile: string; hasPage: boolean }
+export type IndexedStory = StoryEntry & { absFile: string; hasPage: boolean; dream?: string }
 
 const DEFAULT_IGNORE = ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/.stageboard/**"]
 
 const EXPORT_RE = /export\s+(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/g
 const TITLE_RE = /\btitle\s*:\s*(["'`])([^"'`]+)\1/
+const DREAM_RE = /\bdream\s*:\s*(["'`])([\w-]+)\1/
 const STORY_NAME_RE = /^[^=]*=\s*\{[\s\S]*?\bname\s*:\s*(["'`])([^"'`]+)\1/
 
 function storyBlock(source: string, start: number): string {
@@ -37,7 +38,9 @@ export function indexFile(config: ResolvedConfig, absFile: string): IndexedStory
     const exportName = m[1]
     if (exportName === "default" || exportName.startsWith("__")) continue
     if (/^[a-z]/.test(exportName)) continue
-    const custom = STORY_NAME_RE.exec(storyBlock(source, m.index ?? 0).replace(/^export\s+(?:const|let|var|function)\s+\w+/, ""))?.[2]
+    const block = storyBlock(source, m.index ?? 0)
+    const custom = STORY_NAME_RE.exec(block.replace(/^export\s+(?:const|let|var|function)\s+\w+/, ""))?.[2]
+    const dream = DREAM_RE.exec(block)?.[2]
     out.push({
       id: toStoryId(title, exportName),
       title,
@@ -45,7 +48,8 @@ export function indexFile(config: ResolvedConfig, absFile: string): IndexedStory
       exportName,
       file,
       absFile,
-      hasPage,
+      hasPage: hasPage || Boolean(dream),
+      ...(dream ? { dream } : {}),
     })
   }
   return out

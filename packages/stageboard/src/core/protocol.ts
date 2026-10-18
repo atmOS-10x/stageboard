@@ -33,7 +33,34 @@ export type RegionDescription = {
 
 export type Upload = { id: string; name: string; type: string; url: string; path: string }
 
-export type ChangeRequestKind = "variants" | "edit" | "adopt"
+export type ChangeRequestKind = "variants" | "edit" | "adopt" | "page"
+
+export type Point = { x: number; y: number }
+
+export type SketchOp =
+  | { type: "move"; selector: string; components: ComponentFrame[]; text?: string; from: Region; to: Region }
+  | { type: "text"; selector: string; components: ComponentFrame[]; before: string; after: string }
+  | { type: "block"; rect: Region; color: string; label?: string }
+  | { type: "component"; rect: Region; storyId: string; title: string }
+  | { type: "stroke"; points: Point[]; color: string; width: number }
+
+export type Sketch = { ops: SketchOp[]; viewport: { width: number; height: number }; scroll: Point }
+
+export type DreamStatus = "rendering" | "done" | "failed"
+
+export type Dream = {
+  id: string
+  name?: string
+  prompt: string
+  parent?: string
+  position: Point
+  status: DreamStatus
+  jobId?: string
+  storyId?: string
+  createdAt: string
+}
+
+export type DreamRequest = { name?: string; prompt: string; parent?: string; parentUrl?: string; position: Point; attachments?: string[] }
 
 export type ChangeRequest = {
   kind: ChangeRequestKind
@@ -43,6 +70,8 @@ export type ChangeRequest = {
   adoptKey?: string
   attachments?: string[]
   showVariants?: boolean
+  sketch?: Sketch
+  dream?: Dream
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled"
@@ -66,6 +95,8 @@ export type Job = {
   summary?: string
   attachments?: Upload[]
   selectionImage?: string
+  sketchImage?: string
+  dream?: string
 }
 
 export type VariantMeta = {
@@ -89,6 +120,7 @@ export type BridgeState = {
   selections: Record<string, string>
   jobs: Job[]
   variants: VariantFile[]
+  dreams: Dream[]
 }
 
 export const ORIGINAL = "original"

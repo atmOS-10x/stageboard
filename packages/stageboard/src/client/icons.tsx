@@ -103,3 +103,54 @@ export function ImageIcon(props: { size?: number }) {
     </Icon>
   )
 }
+
+export function PointerIcon(props: { size?: number }) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 2.5l9 4.2-3.9 1.1-1.6 3.7z" />
+    </Icon>
+  )
+}
+
+export function PenIcon(props: { size?: number }) {
+  return (
+    <Icon {...props}>
+      <path d="M10.5 2.8l2.7 2.7-7.6 7.6-3.3.6.6-3.3z" />
+      <path d="M9.2 4.1l2.7 2.7" />
+    </Icon>
+  )
+}
+
+export function SquareIcon(props: { size?: number }) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="3.5" width="11" height="9" rx="1.6" />
+    </Icon>
+  )
+}
+
+export function ComponentIcon(props: { size?: number }) {
+  return (
+    <Icon {...props}>
+      <path d="M8 1.8l2.4 2.4L8 6.6 5.6 4.2zM8 9.4l2.4 2.4L8 14.2l-2.4-2.4zM4.2 5.6l2.4 2.4-2.4 2.4L1.8 8zM11.8 5.6L14.2 8l-2.4 2.4L9.4 8z" />
+    </Icon>
+  )
+}
+
+export function UndoIcon(props: { size?: number }) {
+  return (
+    <Icon {...props}>
+      <path d="M5.5 4L2.5 7l3 3" />
+      <path d="M2.8 7h6.7a4 4 0 0 1 0 8H8" />
+    </Icon>
+  )
+}
+
+export function SketchIcon(props: { size?: number }) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 11.5c1.6-3 3.2-4.4 4.6-4.4 1.6 0 1 3.2 2.6 3.2 1.1 0 2-1.3 3.8-4.8" />
+      <path d="M2.5 13.5h11" />
+    </Icon>
+  )
+}

@@ -131,7 +131,7 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
   const { surface } = draft
 
   const empty = !note.trim() && items.length === 0
-  const canSend = Boolean(note.trim()) && connected && phase === "idle"
+  const canSend = (Boolean(note.trim()) || Boolean(draft.sketch)) && connected && phase === "idle"
   const preview = placement?.preview
   const previewSrc = preview ? previewUrl(base, draft) : undefined
 
@@ -146,7 +146,7 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
   const uploadedKey = uploaded.map((u) => u.id).join(",")
   useEffect(() => {
     if (phase !== "idle") return
-    saveDraft({ surfaceKey: surface.key, region: draft.region, viewport: draft.viewport, scroll: draft.scroll, note, attachments: uploaded })
+    saveDraft({ surfaceKey: surface.key, region: draft.region, viewport: draft.viewport, scroll: draft.scroll, sketch: draft.sketch, note, attachments: uploaded })
   }, [note, uploadedKey, draft, phase])
 
   useEffect(() => setPreviewLoaded(false), [previewSrc])
@@ -184,7 +184,7 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
       const variant = surface.variant
       const change: ChangeRequest = {
         kind: mode,
-        note: note.trim(),
+        note: note.trim() || "Make the page look like my sketch.",
         count: mode === "variants" ? count : 1,
         target: {
           url: surface.url,
@@ -200,6 +200,7 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
         },
         attachments: uploads.filter((u): u is Upload => Boolean(u)).map((u) => u.id),
         showVariants: Boolean(variant),
+        ...(draft.sketch ? { sketch: draft.sketch } : {}),
       }
       const job = await submitChangeRequest(change)
       setPhase("leaving")
@@ -318,7 +319,15 @@ export function Composer({ draft, onClose, onSent }: { draft: Draft; onClose: ()
             className="sbu-composer-input"
             rows={2}
             value={note}
-            placeholder={mode === "variants" ? "What should the variants explore?" : "What should change here?"}
+            placeholder={
+              draft.sketch
+                ? mode === "variants"
+                  ? `${draft.sketch.ops.length} sketched change${draft.sketch.ops.length === 1 ? "" : "s"} · anything the variants should explore?`
+                  : `${draft.sketch.ops.length} sketched change${draft.sketch.ops.length === 1 ? "" : "s"} · anything to add? (optional)`
+                : mode === "variants"
+                  ? "What should the variants explore?"
+                  : "What should change here?"
+            }
             onChange={(e) => setNote(e.target.value)}
             onPaste={onPaste}
             disabled={phase !== "idle"}

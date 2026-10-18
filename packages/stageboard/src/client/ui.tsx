@@ -8,7 +8,8 @@ import { Canvas, type PageNode } from "./canvas"
 import { Composer } from "./composer"
 import { clearDraft, readDraft, type StoredDraft } from "./draft-store"
 import { Gallery } from "./gallery"
-import { AnnotateIcon, InspectIcon, LayersIcon } from "./icons"
+import { AnnotateIcon, InspectIcon, LayersIcon, SketchIcon } from "./icons"
+import { clearSketch, SketchLayer } from "./sketch"
 import { PinDetails } from "./pins"
 import { uiCss } from "./styles"
 import { resolveStory, type ClientEntry, type Loaders, type StoryModule } from "./types"
@@ -139,6 +140,7 @@ function App({ index, loaders, base }: UIOptions) {
   const [theme, setTheme] = useState<"light" | "dark" | undefined>()
   const [inspecting, setInspectingState] = useState(false)
   const [annotating, setAnnotatingState] = useState(false)
+  const [sketching, setSketching] = useState(false)
   const [draft, setDraft] = useState<Draft>()
   const [restore, setRestore] = useState<StoredDraft | undefined>(readDraft)
   const [openPin, setOpenPin] = useState<string>()
@@ -165,8 +167,10 @@ function App({ index, loaders, base }: UIOptions) {
   const setAnnotating = useCallback((next: boolean | ((v: boolean) => boolean)) => {
     setAnnotatingState((v) => {
       const on = typeof next === "function" ? next(v) : next
-      if (on) setInspectingState(false)
-      else setDraft(undefined)
+      if (on) {
+        setInspectingState(false)
+        setSketching(false)
+      } else setDraft(undefined)
       return on
     })
   }, [])
@@ -182,6 +186,10 @@ function App({ index, loaders, base }: UIOptions) {
         return
       }
       if (key === "a" || key === "A") setAnnotating((v) => !v)
+      if ((key === "s" || key === "S") && parseHash().view === "story") {
+        setAnnotatingState(false)
+        setSketching((v) => !v)
+      }
       if (key === "Escape") {
         setInspecting(false)
         setAnnotating(false)
@@ -237,11 +245,11 @@ function App({ index, loaders, base }: UIOptions) {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.code === "KeyC") setInspecting((v) => !v)
       if (e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return
-      if (e.key === "a" || e.key === "A" || e.key === "Escape") keyAction(e.key)
+      if (["a", "A", "s", "S"].includes(e.key) || (e.key === "Escape" && !sketching)) keyAction(e.key)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [keyAction, setInspecting])
+  }, [keyAction, setInspecting, sketching])
 
   useEffect(() => {
     fetchUsedVariants(base).then((known) => setUsed((u) => ({ ...known, ...u })))
@@ -255,6 +263,7 @@ function App({ index, loaders, base }: UIOptions) {
     setRestore(undefined)
     setDraft(undefined)
     setOpenPin(undefined)
+    setSketching(false)
   }, [routeKey])
 
   const begin = useCallback((next: Draft) => {
@@ -281,7 +290,14 @@ function App({ index, loaders, base }: UIOptions) {
     }
   }, [draft?.surface, draft?.scroll])
 
-  const onSent = useCallback(() => setDraft(undefined), [])
+  const onSent = useCallback(() => {
+    const sent = draftRef.current
+    if (sent?.sketch) {
+      clearSketch(sent.surface.storyId)
+      setSketching(false)
+    }
+    setDraft(undefined)
+  }, [])
 
   const current = route.view === "story" ? index.find((s) => s.id === route.id) : undefined
   const storySurface = useMemo<Surface | undefined>(
@@ -296,6 +312,7 @@ function App({ index, loaders, base }: UIOptions) {
       },
     [current, frameUrl],
   )
+  const componentStories = useMemo(() => index.filter((s) => !s.hasPage), [index])
   const galleryRows = current
     ? (used[current.id] ?? []).filter((id) => variantFiles.some((v) => v.of === id)).length
     : 0
@@ -365,6 +382,23 @@ function App({ index, loaders, base }: UIOptions) {
                 Show variants
                 {galleryRows > 0 && <span className="sbu-count">{galleryRows}</span>}
               </button>
+              {!gallery && (
+                <button
+                  className="sbu-btn"
+                  data-on={sketching}
+                  aria-pressed={sketching}
+                  onClick={() => {
+                    setAnnotatingState(false)
+                    setDraft(undefined)
+                    setSketching((v) => !v)
+                  }}
+                  title="Move, resize and retype things, draw, drop in components, then let the agent build it · S"
+                >
+                  <SketchIcon size={13} />
+                  Sketch
+                  <span className="sbu-key">S</span>
+                </button>
+              )}
               <span className="sbu-tool-gap" />
               {!gallery && WIDTHS.map((w) => (
                 <button key={w.label} className="sbu-btn" data-on={width === w.value} onClick={() => setWidth(w.value)}>
@@ -393,6 +427,16 @@ function App({ index, loaders, base }: UIOptions) {
                   onLoad={() => storyFrame.current?.contentWindow?.postMessage({ source: "stageboard", type: "pick", on: inspecting }, "*")}
                 />
                 {storySurface && !gallery && <AnnotationLayer surface={storySurface} />}
+                {storySurface && !gallery && sketching && (
+                  <SketchLayer
+                    key={current.id}
+                    surface={storySurface}
+                    components={componentStories}
+                    paused={Boolean(draft)}
+                    onExit={() => setSketching(false)}
+                    onReconcile={(sketch, region) => setDraft({ surface: storySurface, region, viewport: sketch.viewport, scroll: sketch.scroll, sketch })}
+                  />
+                )}
               </div>
             </div>
             {gallery && storySurface && (

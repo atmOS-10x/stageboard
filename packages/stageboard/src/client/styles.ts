@@ -59,6 +59,74 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .sbu-edges path { fill: none; stroke: rgba(185,168,255,.45); stroke-width: 2; }
 .sbu-edges path[data-hot="true"] { stroke: #3d9ff0; stroke-width: 3; }
+.sbu-edges path[data-dream="true"] { stroke: rgba(150,132,255,.75); stroke-dasharray: 6 6; animation: sbu-dash 1.2s linear infinite; }
+@keyframes sbu-dash { to { stroke-dashoffset: -24; } }
+.sbu-node-add {
+  position: absolute; right: 0; z-index: 4; width: 26px; height: 26px; translate: 50% -50%; scale: calc(1 / max(var(--sbu-k, 1), .5));
+  display: grid; place-items: center; padding: 0; border-radius: 999px; cursor: grab; font: 500 16px/1 system-ui;
+  color: #cfc6ff; background: #1d1b2a; border: 1px solid rgba(165,150,255,.45); box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  opacity: 0; transition: opacity .15s ease, background .15s ease;
+}
+.sbu-node:hover .sbu-node-add, .sbu-node-add:focus-visible { opacity: 1; }
+.sbu-node-add:hover { background: #2a2540; color: #fff; }
+.sbu-node-add:active { cursor: grabbing; }
+.sbu-dream { background: #16151d; box-shadow: 0 0 0 1px rgba(150,132,255,.35), 0 18px 40px rgba(0,0,0,.45); }
+.sbu-dream[data-pending="true"] { box-shadow: 0 0 0 1.5px rgba(150,132,255,.8), 0 24px 60px rgba(0,0,0,.55); z-index: 5; }
+.sbu-dream[data-failed="true"] { box-shadow: 0 0 0 1px rgba(211,162,148,.45), 0 18px 40px rgba(0,0,0,.45); }
+.sbu-dream .sbu-node-head .sbu-icon { margin-left: auto; width: 22px; height: 22px; }
+.sbu-dream .sbu-node-title { flex: 1; min-width: 0; color: #d8d4ef; }
+.sbu-dream-name { flex: 1; min-width: 0; height: 24px; padding: 0 4px; border: 0; outline: none; background: transparent; color: #f2f2f5; font: inherit; font-weight: 500; }
+.sbu-dream-name::placeholder { color: #8a84a8; }
+.sbu-dream-body { position: relative; overflow: hidden; border-radius: 0 0 12px 12px; background: #16151e; }
+.sbu-waves { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sbu-dream-card {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; padding: 8px;
+  border-radius: 16px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.5);
+}
+.sbu-dream-prompt { display: block; width: 100%; min-height: 64px; resize: none; border: 0; outline: none; background: transparent; color: #f2f2f5; font: inherit; font-size: 13.5px; line-height: 20px; padding: 4px 6px; box-sizing: border-box; }
+.sbu-dream-prompt::placeholder { color: #6c6c77; }
+.sbu-dream-bar { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding-left: 6px; }
+.sbu-dream-status {
+  position: absolute; left: 50%; bottom: 14px; translate: -50% 0; scale: calc(1 / max(var(--sbu-k, 1), .5)); transform-origin: 50% 100%;
+  display: inline-flex; align-items: center; gap: 10px; padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+  background: rgba(20,19,28,.82); border: 1px solid rgba(255,255,255,.1); color: #d9d6ee; font-size: 12px;
+}
+.sbu-dream-reveal { position: absolute; left: 0; right: 0; z-index: 3; overflow: hidden; border-radius: 0 0 12px 12px; pointer-events: none; }
+.sbu-sketch { position: absolute; inset: 0; z-index: 4; border-radius: 10px; overflow: hidden; }
+.sbu-sketch-catch { position: absolute; inset: 0; cursor: default; touch-action: none; box-shadow: inset 0 0 0 1.5px rgba(150,132,255,.55); border-radius: inherit; }
+.sbu-sketch[data-tool="pen"] .sbu-sketch-catch { cursor: crosshair; }
+.sbu-sketch[data-tool="block"] .sbu-sketch-catch { cursor: cell; }
+.sbu-sketch-hover { position: absolute; pointer-events: none; outline: 1px solid rgba(150,132,255,.7); background: rgba(150,132,255,.06); }
+.sbu-sketch-sel { position: absolute; pointer-events: none; outline: 1.5px solid #8d7af6; }
+.sbu-sketch-label { position: absolute; left: -1.5px; bottom: 100%; margin-bottom: 4px; padding: 2px 7px; border-radius: 6px; background: #8d7af6; color: #fff; font: 500 11px/16px ui-monospace, Menlo, monospace; white-space: nowrap; }
+.sbu-sketch-handle { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border-radius: 2px; background: #fff; box-shadow: 0 0 0 1.5px #8d7af6; pointer-events: auto; }
+.sbu-sketch-handle[data-corner="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+.sbu-sketch-handle[data-corner="ne"] { left: 100%; top: 0; cursor: nesw-resize; }
+.sbu-sketch-handle[data-corner="sw"] { left: 0; top: 100%; cursor: nesw-resize; }
+.sbu-sketch-handle[data-corner="se"] { left: 100%; top: 100%; cursor: nwse-resize; }
+.sbu-sketch-edit { position: absolute; box-sizing: border-box; padding: 2px 6px; border: 0; border-radius: 4px; outline: 2px solid #8d7af6; background: #fff; color: #111; font: inherit; font-size: 14px; pointer-events: auto; }
+.sbu-sketch-bar {
+  position: absolute; left: 50%; bottom: 16px; translate: -50% 0; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px;
+  border-radius: 14px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.45); white-space: nowrap;
+}
+.sbu-sketch-tool { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: #9a9aa5; cursor: pointer; transition: background .12s ease, color .12s ease; }
+.sbu-sketch-tool:hover:not(:disabled) { background: rgba(255,255,255,.06); color: #e8e8ee; }
+.sbu-sketch-tool[data-on="true"] { background: rgba(141,122,246,.22); color: #d9d2ff; }
+.sbu-sketch-tool:disabled { opacity: .35; cursor: default; }
+.sbu-sketch-sep { width: 1px; height: 18px; margin: 0 4px; background: rgba(255,255,255,.1); }
+.sbu-sketch-count { padding: 0 10px 0 6px; font-size: 12px; color: #8a8a95; }
+.sbu-sketch-go { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 14px; border: 0; border-radius: 10px; background: #ebebf0; color: #17171c; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
+.sbu-sketch-go:disabled { opacity: .3; cursor: default; }
+.sbu-sketch-palette {
+  position: absolute; right: 12px; top: 12px; bottom: 70px; z-index: 6; width: 260px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  border-radius: 14px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.45);
+}
+.sbu-sketch-filter { height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04); color: #ececf1; font: inherit; font-size: 12.5px; outline: none; }
+.sbu-sketch-palette ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.sbu-sketch-palette li > button { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: #e4e4ea; font: inherit; font-size: 12.5px; text-align: left; cursor: grab; }
+.sbu-sketch-palette li > button:hover { background: rgba(255,255,255,.06); }
+.sbu-sketch-palette .sbu-dim { font-size: 11.5px; }
+.sbu-sketch-ghost { position: fixed; z-index: 70; translate: -50% -50%; padding: 8px 12px; border-radius: 10px; background: rgba(141,122,246,.92); color: #fff; font-size: 12px; font-weight: 500; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 .sbu-hud { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; background: rgba(18,18,22,.9); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 4px; }
 .sbu-hud button { border: 0; background: transparent; color: #d0d0d8; padding: 4px 8px; border-radius: 6px; cursor: pointer; font: inherit; }
 .sbu-hud button:hover { background: rgba(255,255,255,.07); }

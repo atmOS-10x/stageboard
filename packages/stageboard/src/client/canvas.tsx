@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react"
 import type { PageParameters } from "stageboard"
+import { useStageboard } from "stageboard/react"
 import { AnnotationLayer, type Surface } from "./annotate"
 import { storyUrl } from "./api"
+import { DreamCard, DreamNode, markReveal, pendingReveals } from "./dreams"
 import { Thumb } from "./thumb"
+import { WaveCanvas } from "./waves"
 import type { ClientEntry } from "./types"
 
 export type PageNode = { entry: ClientEntry; page: PageParameters }
@@ -129,6 +132,41 @@ export function Canvas({
   const [ready, setReady] = useState<Set<string>>(() => new Set())
   const auto = useMemo(() => autoLayout(nodes), [nodes])
   const pos = useCallback((id: string) => saved[id] ?? auto[id] ?? { x: 0, y: 0 }, [saved, auto])
+  const dreams = useStageboard((s) => s.dreams)
+  const [pending, setPending] = useState<{ parent: string; position: Pos }>()
+  const [dragged, setDragged] = useState<Record<string, Pos>>({})
+  const [revealing, setRevealing] = useState<Set<string>>(() => new Set())
+  const realized = useMemo(() => new Map(nodes.filter((n) => n.page.dream).map((n) => [n.page.dream!, n.entry.id])), [nodes])
+  const openDreams = dreams.filter((d) => !realized.has(d.id))
+  const dreamPos = (id: string, fallback: Pos) => dragged[id] ?? fallback
+
+  useEffect(() => {
+    const placed: Record<string, Pos> = {}
+    for (const d of dreams) {
+      const id = realized.get(d.id)
+      if (id && !saved[id]) placed[id] = d.position
+    }
+    if (Object.keys(placed).length) setSaved((s) => ({ ...s, ...placed }))
+    const waiting = pendingReveals().filter((id) => realized.has(id))
+    if (waiting.length) {
+      waiting.forEach((id) => markReveal(id, false))
+      setRevealing((r) => new Set([...r, ...waiting.map((id) => realized.get(id)!)]))
+    }
+  }, [dreams, realized])
+
+  const freeSpot = useCallback(
+    (parent: string): Pos => {
+      const p = pos(parent)
+      const taken = [...nodes.map((n) => pos(n.entry.id)), ...openDreams.map((d) => d.position)]
+      const clear = (c: Pos) => !taken.some((t) => Math.abs(t.x - c.x) < NODE_W && Math.abs(t.y - c.y) < NODE_H)
+      for (let i = 0; i < 12; i++) {
+        const right = { x: p.x + NODE_W + GAP_X, y: p.y + i * (NODE_H + GAP_Y) }
+        if (clear(right)) return right
+      }
+      return { x: p.x, y: p.y + NODE_H + GAP_Y }
+    },
+    [pos, nodes, openDreams],
+  )
 
   useEffect(() => {
     localStorage.setItem(STORAGE, JSON.stringify(saved))
@@ -203,6 +241,19 @@ export function Canvas({
     return () => el.removeEventListener("wheel", onWheel)
   }, [])
 
+  const pendingKey = pending ? `${pending.parent}:${Math.round(pending.position.x)}:${Math.round(pending.position.y)}` : ""
+  useEffect(() => {
+    const el = ref.current
+    if (!pending || !el) return
+    setView((v) => {
+      const k = Math.max(v.k, Math.min(1.1, (el.clientWidth * 0.6) / NODE_W))
+      if (v.k >= k) return v
+      const cx = pending.position.x + NODE_W / 2
+      const cy = pending.position.y + NODE_H / 2
+      return { k, x: el.clientWidth / 2 - cx * k, y: el.clientHeight / 2 - cy * k }
+    })
+  }, [pendingKey])
+
   const zoomBy = (factor: number) => {
     const el = ref.current
     const cx = (el?.clientWidth ?? 0) / 2
@@ -223,6 +274,29 @@ export function Canvas({
       setPanning(false)
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+  }
+
+  const onAddDrag = (parent: string, e: RPointerEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const el = ref.current!
+    const rect = el.getBoundingClientRect()
+    const toWorld = (cx: number, cy: number) => ({ x: (cx - rect.left - view.x) / view.k - 24, y: (cy - rect.top - view.y) / view.k - NODE_H / 2 })
+    const start = { x: e.clientX, y: e.clientY }
+    let moved = false
+    setPending(undefined)
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return
+      moved = true
+      setPending({ parent, position: toWorld(ev.clientX, ev.clientY) })
+    }
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+      setPending({ parent, position: moved ? toWorld(ev.clientX, ev.clientY) : freeSpot(parent) })
     }
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerup", up)
@@ -296,6 +370,27 @@ export function Canvas({
     return [...seen.entries()]
   }, [nodes, pos])
 
+  const dreamEdge = (parent: string | undefined, to: Pos, key: string) => {
+    if (!parent || !nodes.some((n) => n.entry.id === parent)) return []
+    const a = pos(parent)
+    const x1 = a.x + NODE_W
+    const y1 = a.y + NODE_H / 2
+    const below = to.x < a.x + NODE_W
+    if (below) {
+      const ax = a.x + NODE_W / 2
+      const ay = a.y + NODE_H
+      const bx = to.x + NODE_W / 2
+      return [{ key, d: `M${ax},${ay} C${ax},${ay + 50} ${bx},${to.y - 50} ${bx},${to.y}` }]
+    }
+    const y2 = to.y + NODE_H / 2
+    const dx = Math.max(60, Math.abs(to.x - x1) / 2)
+    return [{ key, d: `M${x1},${y1} C${x1 + dx},${y1} ${to.x - dx},${y2} ${to.x},${y2}` }]
+  }
+  const dreamEdges = [
+    ...openDreams.flatMap((d) => dreamEdge(d.parent, dreamPos(d.id, d.position), `dream:${d.id}`)),
+    ...(pending ? dreamEdge(pending.parent, pending.position, "dream:pending") : []),
+  ]
+
   const edges = nodes.flatMap((n) =>
     (n.page.links ?? [])
       .map((link) => findByRoute(nodes, link))
@@ -344,6 +439,9 @@ export function Canvas({
           {edges.map((e) => (
             <path key={e.key} d={e.d} data-hot={hotEdge === e.key} markerEnd="url(#sbu-arrow)" />
           ))}
+          {dreamEdges.map((e) => (
+            <path key={e.key} d={e.d} data-dream="true" markerEnd="url(#sbu-arrow)" />
+          ))}
         </svg>
         {groupLabels.map(([group, p]) => (
           <div key={group} className="sbu-group-label" style={{ left: p.x, top: p.y - 64 }}>
@@ -387,14 +485,62 @@ export function Canvas({
                   />
                 )}
               </div>
+              {revealing.has(n.entry.id) && (
+                <div className="sbu-dream-reveal" style={{ top: HEAD_H, height: BODY_H }}>
+                  <WaveCanvas mode="reveal" onDone={() => setRevealing((r) => new Set([...r].filter((x) => x !== n.entry.id)))} />
+                </div>
+              )}
               <AnnotationLayer
                 surface={surfaces.get(n.entry.id)!}
                 viewport={FRAME}
                 style={{ top: HEAD_H, height: BODY_H, bottom: "auto" }}
               />
+              {!annotating && (
+                <button
+                  type="button"
+                  className="sbu-node-add"
+                  style={{ top: HEAD_H + BODY_H / 2 }}
+                  onPointerDown={(e) => onAddDrag(n.entry.id, e)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setPending({ parent: n.entry.id, position: freeSpot(n.entry.id) })
+                    }
+                  }}
+                  title="Drag out a new page"
+                  aria-label={`New page from ${n.page.title ?? n.entry.title}`}
+                >
+                  +
+                </button>
+              )}
             </div>
           )
         })}
+        {openDreams.map((d) => (
+          <DreamNode
+            key={d.id}
+            dream={d}
+            position={dreamPos(d.id, d.position)}
+            width={NODE_W}
+            bodyHeight={BODY_H}
+            headHeight={HEAD_H}
+            zoom={view.k}
+            underlay={d.parent ? thumbUrl(d.parent) : undefined}
+            onMove={(p) => setDragged((m) => ({ ...m, [d.id]: p }))}
+          />
+        ))}
+        {pending && (
+          <DreamCard
+            key={`${pending.parent}`}
+            parent={pending.parent}
+            parentUrl={surfaces.get(pending.parent)?.url}
+            position={pending.position}
+            width={NODE_W}
+            bodyHeight={BODY_H}
+            headHeight={HEAD_H}
+            onClose={() => setPending(undefined)}
+          />
+        )}
       </div>
       <div className="sbu-hud" onPointerDown={(e) => e.stopPropagation()}>
         <button onClick={fit}>Fit</button>
@@ -405,7 +551,7 @@ export function Canvas({
           {Math.round(view.k * 100)}%
         </span>
       </div>
-      {!annotating && <div className="sbu-hint">Scroll to pan · ⌘/Ctrl + scroll to zoom · double-click a page to dive in</div>}
+      {!annotating && <div className="sbu-hint">Scroll to pan · ⌘/Ctrl + scroll to zoom · double-click a page to dive in · drag + to draw a new page</div>}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { Region, Upload } from "stageboard"
+import type { Region, Sketch, Upload } from "stageboard"
 import type { Viewport } from "./api"
 
 export type ComposerMode = "variants" | "edit"
@@ -8,6 +8,7 @@ export type StoredDraft = {
   region: Region
   viewport: Viewport
   scroll?: { x: number; y: number }
+  sketch?: Sketch
   note: string
   attachments: Upload[]
   savedAt: number

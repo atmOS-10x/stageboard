@@ -1,4 +1,4 @@
-import type { ChangeRequest, Job } from "../core/protocol"
+import type { ChangeRequest, Job, Region, SketchOp } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
 
 function pageContext(request: ChangeRequest) {
@@ -54,7 +54,7 @@ stageboard picks the file up automatically and the user sees it live in the vari
 function contextSection(job: Job, request: ChangeRequest): string {
   const t = request.target
   const lines: string[] = []
-  if (t.region && t.storyId) {
+  if (t.region && t.storyId && !request.sketch) {
     lines.push(
       "## What the user marked",
       `They dragged a rectangle over story \`${t.storyId}\` at x=${Math.round(t.region.x)}, y=${Math.round(t.region.y)}, ${Math.round(t.region.width)}×${Math.round(t.region.height)} px in a ${t.viewport.width}×${t.viewport.height} viewport.`,
@@ -96,14 +96,74 @@ const MCP_HINT = [
   "If the `stageboard` MCP server is connected, use its tools: `list_stories`, `screenshot` (story, optional variants, region or full page), `list_variants`, `compare_variants` and `select_variant` and `complete_job`. They work without the app running. Otherwise use the `npx stageboard` CLI described below.",
 ].join("\n")
 
+function box(r: Region): string {
+  return `x=${Math.round(r.x)}, y=${Math.round(r.y)}, ${Math.round(r.width)}×${Math.round(r.height)}`
+}
+
+function describeOp(op: SketchOp): string {
+  const who = (c: { name: string }[]) => (c.length ? ` (\`${c.slice(0, 3).map((f) => f.name).join(" ← ")}\`)` : "")
+  if (op.type === "move") {
+    const resized = op.to.width !== op.from.width || op.to.height !== op.from.height
+    return `- Moved${resized ? " and resized" : ""} the element \`${op.selector}\`${who(op.components)}${op.text ? ` showing "${op.text.slice(0, 60)}"` : ""} from ${box(op.from)} to ${box(op.to)}.`
+  }
+  if (op.type === "text") return `- Changed the text of \`${op.selector}\`${who(op.components)} from "${op.before}" to "${op.after}".`
+  if (op.type === "block") return `- Drew a ${op.color} block at ${box(op.rect)}${op.label ? ` labelled "${op.label}"` : ""}: something should go there.`
+  if (op.type === "component") return `- Placed the existing component from story \`${op.storyId}\` (${op.title}) at ${box(op.rect)}: reuse that component there.`
+  const xs = op.points.map((p) => p.x)
+  const ys = op.points.map((p) => p.y)
+  return `- Drew a freehand ${op.color} mark around x=${Math.round(Math.min(...xs))}–${Math.round(Math.max(...xs))}, y=${Math.round(Math.min(...ys))}–${Math.round(Math.max(...ys))}.`
+}
+
+function sketchSection(job: Job, request: ChangeRequest): string {
+  const sketch = request.sketch
+  if (!sketch?.ops.length) return ""
+  const lines = [
+    "## The user's sketch",
+    `They edited the live page directly in a ${sketch.viewport.width}×${sketch.viewport.height} viewport scrolled to x=${Math.round(sketch.scroll.x)}, y=${Math.round(sketch.scroll.y)} (coordinates below are page pixels). Nothing was changed in code; this is the state they want:`,
+    ...sketch.ops.map(describeOp),
+  ]
+  if (job.selectionImage) lines.push(`Before: \`${job.selectionImage}\`.`)
+  if (job.sketchImage) lines.push(`After, with the sketch applied: \`${job.sketchImage}\`. Open both before you start.`)
+  lines.push(
+    "Treat moves and resizes as layout intent, not pixel offsets: change the layout (order, grid, flex, sizes) so the page looks like the sketch at every width. Blocks and freehand marks are rough placeholders for what the note asks for. Text edits may be placeholders too; use them unless the note says otherwise.",
+  )
+  return lines.join("\n")
+}
+
+function pagePrompt(job: Job, request: ChangeRequest): string[] {
+  const dream = request.dream!
+  const parent = request.target.storyId
+  return [
+    `Create a new page in this app${dream.name ? ` called "${dream.name}"` : ""}.`,
+    "",
+    `What the user asked for: ${dream.prompt}`,
+    "",
+    parent
+      ? `They drew it out of the page story \`${parent}\` on the stageboard site map, so it belongs next to that page: same shell, navigation and layout, reached from it.${job.selectionImage ? ` A screenshot of that page is at \`${job.selectionImage}\`; open it first.` : ""}`
+      : "They drew it on the stageboard site map.",
+    "",
+    "## What to build",
+    "1. The page itself as real app code, following the project's conventions for pages and routes (look at how the parent page is built and routed). Reuse existing components; keep strings, data access and styling in the project's patterns.",
+    "2. A page story so it appears on the site map, next to the parent's page story (read that story file and copy how it renders a page with mock data):",
+    `   \`parameters: { page: { route: "<its route>", title: "<page title>", group: "<the parent's group>", links: [...], dream: "${dream.id}" } }\` — the \`dream\` id is how stageboard swaps the drawn frame for your page, so it must be exactly \`${dream.id}\`.`,
+    "3. Add the new route to the parent page story's `links` (and real navigation to it in the app, if the request implies one).",
+    "Render the new story with `npx stageboard shot <story-id> --width 1440` and look at it until it is right.",
+  ]
+}
+
 export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeRequest): string {
   const target = request.target
   const top = target.components[0]
   const lines: string[] = []
 
-  if (request.kind === "variants") {
+  const sketched = Boolean(request.sketch?.ops.length)
+  if (request.kind === "page") {
+    lines.push(...pagePrompt(job, request))
+  } else if (request.kind === "variants") {
     lines.push(
-      `Create ${job.count} distinct design variant${job.count === 1 ? "" : "s"} of the \`${top?.name ?? target.tag}\` component the user pointed at.`,
+      sketched
+        ? `Create ${job.count} distinct design variant${job.count === 1 ? "" : "s"} of the part of the page the user sketched over, each taking the sketch below as its direction.`
+        : `Create ${job.count} distinct design variant${job.count === 1 ? "" : "s"} of the \`${top?.name ?? target.tag}\` component the user pointed at.`,
       "",
       `What the user asked for: ${request.note}`,
       "",
@@ -124,7 +184,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     }
   } else if (request.kind === "edit") {
     lines.push(
-      `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,
+      sketched ? "Make the page match the user's sketch below, directly in place." : `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,
       "",
       `What the user asked for: ${request.note}`,
     )
@@ -136,8 +196,10 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     )
   }
 
-  const context = contextSection(job, request)
+  const context = request.kind === "page" ? "" : contextSection(job, request)
   if (context) lines.push("", context)
+  const sketch = sketchSection(job, request)
+  if (sketch) lines.push("", sketch)
   lines.push("", MCP_HINT)
   lines.push("", shotHint(config, job, request))
   lines.push(

@@ -5,6 +5,8 @@ import {
   variantKeyFromFile,
   type BridgeState,
   type ChangeRequest,
+  type Dream,
+  type DreamRequest,
   type Job,
   type VariantFile,
   type VariantMeta,
@@ -30,6 +32,7 @@ type Snapshot = {
   selections: Record<string, string>
   overrides: Record<string, string>
   jobs: Job[]
+  dreams: Dream[]
   serverVariants: VariantFile[]
   registry: Record<string, RegisteredVariant[]>
   connected: boolean
@@ -57,6 +60,7 @@ function createStore(): Store {
       selections: readLocalSelections(),
       overrides: readUrlOverrides(),
       jobs: [],
+      dreams: [],
       serverVariants: [],
       registry: {},
       connected: false,
@@ -80,7 +84,7 @@ function store(): Store {
 function emit(next: Partial<Snapshot>) {
   const s = store()
   s.snapshot = { ...s.snapshot, ...next }
-  if ("registry" in next || "serverVariants" in next || "jobs" in next || "connected" in next) {
+  if ("registry" in next || "serverVariants" in next || "jobs" in next || "dreams" in next || "connected" in next) {
     s.serverSnapshot = hydrationSnapshot(s.snapshot)
   }
   s.listeners.forEach((l) => l())
@@ -209,6 +213,24 @@ export async function submitChangeRequest(change: ChangeRequest): Promise<Job> {
   return job
 }
 
+export async function createDream(input: DreamRequest): Promise<Dream> {
+  const dream = await request<Dream>("/dreams", { method: "POST", body: JSON.stringify(input) })
+  emit({ dreams: [...getSnapshot().dreams.filter((d) => d.id !== dream.id), dream] })
+  schedulePoll(300)
+  return dream
+}
+
+export async function updateDream(id: string, patch: { position?: { x: number; y: number }; retry?: boolean }) {
+  await request(`/dreams/${id}`, { method: "POST", body: JSON.stringify(patch) })
+  schedulePoll(100)
+}
+
+export async function removeDream(id: string) {
+  emit({ dreams: getSnapshot().dreams.filter((d) => d.id !== id) })
+  await request(`/dreams/${id}/remove`, { method: "POST" })
+  schedulePoll(100)
+}
+
 export async function cancelJob(id: string) {
   await request(`/jobs/${id}/cancel`, { method: "POST" })
   schedulePoll(100)
@@ -221,6 +243,7 @@ function applyState(state: BridgeState) {
   emit({
     selections: state.selections,
     jobs: state.jobs,
+    dreams: state.dreams ?? [],
     serverVariants: state.variants,
     connected: true,
     version: state.version,

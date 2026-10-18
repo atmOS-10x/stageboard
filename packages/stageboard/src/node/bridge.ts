@@ -3,16 +3,18 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
-import type { BridgeState, ChangeRequest, Job, VariantFile } from "../core/protocol"
+import type { BridgeState, ChangeRequest, Dream, DreamRequest, Job, VariantFile } from "../core/protocol"
 import { createRequire } from "node:module"
 import { createProvider, type AgentProvider, type AgentRun, type McpLaunch } from "./agents"
 import type { ResolvedConfig } from "./config"
+import { buildIndex } from "./indexer"
 import { buildPrompt } from "./prompt"
 import type { Thumbnailer } from "./thumbs"
 import { readUpload, writeUpload } from "./uploads"
 import { scanVariants, writeVariantsModule } from "./variants"
 
 type Persisted = { selections: Record<string, string>; jobs: Job[] }
+type Board = { dreams: Dream[] }
 
 const MAX_LOG = 60
 const MAX_JOBS = 100
@@ -31,6 +33,7 @@ export class Bridge {
   private completions = new Map<string, (result: { ok: boolean; error?: string }) => void>()
   private provider: AgentProvider
   private stateFile: string
+  private boardFile: string
   private rescanTimer?: ReturnType<typeof setTimeout>
   private listeners = new Set<() => void>()
   private renderer?: Thumbnailer
@@ -40,7 +43,8 @@ export class Bridge {
     fs.mkdirSync(config.stateDir, { recursive: true })
     this.stateFile = path.join(config.stateDir, "state.json")
     const persisted = this.load()
-    this.state = { version: 1, selections: persisted.selections, jobs: persisted.jobs, variants: [] }
+    this.boardFile = path.join(config.root, "stageboard", "board.json")
+    this.state = { version: 1, selections: persisted.selections, jobs: persisted.jobs, variants: [], dreams: this.loadBoard().dreams }
     this.provider = createProvider(config.agent)
     this.agentCwd = gitRoot(config.root)
     for (const job of this.state.jobs) {
@@ -48,6 +52,9 @@ export class Bridge {
         job.status = "failed"
         job.error = "stageboard restarted while the agent was running"
       }
+    }
+    for (const dream of this.state.dreams) {
+      if (dream.status === "rendering" && !this.state.jobs.some((j) => j.id === dream.jobId && (j.status === "running" || j.status === "queued"))) dream.status = "failed"
     }
   }
 
@@ -58,6 +65,21 @@ export class Bridge {
     } catch {
       return { selections: {}, jobs: [] }
     }
+  }
+
+  private loadBoard(): Board {
+    try {
+      const raw = JSON.parse(fs.readFileSync(this.boardFile, "utf8"))
+      return { dreams: raw.dreams ?? [] }
+    } catch {
+      return { dreams: [] }
+    }
+  }
+
+  private saveBoard() {
+    fs.mkdirSync(path.dirname(this.boardFile), { recursive: true })
+    const board: Board = { dreams: this.state.dreams }
+    fs.writeFileSync(this.boardFile, JSON.stringify(board, null, 2) + "\n")
   }
 
   private save() {
@@ -152,6 +174,7 @@ export class Bridge {
       count: request.kind === "variants" ? Math.min(Math.max(request.count ?? 3, 1), 6) : 1,
       variantId: request.target.variantId,
       target: request.target,
+      ...(request.dream ? { dream: request.dream.id } : {}),
       provider: this.provider.name,
       createdAt: now,
       updatedAt: now,
@@ -167,6 +190,8 @@ export class Bridge {
   private async enrich(job: Job, request: ChangeRequest) {
     job.attachments = (request.attachments ?? []).map((id) => readUpload(this.config, id)).filter((u): u is NonNullable<typeof u> => Boolean(u))
     const target = request.target
+    if (request.kind === "page") return this.enrichPage(job, request)
+    if (request.sketch) return this.enrichSketch(job, request)
     if (!this.renderer || !target.storyId || !target.region) return
     const variants = target.variantKeys ?? {}
     const viewport = target.viewport?.width ? { width: target.viewport.width, height: target.viewport.height } : {}
@@ -197,6 +222,100 @@ export class Bridge {
     this.bump()
   }
 
+  private async enrichPage(job: Job, request: ChangeRequest) {
+    const parent = request.target.storyId
+    if (!this.renderer || !parent) return
+    try {
+      const png = await this.renderer.shot(parent, { width: 1440, height: 900 })
+      job.selectionImage = writeUpload(this.config, png, "image/png", `parent-${job.id}.png`).path
+    } catch (e) {
+      this.log(job, `Could not capture the parent page: ${(e as Error).message.slice(0, 160)}`)
+    }
+    this.bump()
+  }
+
+  private async enrichSketch(job: Job, request: ChangeRequest) {
+    const { target, sketch } = request
+    if (!this.renderer || !target.storyId || !sketch) return
+    const { viewport, scroll } = sketch
+    const region = { x: scroll.x, y: scroll.y, width: viewport.width, height: viewport.height }
+    const base = { variants: target.variantKeys ?? {}, width: viewport.width, height: viewport.height, region }
+    try {
+      job.selectionImage = writeUpload(this.config, await this.renderer.shot(target.storyId, base), "image/png", `before-${job.id}.png`).path
+      job.sketchImage = writeUpload(this.config, await this.renderer.shot(target.storyId, { ...base, sketch }), "image/png", `sketch-${job.id}.png`).path
+    } catch (e) {
+      this.log(job, `Could not render the sketch: ${(e as Error).message.slice(0, 160)}`)
+    }
+    this.bump()
+  }
+
+  private async settleDream(job: Job, ok: boolean) {
+    const dream = this.state.dreams.find((d) => d.id === job.dream)
+    if (!dream) return
+    const story = (await buildIndex(this.config)).find((s) => s.dream === dream.id)
+    if (story) dream.storyId = story.id
+    dream.status = ok && story ? "done" : "failed"
+    if (ok && !story) this.log(job, `The agent finished but no story declares page.dream "${dream.id}"`)
+    this.saveBoard()
+  }
+
+  async createDream(input: DreamRequest): Promise<Dream> {
+    const dream: Dream = {
+      id: randomUUID().slice(0, 8),
+      name: input.name?.trim() || undefined,
+      prompt: input.prompt.trim(),
+      parent: input.parent,
+      position: input.position,
+      status: "rendering",
+      createdAt: new Date().toISOString(),
+    }
+    this.state.dreams.push(dream)
+    await this.startDream(dream, input.parentUrl, input.attachments)
+    return dream
+  }
+
+  private async startDream(dream: Dream, parentUrl?: string, attachments?: string[]) {
+    dream.status = "rendering"
+    dream.storyId = undefined
+    const job = await this.createJob({
+      kind: "page",
+      note: dream.name ? `${dream.name}: ${dream.prompt}` : dream.prompt,
+      dream,
+      attachments,
+      target: {
+        url: parentUrl ?? "",
+        selector: "",
+        tag: "page",
+        rect: { x: 0, y: 0, width: 1440, height: 900 },
+        viewport: { width: 1440, height: 900 },
+        components: [],
+        storyId: dream.parent,
+      },
+    })
+    dream.jobId = job.id
+    this.saveBoard()
+    this.bump()
+  }
+
+  updateDream(id: string, patch: { position?: { x: number; y: number }; retry?: boolean }) {
+    const dream = this.state.dreams.find((d) => d.id === id)
+    if (!dream) return undefined
+    if (patch.position) dream.position = patch.position
+    if (patch.retry && dream.status === "failed") void this.startDream(dream)
+    this.saveBoard()
+    this.bump()
+    return dream
+  }
+
+  removeDream(id: string) {
+    const dream = this.state.dreams.find((d) => d.id === id)
+    if (!dream) return
+    if (dream.jobId && this.runs.has(dream.jobId)) this.cancel(dream.jobId)
+    this.state.dreams = this.state.dreams.filter((d) => d.id !== id)
+    this.saveBoard()
+    this.bump()
+  }
+
   private async run(job: Job, request: ChangeRequest) {
     await this.enrich(job, request)
     const prompt = buildPrompt(this.config, job, request)
@@ -216,9 +335,11 @@ export class Bridge {
       await this.refreshVariants()
       job.status = result.ok ? "done" : "failed"
       job.error = result.error
+      if (job.dream) await this.settleDream(job, result.ok)
     } catch (e) {
       job.status = "failed"
       job.error = (e as Error).message
+      if (job.dream) await this.settleDream(job, false)
     } finally {
       this.runs.delete(job.id)
       this.completions.delete(job.id)
@@ -242,6 +363,11 @@ export class Bridge {
     if (!job) return
     job.status = "cancelled"
     this.runs.get(id)?.cancel()
+    const dream = this.state.dreams.find((d) => d.jobId === id && d.status === "rendering")
+    if (dream) {
+      dream.status = "failed"
+      this.saveBoard()
+    }
     this.bump()
   }
 
@@ -275,6 +401,24 @@ export class Bridge {
         const body = (await readJson(req)) as ChangeRequest
         if (!body?.note || !body?.target) return send(400, { error: "note and target are required" }), true
         send(200, await this.createJob(body))
+        return true
+      }
+      if (req.method === "POST" && pathname === "/dreams") {
+        const body = (await readJson(req)) as DreamRequest
+        if (!body?.prompt?.trim() || !body.position) return send(400, { error: "prompt and position are required" }), true
+        send(200, await this.createDream(body))
+        return true
+      }
+      const dreamRoute = /^\/dreams\/([\w-]+)(\/remove)?$/.exec(pathname)
+      if (req.method === "POST" && dreamRoute) {
+        if (dreamRoute[2]) {
+          this.removeDream(dreamRoute[1])
+          send(200, { ok: true })
+          return true
+        }
+        const dream = this.updateDream(dreamRoute[1], await readJson(req))
+        if (!dream) return send(404, { error: `no dream ${dreamRoute[1]}` }), true
+        send(200, dream)
         return true
       }
       const cancel = /^\/jobs\/([\w-]+)\/cancel$/.exec(pathname)

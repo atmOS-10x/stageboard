@@ -1,6 +1,6 @@
 import { Component, createElement, useEffect, type ComponentType, type CSSProperties, type ReactNode } from "react"
 import { createRoot } from "react-dom/client"
-import { describeRegion, mountDevtools, setVariantOverrides, startBridge } from "stageboard/react"
+import { describeRegion, installSketch, mountDevtools, setVariantOverrides, startBridge } from "stageboard/react"
 import type { Decorator, StoryContext } from "stageboard"
 import { resolveStory, type ClientEntry, type Loaders, type PreviewModule, type StoryModule } from "./types"
 
@@ -99,7 +99,7 @@ function forwardShortcuts() {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
     const el = e.target as HTMLElement | null
     if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return
-    if (e.key !== "a" && e.key !== "A" && e.key !== "Escape") return
+    if (!["a", "A", "s", "S", "Escape"].includes(e.key)) return
     window.parent?.postMessage({ source: "stageboard", type: "key", key: e.key }, "*")
   })
 }
@@ -147,6 +147,7 @@ export async function renderFrame(container: HTMLElement | null, options: FrameO
   const shot = params.has("sb-shot")
   const holder = container as HTMLElement & { __sbRoot?: ReturnType<typeof createRoot> }
   const root = (holder.__sbRoot ??= createRoot(container))
+  installSketch(options.base ?? "/__stageboard")
   if (!shot) {
     startBridge(options.base)
     mountDevtools({ base: options.base, embedded: params.has("sb-embed") })

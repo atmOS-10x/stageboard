@@ -3,7 +3,7 @@ import fs from "node:fs"
 import type { ServerResponse } from "node:http"
 import path from "node:path"
 import type { Browser, Page } from "playwright-core"
-import { API_BASE, type BridgeState, type Region, type RegionDescription } from "../core/protocol"
+import { API_BASE, type BridgeState, type Region, type RegionDescription, type Sketch } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
 import { settle } from "./settle"
 import { launchBrowser } from "./shot"
@@ -22,6 +22,7 @@ export type ShotRequest = RenderOptions & {
   full?: boolean
   region?: Region
   format?: "png" | "jpeg"
+  sketch?: Sketch
 }
 
 const CONCURRENCY = 2
@@ -207,6 +208,11 @@ export class Thumbnailer {
     return this.schedule(async () => {
       const page = await this.openStory(id, request)
       try {
+        if (request.sketch) {
+          await page.evaluate((ops) => (window as any).__stageboard_sketch?.apply(ops), request.sketch.ops)
+          await page.waitForFunction(() => Array.from(document.querySelectorAll<HTMLIFrameElement>("#__sb-sketch iframe")).every((f) => (f.contentWindow as any)?.__STAGEBOARD_READY__), undefined, { timeout: 20_000 }).catch(() => {})
+          await settle(page)
+        }
         const type = request.format ?? "png"
         if (request.region) {
           const r = request.region
