@@ -4,6 +4,7 @@ import { useStageboard } from "stageboard/react"
 import { AnnotationLayer, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { DreamCard, DreamNode, markReveal, pendingReveals } from "./dreams"
+import { MapSketchScreen, MapSketchWorld, useMapSketch, type MapFrame } from "./map-sketch"
 import { Thumb } from "./thumb"
 import { WaveCanvas } from "./waves"
 import type { ClientEntry } from "./types"
@@ -105,12 +106,35 @@ function readPositions(): Record<string, Pos> {
   }
 }
 
+export function SiteMapLoading({ entries }: { entries: ClientEntry[] }) {
+  const shown = entries.slice(0, 12)
+  return (
+    <div className="sbu-canvas sbu-map-loading" role="status" aria-label={`Loading ${entries.length} pages`}>
+      <div className="sbu-map-loading-grid">
+        {shown.map((e, i) => (
+          <div key={e.id} className="sbu-node sbu-dream" style={{ position: "relative", animationDelay: `${i * 40}ms` }}>
+            <div className="sbu-node-head">
+              <span className="sbu-node-title">{e.name}</span>
+            </div>
+            <div className="sbu-dream-body" style={{ aspectRatio: `${FRAME_W} / ${FRAME_H}` }}>
+              <WaveCanvas mode="render" fps={30} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="sbu-hint">Loading {entries.length} page{entries.length === 1 ? "" : "s"}…</div>
+    </div>
+  )
+}
+
 export function Canvas({
   nodes,
   frameUrl,
   thumbUrl,
   inspecting,
   annotating,
+  sketching = false,
+  onSketchExit = () => {},
   onOpen,
   registerFrame,
 }: {
@@ -119,6 +143,8 @@ export function Canvas({
   thumbUrl: (id: string) => string
   inspecting: boolean
   annotating: boolean
+  sketching?: boolean
+  onSketchExit?: () => void
   onOpen: (id: string) => void
   registerFrame: (id: string, el: HTMLIFrameElement | null) => void
 }) {
@@ -342,6 +368,23 @@ export function Canvas({
     })
   }, [liveIds])
 
+  const mapFrames = useMemo<MapFrame[]>(
+    () =>
+      nodes.map((n) => {
+        const p = pos(n.entry.id)
+        return {
+          storyId: n.entry.id,
+          title: n.page.title ?? `${n.entry.title} / ${n.entry.name}`,
+          route: n.page.route,
+          rect: { x: p.x, y: p.y + HEAD_H, width: NODE_W, height: BODY_H },
+          scale: SCALE,
+          frame: { x: p.x, y: p.y, width: NODE_W, height: NODE_H },
+        }
+      }),
+    [nodes, pos],
+  )
+  const mapSketch = useMapSketch({ host: ref, view, frames: mapFrames, active: sketching, onExit: onSketchExit })
+
   const surfaces = useMemo(
     () =>
       new Map(
@@ -495,7 +538,7 @@ export function Canvas({
                 viewport={FRAME}
                 style={{ top: HEAD_H, height: BODY_H, bottom: "auto" }}
               />
-              {!annotating && (
+              {!annotating && !sketching && (
                 <button
                   type="button"
                   className="sbu-node-add"
@@ -529,6 +572,7 @@ export function Canvas({
             onMove={(p) => setDragged((m) => ({ ...m, [d.id]: p }))}
           />
         ))}
+        <MapSketchWorld s={mapSketch} k={view.k} active={sketching} />
         {pending && (
           <DreamCard
             key={`${pending.parent}`}
@@ -542,6 +586,7 @@ export function Canvas({
           />
         )}
       </div>
+      {sketching && <MapSketchScreen s={mapSketch} onExit={onSketchExit} />}
       <div className="sbu-hud" onPointerDown={(e) => e.stopPropagation()}>
         <button onClick={fit}>Fit</button>
         <button onClick={() => zoomBy(1.25)}>+</button>
@@ -551,7 +596,7 @@ export function Canvas({
           {Math.round(view.k * 100)}%
         </span>
       </div>
-      {!annotating && <div className="sbu-hint">Scroll to pan · ⌘/Ctrl + scroll to zoom · double-click a page to dive in · drag + to draw a new page</div>}
+      {!annotating && !sketching && <div className="sbu-hint">Scroll to pan · ⌘/Ctrl + scroll to zoom · double-click a page to dive in · drag + to draw a new page</div>}
     </div>
   )
 }

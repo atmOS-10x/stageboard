@@ -78,6 +78,9 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-dream-name { flex: 1; min-width: 0; height: 24px; padding: 0 4px; border: 0; outline: none; background: transparent; color: #f2f2f5; font: inherit; font-weight: 500; }
 .sbu-dream-name::placeholder { color: #8a84a8; }
 .sbu-dream-body { position: relative; overflow: hidden; border-radius: 0 0 12px 12px; background: #16151e; }
+.sbu-map-loading { cursor: default; display: grid; place-items: center; padding: 40px; overflow: auto; }
+.sbu-map-loading-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 28px; width: min(1100px, 100%); }
+.sbu-map-loading-grid .sbu-node { animation: sbu-rise .3s ease both; }
 .sbu-waves { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .sbu-dream-card {
   position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; padding: 8px;
@@ -92,6 +95,22 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
   background: rgba(20,19,28,.82); border: 1px solid rgba(255,255,255,.1); color: #d9d6ee; font-size: 12px;
 }
 .sbu-dream-reveal { position: absolute; left: 0; right: 0; z-index: 3; overflow: hidden; border-radius: 0 0 12px 12px; pointer-events: none; }
+.sbu-msk-svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 6; }
+.sbu-msk-svg path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.sbu-msk-svg[data-active="false"] path { opacity: .55; }
+.sbu-msk-svg path[data-selected="true"] { filter: drop-shadow(0 0 4px rgba(141,122,246,.9)); }
+.sbu-msk-note { position: absolute; z-index: 6; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; color: #26232f; font: 500 16px/1.35 system-ui, sans-serif; white-space: pre-wrap; overflow: hidden; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.sbu-msk-note[data-selected="true"] { outline: 3px solid #8d7af6; outline-offset: 2px; }
+.sbu-msk-label { position: absolute; z-index: 7; translate: -50% -50%; padding: .2em .6em; border-radius: 999px; background: #1d1b2a; border: 1px solid rgba(165,150,255,.5); color: #e4e0ff; white-space: nowrap; pointer-events: none; }
+.sbu-msk-edit { position: absolute; z-index: 8; box-sizing: border-box; padding: 0 .5em; border: 0; border-radius: 6px; outline: 2px solid #8d7af6; background: #fff; color: #111; font-family: system-ui, sans-serif; }
+.sbu-msk-target { position: absolute; z-index: 5; border-radius: 12px; box-shadow: 0 0 0 3px #8d7af6, 0 0 30px rgba(141,122,246,.45); pointer-events: none; }
+.sbu-msk-catch { position: absolute; inset: 0; z-index: 5; cursor: crosshair; touch-action: none; }
+.sbu-msk-catch[data-tool="select"] { cursor: default; }
+.sbu-msk-catch[data-tool="block"] { cursor: cell; }
+.sbu-msk-compose {
+  position: absolute; left: 50%; bottom: 72px; translate: -50% 0; z-index: 7; width: min(440px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 8px;
+  border-radius: 16px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.5); animation: sbu-composer-in .22s cubic-bezier(.32,.72,0,1) both;
+}
 .sbu-sketch { position: absolute; inset: 0; z-index: 4; border-radius: 10px; overflow: hidden; }
 .sbu-sketch-catch { position: absolute; inset: 0; cursor: default; touch-action: none; box-shadow: inset 0 0 0 1.5px rgba(150,132,255,.55); border-radius: inherit; }
 .sbu-sketch[data-tool="pen"] .sbu-sketch-catch { cursor: crosshair; }

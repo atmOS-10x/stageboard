@@ -1,4 +1,4 @@
-import type { ChangeRequest, Job, Region, SketchOp } from "../core/protocol"
+import type { ChangeRequest, Job, MapPage, Point, Region, SketchOp } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
 
 function pageContext(request: ChangeRequest) {
@@ -109,6 +109,7 @@ function describeOp(op: SketchOp): string {
   if (op.type === "text") return `- Changed the text of \`${op.selector}\`${who(op.components)} from "${op.before}" to "${op.after}".`
   if (op.type === "block") return `- Drew a ${op.color} block at ${box(op.rect)}${op.label ? ` labelled "${op.label}"` : ""}: something should go there.`
   if (op.type === "component") return `- Placed the existing component from story \`${op.storyId}\` (${op.title}) at ${box(op.rect)}: reuse that component there.`
+  if (op.type === "arrow") return `- Drew an arrow from x=${Math.round(op.from.x)}, y=${Math.round(op.from.y)} to x=${Math.round(op.to.x)}, y=${Math.round(op.to.y)}${op.label ? ` labelled "${op.label}"` : ""}.`
   const xs = op.points.map((p) => p.x)
   const ys = op.points.map((p) => p.y)
   return `- Drew a freehand ${op.color} mark around x=${Math.round(Math.min(...xs))}–${Math.round(Math.max(...xs))}, y=${Math.round(Math.min(...ys))}–${Math.round(Math.max(...ys))}.`
@@ -127,6 +128,52 @@ function sketchSection(job: Job, request: ChangeRequest): string {
   lines.push(
     "Treat moves and resizes as layout intent, not pixel offsets: change the layout (order, grid, flex, sizes) so the page looks like the sketch at every width. Blocks and freehand marks are rough placeholders for what the note asks for. Text edits may be placeholders too; use them unless the note says otherwise.",
   )
+  return lines.join("\n")
+}
+
+function pageAt(pages: MapPage[], p: Point): MapPage | undefined {
+  return pages.find((g) => p.x >= g.rect.x && p.x <= g.rect.x + g.rect.width && p.y >= g.rect.y && p.y <= g.rect.y + g.rect.height)
+}
+
+function nearest(pages: MapPage[], p: Point): string {
+  const best = [...pages].sort((a, b) => Math.hypot(a.rect.x + a.rect.width / 2 - p.x, a.rect.y + a.rect.height / 2 - p.y) - Math.hypot(b.rect.x + b.rect.width / 2 - p.x, b.rect.y + b.rect.height / 2 - p.y))[0]
+  if (!best) return "on empty canvas"
+  const cx = best.rect.x + best.rect.width / 2
+  const cy = best.rect.y + best.rect.height / 2
+  const side = Math.abs(p.x - cx) > Math.abs(p.y - cy) ? (p.x > cx ? "right of" : "left of") : p.y > cy ? "below" : "above"
+  return `on empty canvas ${side} \`${best.route}\` (${best.title})`
+}
+
+const named = (g: MapPage) => `\`${g.route}\` (${g.title}, story \`${g.storyId}\`)`
+
+function mapSection(job: Job, request: ChangeRequest): string {
+  const map = request.map
+  if (!map?.ops.length) return ""
+  const byId = new Map(map.pages.map((g) => [g.storyId, g]))
+  const lines = ["## What the user sketched on the site map", "The site map shows every page as a frame. They drew over it, without opening any page:"]
+  for (const op of map.ops) {
+    if (op.type === "arrow") {
+      const from = (op.fromStory && byId.get(op.fromStory)) || pageAt(map.pages, op.from)
+      const to = (op.toStory && byId.get(op.toStory)) || pageAt(map.pages, op.to)
+      const label = op.label ? ` labelled "${op.label}"` : ""
+      if (from && to && from !== to) lines.push(`- An arrow from ${named(from)} to ${named(to)}${label}: the user wants to get from the first page to the second. Add that navigation in the app (a link, button or menu entry where it fits) and add the route to the first page story's \`links\`.`)
+      else if (from && !to) lines.push(`- An arrow out of ${named(from)} pointing ${nearest(map.pages, op.to)}${label}: something should lead from that page to whatever the note describes there.`)
+      else if (!from && to) lines.push(`- An arrow ${nearest(map.pages, op.from)} pointing into ${named(to)}${label}.`)
+      else lines.push(`- An arrow ${nearest(map.pages, op.from)}${label}.`)
+    } else if (op.type === "block") {
+      const on = pageAt(map.pages, { x: op.rect.x + op.rect.width / 2, y: op.rect.y + op.rect.height / 2 })
+      const text = op.label ? ` reading "${op.label}"` : ""
+      lines.push(on ? `- A block${text} on ${named(on)} (see its sketch screenshots below).` : `- A note${text} ${nearest(map.pages, { x: op.rect.x + op.rect.width / 2, y: op.rect.y + op.rect.height / 2 })}. A block on empty canvas next to a page can mean a new page there; build one only if the note or the user's message asks for it.`)
+    } else if (op.type === "stroke") {
+      const mid = op.points[Math.floor(op.points.length / 2)] ?? { x: 0, y: 0 }
+      const on = pageAt(map.pages, mid)
+      lines.push(on ? `- Freehand marks on ${named(on)} (see its sketch screenshots below).` : `- Freehand marks ${nearest(map.pages, mid)}.`)
+    }
+  }
+  for (const img of job.pageImages ?? []) {
+    lines.push(`- ${img.title} (\`${img.storyId}\`): before \`${img.before ?? "n/a"}\`, with the marks drawn on it \`${img.after ?? "n/a"}\`.`)
+  }
+  lines.push("Arrows are navigation, notes are instructions; marks on a page point at the part of that page the note is about. Open every screenshot before you start.")
   return lines.join("\n")
 }
 
@@ -157,6 +204,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
   const lines: string[] = []
 
   const sketched = Boolean(request.sketch?.ops.length)
+  const mapped = Boolean(request.map?.ops.length)
   if (request.kind === "page") {
     lines.push(...pagePrompt(job, request))
   } else if (request.kind === "variants") {
@@ -184,7 +232,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     }
   } else if (request.kind === "edit") {
     lines.push(
-      sketched ? "Make the page match the user's sketch below, directly in place." : `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,
+      mapped ? "Change the app as the user sketched it on the stageboard site map (below), directly in place." : sketched ? "Make the page match the user's sketch below, directly in place." : `Change the \`${top?.name ?? target.tag}\` component the user pointed at, directly in place.`,
       "",
       `What the user asked for: ${request.note}`,
     )
@@ -196,10 +244,12 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     )
   }
 
-  const context = request.kind === "page" ? "" : contextSection(job, request)
+  const context = request.kind === "page" || mapped ? "" : contextSection(job, request)
   if (context) lines.push("", context)
   const sketch = sketchSection(job, request)
   if (sketch) lines.push("", sketch)
+  const map = mapSection(job, request)
+  if (map) lines.push("", map)
   lines.push("", MCP_HINT)
   lines.push("", shotHint(config, job, request))
   lines.push(

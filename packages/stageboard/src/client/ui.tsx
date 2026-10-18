@@ -4,7 +4,7 @@ import { devtoolsCss, Panel, startBridge, useStageboard } from "stageboard/react
 import type { ElementTarget } from "stageboard"
 import { AnnotateProvider, AnnotationLayer, useDismissedPins, type Draft, type Surface } from "./annotate"
 import { fetchUsedVariants, storyUrl } from "./api"
-import { Canvas, type PageNode } from "./canvas"
+import { Canvas, SiteMapLoading, type PageNode } from "./canvas"
 import { Composer } from "./composer"
 import { clearDraft, readDraft, type StoredDraft } from "./draft-store"
 import { Gallery } from "./gallery"
@@ -45,11 +45,13 @@ function useRoute(): [Route, (r: Route) => void] {
   return [route, go]
 }
 
-function usePages(index: ClientEntry[], loaders: Loaders): PageNode[] {
+function usePages(index: ClientEntry[], loaders: Loaders): { pages: PageNode[]; loading: boolean } {
   const [pages, setPages] = useState<PageNode[]>([])
+  const [loading, setLoading] = useState(() => index.some((s) => s.hasPage))
   useEffect(() => {
     let cancelled = false
     const candidates = index.filter((s) => s.hasPage)
+    setLoading(candidates.length > 0)
     const files = [...new Set(candidates.map((s) => s.file))]
     Promise.all(
       files.map(async (file) => {
@@ -70,12 +72,13 @@ function usePages(index: ClientEntry[], loaders: Loaders): PageNode[] {
         if (page?.route) out.push({ entry, page })
       }
       setPages(out)
+      setLoading(false)
     })
     return () => {
       cancelled = true
     }
   }, [index, loaders])
-  return pages
+  return { pages, loading }
 }
 
 function Mark() {
@@ -141,6 +144,7 @@ function App({ index, loaders, base }: UIOptions) {
   const [inspecting, setInspectingState] = useState(false)
   const [annotating, setAnnotatingState] = useState(false)
   const [sketching, setSketching] = useState(false)
+  const [mapSketching, setMapSketching] = useState(false)
   const [draft, setDraft] = useState<Draft>()
   const [restore, setRestore] = useState<StoredDraft | undefined>(readDraft)
   const [openPin, setOpenPin] = useState<string>()
@@ -150,7 +154,7 @@ function App({ index, loaders, base }: UIOptions) {
   const [target, setTarget] = useState<ElementTarget>()
   const frames = useRef(new Map<string, HTMLIFrameElement>())
   const storyFrame = useRef<HTMLIFrameElement>(null)
-  const pages = usePages(index, loaders)
+  const { pages, loading: pagesLoading } = usePages(index, loaders)
   const activeJobs = useStageboard((s) => s.jobs.filter((j) => j.status === "running" || j.status === "queued").length)
   const connected = useStageboard((s) => s.connected)
   const variantFiles = useStageboard((s) => s.serverVariants)
@@ -170,6 +174,7 @@ function App({ index, loaders, base }: UIOptions) {
       if (on) {
         setInspectingState(false)
         setSketching(false)
+        setMapSketching(false)
       } else setDraft(undefined)
       return on
     })
@@ -186,9 +191,10 @@ function App({ index, loaders, base }: UIOptions) {
         return
       }
       if (key === "a" || key === "A") setAnnotating((v) => !v)
-      if ((key === "s" || key === "S") && parseHash().view === "story") {
+      if (key === "s" || key === "S") {
         setAnnotatingState(false)
-        setSketching((v) => !v)
+        if (parseHash().view === "story") setSketching((v) => !v)
+        else setMapSketching((v) => !v)
       }
       if (key === "Escape") {
         setInspecting(false)
@@ -245,11 +251,11 @@ function App({ index, loaders, base }: UIOptions) {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.code === "KeyC") setInspecting((v) => !v)
       if (e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return
-      if (["a", "A", "s", "S"].includes(e.key) || (e.key === "Escape" && !sketching)) keyAction(e.key)
+      if (["a", "A", "s", "S"].includes(e.key) || (e.key === "Escape" && !sketching && !mapSketching)) keyAction(e.key)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [keyAction, setInspecting, sketching])
+  }, [keyAction, setInspecting, sketching, mapSketching])
 
   useEffect(() => {
     fetchUsedVariants(base).then((known) => setUsed((u) => ({ ...known, ...u })))
@@ -264,6 +270,7 @@ function App({ index, loaders, base }: UIOptions) {
     setDraft(undefined)
     setOpenPin(undefined)
     setSketching(false)
+    setMapSketching(false)
   }, [routeKey])
 
   const begin = useCallback((next: Draft) => {
@@ -337,6 +344,22 @@ function App({ index, loaders, base }: UIOptions) {
           <InspectIcon size={13} />
           Inspect
         </button>
+        {route.view === "canvas" && (
+          <button
+            className="sbu-btn"
+            data-on={mapSketching}
+            aria-pressed={mapSketching}
+            onClick={() => {
+              setAnnotatingState(false)
+              setMapSketching((v) => !v)
+            }}
+            title="Draw on the site map: link screens with arrows, leave notes, mark up pages · S"
+          >
+            <SketchIcon size={13} />
+            Sketch
+            <span className="sbu-key">S</span>
+          </button>
+        )}
         <button className="sbu-btn" data-on={annotating} aria-pressed={annotating} onClick={() => setAnnotating((v) => !v)} title="Drag over a page to annotate · A">
           <AnnotateIcon size={13} />
           Annotate
@@ -351,13 +374,17 @@ function App({ index, loaders, base }: UIOptions) {
       <AnnotateProvider base={base} active={annotating} draft={draft} restore={restore} onBegin={begin} openPin={openPin} onTogglePin={setOpenPin} dismissed={dismissed}>
       <main className="sbu-main" data-annotating={annotating}>
         {route.view === "canvas" &&
-          (pages.length ? (
+          (pagesLoading && !pages.length ? (
+            <SiteMapLoading entries={index.filter((s) => s.hasPage)} />
+          ) : pages.length ? (
             <Canvas
               nodes={pages}
               frameUrl={frameUrl}
               thumbUrl={thumbUrl}
               inspecting={inspecting}
               annotating={annotating}
+              sketching={mapSketching}
+              onSketchExit={() => setMapSketching(false)}
               onOpen={(id) => go({ view: "story", id })}
               registerFrame={(id, el) => (el ? frames.current.set(id, el) : frames.current.delete(id))}
             />

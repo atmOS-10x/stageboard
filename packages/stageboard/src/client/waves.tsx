@@ -45,7 +45,7 @@ function height(x: number, y: number, w: number, t: number): number {
   return Math.min(1, top + (sum - top) * 0.3)
 }
 
-export function WaveCanvas({ mode, underlay, onDone }: { mode: Mode; underlay?: string; onDone?: () => void }) {
+export function WaveCanvas({ mode, underlay, onDone, fps = 60 }: { mode: Mode; underlay?: string; onDone?: () => void; fps?: number }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const done = useRef(onDone)
   done.current = onDone
@@ -56,9 +56,16 @@ export function WaveCanvas({ mode, underlay, onDone }: { mode: Mode; underlay?: 
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
     const img = underlay ? Object.assign(new Image(), { src: underlay }) : undefined
     const start = performance.now()
+    const frameMs = 1000 / fps - 2
     let raf = 0
+    let last = 0
 
     const draw = (now: number) => {
+      if (mode === "render" && last && now - last < frameMs) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
+      last = now
       const dpr = devicePixelRatio || 1
       const w = canvas.clientWidth
       const h = canvas.clientHeight
@@ -112,7 +119,7 @@ export function WaveCanvas({ mode, underlay, onDone }: { mode: Mode; underlay?: 
     }
     raf = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(raf)
-  }, [mode, underlay])
+  }, [mode, underlay, fps])
 
   return <canvas ref={ref} className="sbu-waves" data-mode={mode} aria-hidden="true" />
 }

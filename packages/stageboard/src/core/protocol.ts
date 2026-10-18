@@ -43,8 +43,15 @@ export type SketchOp =
   | { type: "block"; rect: Region; color: string; label?: string }
   | { type: "component"; rect: Region; storyId: string; title: string }
   | { type: "stroke"; points: Point[]; color: string; width: number }
+  | { type: "arrow"; from: Point; to: Point; color: string; width?: number; label?: string; fromStory?: string; toStory?: string }
 
 export type Sketch = { ops: SketchOp[]; viewport: { width: number; height: number }; scroll: Point }
+
+export type MapPage = { storyId: string; title: string; route: string; rect: Region; scale: number }
+
+export type MapSketch = { ops: SketchOp[]; pages: MapPage[] }
+
+export type PageImages = { storyId: string; title: string; before?: string; after?: string }
 
 export type DreamStatus = "rendering" | "done" | "failed"
 
@@ -71,6 +78,7 @@ export type ChangeRequest = {
   attachments?: string[]
   showVariants?: boolean
   sketch?: Sketch
+  map?: MapSketch
   dream?: Dream
 }
 
@@ -96,6 +104,7 @@ export type Job = {
   attachments?: Upload[]
   selectionImage?: string
   sketchImage?: string
+  pageImages?: PageImages[]
   dream?: string
 }
 

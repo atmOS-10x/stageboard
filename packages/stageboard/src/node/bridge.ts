@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
-import type { BridgeState, ChangeRequest, Dream, DreamRequest, Job, VariantFile } from "../core/protocol"
+import type { BridgeState, ChangeRequest, Dream, DreamRequest, Job, MapPage, PageImages, Point, SketchOp, VariantFile } from "../core/protocol"
 import { createRequire } from "node:module"
 import { createProvider, type AgentProvider, type AgentRun, type McpLaunch } from "./agents"
 import type { ResolvedConfig } from "./config"
@@ -192,6 +192,7 @@ export class Bridge {
     const target = request.target
     if (request.kind === "page") return this.enrichPage(job, request)
     if (request.sketch) return this.enrichSketch(job, request)
+    if (request.map) return this.enrichMap(job, request)
     if (!this.renderer || !target.storyId || !target.region) return
     const variants = target.variantKeys ?? {}
     const viewport = target.viewport?.width ? { width: target.viewport.width, height: target.viewport.height } : {}
@@ -246,6 +247,28 @@ export class Bridge {
     } catch (e) {
       this.log(job, `Could not render the sketch: ${(e as Error).message.slice(0, 160)}`)
     }
+    this.bump()
+  }
+
+  private async enrichMap(job: Job, request: ChangeRequest) {
+    const map = request.map
+    if (!this.renderer || !map) return
+    const images: PageImages[] = []
+    for (const page of map.pages) {
+      const ops = toPageOps(map.ops, page)
+      if (!ops.length) continue
+      if (images.length >= 4) break
+      const base = { width: 1440, height: 900, region: { x: 0, y: 0, width: 1440, height: 900 } }
+      const img: PageImages = { storyId: page.storyId, title: page.title }
+      try {
+        img.before = writeUpload(this.config, await this.renderer.shot(page.storyId, base), "image/png", `map-before-${job.id}.png`).path
+        img.after = writeUpload(this.config, await this.renderer.shot(page.storyId, { ...base, sketch: { ops, viewport: { width: 1440, height: 900 }, scroll: { x: 0, y: 0 } } }), "image/png", `map-after-${job.id}.png`).path
+      } catch (e) {
+        this.log(job, `Could not render the marks on ${page.storyId}: ${(e as Error).message.slice(0, 160)}`)
+      }
+      images.push(img)
+    }
+    job.pageImages = images
     this.bump()
   }
 
@@ -448,6 +471,25 @@ export class Bridge {
     }
     return false
   }
+}
+
+function inside(page: MapPage, p: Point): boolean {
+  const r = page.rect
+  return p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height
+}
+
+// Marks drawn over a page's frame on the site map, moved into that page's own pixels.
+function toPageOps(ops: SketchOp[], page: MapPage): SketchOp[] {
+  const at = (p: Point): Point => ({ x: Math.round((p.x - page.rect.x) / page.scale), y: Math.round((p.y - page.rect.y) / page.scale) })
+  const out: SketchOp[] = []
+  for (const op of ops) {
+    if (op.type === "stroke" && op.points.some((p) => inside(page, p))) out.push({ ...op, points: op.points.map(at), width: op.width / page.scale })
+    else if (op.type === "block" && inside(page, { x: op.rect.x + op.rect.width / 2, y: op.rect.y + op.rect.height / 2 })) {
+      const o = at(op.rect)
+      out.push({ ...op, rect: { ...o, width: Math.round(op.rect.width / page.scale), height: Math.round(op.rect.height / page.scale) } })
+    } else if (op.type === "arrow" && inside(page, op.from) && inside(page, op.to)) out.push({ ...op, from: at(op.from), to: at(op.to), width: (op.width ?? 3) / page.scale })
+  }
+  return out
 }
 
 function readJson(req: IncomingMessage): Promise<any> {
