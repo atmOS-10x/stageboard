@@ -31,7 +31,7 @@ export function indexFile(config: ResolvedConfig, absFile: string): IndexedStory
   const defaultBlock = source.slice(source.search(/export\s+default/))
   const titleMatch = source.search(/export\s+default/) >= 0 ? TITLE_RE.exec(defaultBlock) ?? TITLE_RE.exec(source) : TITLE_RE.exec(source)
   const title = titleMatch?.[2] ?? titleFromPath(file)
-  const hasPage = /\bpage\s*:\s*\{/.test(source)
+  const hasPage = /\bpage\s*:\s*\{|\broute\s*:\s*["'`]/.test(source)
   const out: IndexedStory[] = []
   for (const m of source.matchAll(EXPORT_RE)) {
     const exportName = m[1]
