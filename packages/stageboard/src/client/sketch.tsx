@@ -453,7 +453,20 @@ export function SketchLayer({
 
       {palette && (
         <div className="sbu-sketch-palette" onPointerDown={(e) => e.stopPropagation()}>
-          <input className="sbu-sketch-filter" placeholder="Find a component" value={filter} onChange={(e) => setFilter(e.target.value)} autoFocus aria-label="Find a component" />
+          <input
+            className="sbu-sketch-filter"
+            placeholder="Find a component"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Escape" && e.key !== "Enter") return
+              e.stopPropagation()
+              if (e.key === "Enter" && shown[0]) placeComponent(shown[0])
+              else setPalette(false)
+            }}
+            autoFocus
+            aria-label="Find a component"
+          />
           <ul>
             {shown.map((c) => (
               <li key={c.id}>
