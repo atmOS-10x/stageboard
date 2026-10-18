@@ -261,7 +261,8 @@ export class Bridge {
 
   private settleFlow(id: string, ok: boolean) {
     const flow = this.state.flows.find((f) => f.id === id)
-    if (!flow || flow.status !== "assembling") return
+    // A flow a restart failed is ready once its agent reports it done after all.
+    if (!flow || !(flow.status === "assembling" || (ok && flow.status === "failed"))) return
     flow.status = ok ? "ready" : "failed"
     this.saveBoard()
   }
@@ -449,9 +450,21 @@ export class Bridge {
     const job = this.state.jobs.find((j) => j.id === id)
     if (!job) return undefined
     if (report.summary) job.summary = report.summary.slice(0, 2000)
+    const result = report.failed ? { ok: false, error: report.summary || "the agent reported a failure" } : { ok: true }
     const resolve = this.completions.get(id)
-    if (resolve) resolve(report.failed ? { ok: false, error: report.summary || "the agent reported a failure" } : { ok: true })
-    else this.bump()
+    if (resolve) {
+      resolve(result)
+      return job
+    }
+    // No run waits for the report (stageboard restarted while the agent worked on): the report settles the job.
+    if (job.status !== "cancelled") {
+      job.status = result.ok ? "done" : "failed"
+      job.error = result.ok ? undefined : explainFailure(job, result.error)
+      job.updatedAt = new Date().toISOString()
+      if (job.flow) this.settleFlow(job.flow, result.ok)
+    }
+    this.bump()
+    if (job.dream) void this.settleDream(job, result.ok).then(() => this.bump())
     return job
   }
 
