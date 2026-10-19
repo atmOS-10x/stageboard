@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { API_BASE, ORIGINAL, type BridgeState } from "../core/protocol"
 import type { ResolvedConfig } from "./config"
+import { embedFlow } from "./flowembed"
 import { flowOutline, shootFlow } from "./flowshot"
 import { buildIndex } from "./indexer"
 import { createStageboardServer, findRunningServer } from "./server"
@@ -173,7 +174,7 @@ export async function runMcpServer(config: ResolvedConfig) {
     "save_flow",
     {
       description:
-        "Save a user flow for the stageboard Flows view: an ordered list of screens (page story ids). Pass the flow id from your instructions to update it, or omit it to add a new flow. Use `pending` for screens you are still building. Give every step a `note`, and `actions` for what the user does on it. Check them with `flow_grid`.",
+        "Save a user flow for the stageboard Flows view: an ordered list of screens (page story ids). Pass the flow id from your instructions to update it, or omit it to add a new flow. Use `pending` for screens you are still building or only suggest, with `references` showing what they could look like. Give every step a `note`, and `actions` for what the user does on it. Check them with `flow_grid`.",
       inputSchema: {
         flow: z.string().optional().describe("Flow id from your instructions; omit to create a new flow"),
         name: z.string().optional(),
@@ -194,6 +195,17 @@ export async function runMcpServer(config: ResolvedConfig) {
               )
               .optional()
               .describe("What the user does on this screen, in order, played back in the viewer; the last usually leads to the next step"),
+            references: z
+              .array(
+                z.object({
+                  image: z.string().describe("Image URL (http/https) or a path inside the project"),
+                  app: z.string().optional().describe("App the reference comes from, e.g. Linear"),
+                  caption: z.string().optional().describe("What to take from it, one short sentence"),
+                  url: z.string().optional().describe("Where the reference lives, e.g. its Mobbin page"),
+                }),
+              )
+              .optional()
+              .describe("Design references for this screen, e.g. Mobbin screens; a pending step's first reference stands in for the screen"),
           }),
         ),
       },
@@ -219,6 +231,26 @@ export async function runMcpServer(config: ResolvedConfig) {
       const result = await shootFlow(config, { flow, device, theme })
       const image: Image = { type: "image", data: fs.readFileSync(result.file).toString("base64"), mimeType: "image/png" }
       return { content: [{ type: "text", text: `${flowOutline(result)}\n\nSaved to ${result.file}` } satisfies Text, image] }
+    },
+  )
+
+  mcp.registerTool(
+    "flow_embed",
+    {
+      description:
+        "Export a user flow as a self-contained HTML fragment that looks like the Flows view: its screens in a row, opening large on click, with each step's note and references. For hosts that show agent-written HTML inline, such as atmOS visualizations. Returns the file path.",
+      inputSchema: {
+        flow: z.string().describe("Flow id or name from list_flows"),
+        device: z.enum(["desktop", "tablet", "mobile"]).optional(),
+        theme: z.enum(["light", "dark"]).optional(),
+        images: z.enum(["inline", "path"]).optional().describe("inline: data URIs in the file; path: absolute image paths, for hosts that inline local images (atmOS)"),
+        out: z.string().optional().describe("Output .html path"),
+      },
+    },
+    async (input) => {
+      const result = await embedFlow(config, input)
+      const notes = result.errors.length ? `\n${result.errors.join("\n")}` : ""
+      return { content: [{ type: "text", text: `${result.file}\n${result.steps} screens, ${Math.round(result.bytes / 1024)} KiB${notes}` } satisfies Text] }
     },
   )
 
