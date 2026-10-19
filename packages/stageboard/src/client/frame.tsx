@@ -17,6 +17,7 @@ type Win = Window & {
   __STAGEBOARD_ERROR__?: string
   __STAGEBOARD_LAYOUT__?: string
   __STAGEBOARD_ROUTE__?: string
+  __STAGEBOARD_TITLE__?: string
   __STAGEBOARD_PATH__?: string
   __STAGEBOARD_PARAMS__?: RouteParams
 }
@@ -411,6 +412,7 @@ export async function renderFrame(container: HTMLElement | null, options: FrameO
     w.__STAGEBOARD_LAYOUT__ = layout
     const page = parameters.page
     w.__STAGEBOARD_ROUTE__ = page?.route
+    w.__STAGEBOARD_TITLE__ = page?.title
     // What next/navigation's useParams, usePathname and useSearchParams answer: the page's params, from its path if
     // only that is given, and the path from the route with the params filled in otherwise.
     const pageParams = page?.params ?? (page?.route && page.path ? matchRoute(page.route, page.path) : undefined) ?? {}

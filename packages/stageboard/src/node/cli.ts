@@ -9,6 +9,7 @@ import { API_BASE } from "../core/protocol"
 import { loadConfig } from "./config"
 import { buildIndex } from "./indexer"
 import { createStageboardServer, findRunningServer } from "./server"
+import { embedFlow } from "./flowembed"
 import { flowOutline, shootFlow } from "./flowshot"
 import { shoot } from "./shot"
 import { writeVariantsModule } from "./variants"
@@ -100,7 +101,7 @@ cli
     for (const s of index) console.log(`${pc.cyan(s.id.padEnd(48))} ${pc.dim(s.file)}${s.hasPage ? pc.magenta(" page") : ""}`)
   })
 
-cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, flow_grid, list_variants, compare_variants, select_variant, complete_job, save_flow, list_flows)").action(async (opts) => {
+cli.command("mcp", "Run the stageboard MCP server on stdio (tools: list_stories, screenshot, flow_grid, list_variants, compare_variants, select_variant, complete_job, save_flow, list_flows, flow_embed)").action(async (opts) => {
   const config = await loadConfig(process.cwd(), opts.config)
   const { runMcpServer } = await import("./mcp")
   await runMcpServer(config)
@@ -123,11 +124,15 @@ cli
   })
 
 cli
-  .command("flow <action> [arg]", "stageboard flow shot <flow>: every screen of a flow in one grid image; stageboard flow save '<json>': save a flow")
-  .option("--device <device>", "flow shot: desktop, tablet or mobile", { default: "desktop" })
-  .option("--theme <theme>", "flow shot: light or dark")
+  .command(
+    "flow <action> [arg]",
+    "stageboard flow shot <flow>: every screen of a flow in one grid image; stageboard flow embed <flow>: the flow as an HTML fragment for chat hosts; stageboard flow save '<json>': save a flow",
+  )
+  .option("--device <device>", "flow shot, flow embed: desktop, tablet or mobile", { default: "desktop" })
+  .option("--theme <theme>", "flow shot, flow embed: light or dark")
   .option("--cols <n>", "flow shot: screens per row")
-  .option("--out <file>", "flow shot: output PNG path")
+  .option("--images <mode>", "flow embed: inline (data URIs) or path (absolute file paths)", { default: "inline" })
+  .option("--out <file>", "flow shot: output PNG path; flow embed: output HTML path")
   .action(async (action: string, json: string | undefined, opts) => {
     if (action === "shot") {
       if (!json) throw new Error("usage: stageboard flow shot <flow id or name>")
@@ -140,7 +145,19 @@ cli
       console.error(pc.dim(`${result.steps.length} screens · ${(result.durationMs / 1000).toFixed(1)}s`))
       process.exit(0)
     }
-    if (action !== "save" || !json) throw new Error("usage: stageboard flow shot <flow> | stageboard flow save '<json>'")
+    if (action === "embed") {
+      if (!json) throw new Error("usage: stageboard flow embed <flow id or name>")
+      if (!["desktop", "tablet", "mobile"].includes(opts.device)) throw new Error("--device must be desktop, tablet or mobile")
+      if (!["inline", "path"].includes(opts.images)) throw new Error("--images must be inline or path")
+      const config = await loadConfig(process.cwd(), opts.config)
+      const result = await embedFlow(config, { flow: json, device: opts.device, theme: opts.theme, images: opts.images, out: opts.out })
+      for (const e of result.errors) console.error(pc.yellow(e))
+      console.log(result.file)
+      console.error(pc.dim(`${result.steps} screens · ${Math.round(result.bytes / 1024)} KiB`))
+      if (result.bytes > 1024 * 1024 && opts.images === "inline") console.error(pc.yellow("Over 1 MiB: hosts that cap fragments may refuse it; --images path keeps images out of the file"))
+      process.exit(0)
+    }
+    if (action !== "save" || !json) throw new Error("usage: stageboard flow shot <flow> | stageboard flow embed <flow> | stageboard flow save '<json>'")
     const config = await loadConfig(process.cwd(), opts.config)
     const base = await findRunningServer(config)
     if (!base) throw new Error("No running stageboard dev server found")

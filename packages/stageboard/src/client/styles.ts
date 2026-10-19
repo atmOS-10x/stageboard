@@ -171,11 +171,18 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-step-x { position: absolute; top: 6px; right: 6px; z-index: 4; width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px; background: rgba(20,19,28,.85); color: #ddd; cursor: pointer; opacity: 0; transition: opacity .12s ease; }
 .sbu-step:hover .sbu-step-x { opacity: 1; }
 .sbu-step-reveal { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.sbu-ref-shot { position: absolute; inset: 0; display: grid; place-items: center; background: #1a1a20; }
+.sbu-ref-shot img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.sbu-ref-tag { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 999px; background: rgba(20,19,28,.85); color: #d9d9e0; font-size: 11.5px; font-weight: 500; }
+.sbu-refs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; margin: 0; padding: 0; list-style: none; }
+.sbu-refs a, .sbu-refs li > span { display: inline-flex; align-items: center; gap: 8px; max-width: 320px; padding: 4px 10px 4px 4px; border-radius: 10px; background: rgba(255,255,255,.06); color: #d9d9e0; font-size: 12.5px; text-decoration: none; transition: background .12s ease; }
+.sbu-refs a:hover { background: rgba(255,255,255,.1); }
+.sbu-refs img { flex: none; width: 56px; height: 36px; border-radius: 6px; object-fit: cover; object-position: top; box-shadow: 0 0 0 1px rgba(255,255,255,.1); }
+.sbu-refs-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.sbu-refs-app { font-weight: 500; color: #f2f2f5; }
+.sbu-refs-caption { overflow: hidden; color: #a0a0aa; text-overflow: ellipsis; white-space: nowrap; }
 .sbu-add-shot { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 0; border: 1.5px dashed rgba(255,255,255,.14); background: transparent !important; box-shadow: none !important; color: #b9b9c4; font: inherit; font-size: 12.5px; }
 .sbu-add-shot:hover { border-color: rgba(190,176,255,.5); color: #fff; }
-  position: absolute; left: 0; top: 0; z-index: 20; width: max(var(--step-w), 280px); max-height: 360px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
-  border-radius: 14px; background: #18181d; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 16px 40px rgba(0,0,0,.5);
-}
 .sbu-chip { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 999px; background: rgba(255,255,255,.06); color: #b9b9c4; font-size: 11.5px; }
 .sbu-chip[data-tone="busy"] { background: rgba(141,122,246,.16); color: #d4cbff; }
 .sbu-chip[data-tone="warn"] { background: rgba(211,162,148,.14); color: #e2b7aa; }

@@ -91,13 +91,14 @@ function gridHtml(flow: Flow, steps: (FlowShotStep & { image?: string })[], devi
   </body></html>`
 }
 
-// Render every screen of a flow, in order, into one grid image with what happens on each and what the user does next.
-export async function shootFlow(config: ResolvedConfig, options: FlowShotOptions): Promise<FlowShotResult> {
-  const started = Date.now()
+export type CapturedStep = FlowShotStep & { image?: Buffer }
+
+export type CaptureOptions = { flow: string; device?: Device; theme?: "light" | "dark"; scale?: number; type?: "png" | "jpeg"; quality?: number; play?: boolean }
+
+export async function captureFlow(config: ResolvedConfig, options: CaptureOptions): Promise<{ flow: Flow; steps: CapturedStep[] }> {
   const board = readBoard(config)
   const flow = matchFlow(board.flows ?? [], options.flow)
-  const device = options.device ?? "desktop"
-  const d = DEVICES[device]
+  const d = DEVICES[options.device ?? "desktop"]
   const index = await buildIndex(config)
   const storyOf = (s: FlowStep) => s.storyId ?? (s.dream ? board.dreams?.find((x) => x.id === s.dream)?.storyId : undefined)
 
@@ -111,11 +112,11 @@ export async function shootFlow(config: ResolvedConfig, options: FlowShotOptions
   try {
     const page = await browser.newPage({
       viewport: { width: d.width, height: d.height },
-      deviceScaleFactor: CELL_WIDTH[device] / d.width,
+      deviceScaleFactor: options.scale ?? 1,
       colorScheme: options.theme,
       reducedMotion: "reduce",
     })
-    const steps: (FlowShotStep & { image?: string })[] = []
+    const steps: CapturedStep[] = []
     for (const [i, s] of flow.steps.entries()) {
       const storyId = storyOf(s)
       const story = storyId ? index.find((e) => e.id === storyId) : undefined
@@ -127,28 +128,40 @@ export async function shootFlow(config: ResolvedConfig, options: FlowShotOptions
       try {
         await openFrame(page, url, storyId, { theme: options.theme })
         const route = await page.evaluate(() => (window as any).__STAGEBOARD_ROUTE__ as string | undefined)
-        const title = await page.evaluate(() => document.title)
-        // Play what the user does on this screen, so the grid shows where it ends up (and which actions break).
-        const played = s.actions?.length
+        const title = await page.evaluate(() => ((window as any).__STAGEBOARD_TITLE__ as string | undefined) ?? document.title)
+        const played = options.play !== false && s.actions?.length
           ? await page.evaluate((actions) => (window as any).__stageboard_play(actions) as Promise<{ index: number; ok: boolean; error?: string }[]>, s.actions)
           : undefined
         if (played) await page.waitForTimeout(250)
-        const image = (await page.screenshot({ type: "png" })).toString("base64")
+        const image = await page.screenshot({ type: options.type ?? "png", ...(options.type === "jpeg" ? { quality: options.quality ?? 82 } : {}) })
         steps.push({ ...base, route, title: title && title !== "stageboard frame" ? title : base.title, image, played })
       } catch (e) {
         steps.push({ ...base, error: (e as Error).message.split("\n")[0] })
       }
     }
-    const columns = Math.max(1, Math.min(options.columns ?? COLUMNS[device], steps.length || 1))
+    return { flow, steps }
+  } finally {
+    await browser.close()
+    await ephemeral?.close()
+  }
+}
+
+// Render every screen of a flow, in order, into one grid image with what happens on each and what the user does next.
+export async function shootFlow(config: ResolvedConfig, options: FlowShotOptions): Promise<FlowShotResult> {
+  const started = Date.now()
+  const device = options.device ?? "desktop"
+  const { flow, steps } = await captureFlow(config, { flow: options.flow, device, theme: options.theme, scale: CELL_WIDTH[device] / DEVICES[device].width })
+  const columns = Math.max(1, Math.min(options.columns ?? COLUMNS[device], steps.length || 1))
+  const browser = await launchBrowser()
+  try {
     const grid = await browser.newPage({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
-    await grid.setContent(gridHtml(flow, steps, device, columns), { waitUntil: "load" })
+    await grid.setContent(gridHtml(flow, steps.map((s) => ({ ...s, image: s.image?.toString("base64") })), device, columns), { waitUntil: "load" })
     const out = path.resolve(options.out ?? path.join(config.stateDir, "shots", `flow-${flow.id}-${device}${options.theme ? `-${options.theme}` : ""}.png`))
     fs.mkdirSync(path.dirname(out), { recursive: true })
     await grid.screenshot({ path: out, fullPage: true })
     return { file: out, flow, steps: steps.map(({ image: _image, ...s }) => s), durationMs: Date.now() - started }
   } finally {
     await browser.close()
-    await ephemeral?.close()
   }
 }
 

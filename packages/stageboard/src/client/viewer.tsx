@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type WheelEvent as RWheelEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { updateFlow, useStageboard } from "stageboard/react"
 import { DEVICES, formatAction, parseActions, type Device, type Flow, type FlowStep } from "stageboard"
 import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { screenTitle, type Frame, type ScreenNode } from "./browse"
 import { DESCRIBE_STEPS, FlowNote, sendFlowNote, type FlowBatch } from "./flows"
-import { AnnotateIcon, CloseIcon, EditIcon, ExternalIcon, FlowNoteIcon, InfoIcon, LayersIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, ResetIcon } from "./icons"
+import { AnnotateIcon, CloseIcon, EditIcon, ExternalIcon, FlowNoteIcon, InfoIcon, LayersIcon, PauseIcon, PlayIcon, ResetIcon } from "./icons"
 import type { PlayResult } from "./frame"
 import { Shimmer } from "./shimmer"
 import { WaveCanvas } from "./waves"
@@ -15,12 +15,11 @@ import { errorText, pushToast } from "./toasts"
 import { clearSketch, SketchLayer } from "./sketch"
 import { clearComments, readComments, removeComment, sketchedSteps, toAnnotations, useBatchVersion } from "./flow-batch"
 import { VariantLayer } from "./variant-layer"
+import { ViewerStage } from "./viewer-stage"
+import { ReferenceList, ReferenceShot, referenceUrl } from "./references"
 import { findScreen, hrefPath } from "./routes"
 import type { ClientEntry } from "./types"
 
-const SWIPE = 70
-const GAP = 32
-const PRELOAD = 2
 // A component's slot is the same 16:9 tile as in Components; its own frame is fitted into it, small ones enlarged.
 const TILE = { width: 1600, height: 900 }
 const MAX_ZOOM = 3
@@ -73,11 +72,9 @@ export function FlowViewer({
   const dreams = useStageboard((s) => s.dreams)
   const component = Boolean(frameOf)
   const d = component ? TILE : DEVICES[device]
-  const stage = useRef<HTMLDivElement>(null)
   const frames = useRef(new Map<string, HTMLIFrameElement>())
   const [ready, setReady] = useState<Set<string>>(() => new Set())
   const [tools, setTools] = useState<HTMLDivElement | null>(null)
-  const [box, setBox] = useState({ width: 0, height: 0 })
   const [info, setInfo] = useState(false)
   // The current screen only takes clicks and keys once it is made live (click it or press Enter), so swiping,
   // arrow keys and pages that listen to the keyboard don't fight the viewer.
@@ -105,21 +102,8 @@ export function FlowViewer({
   // Annotating goes on across screens: the arrow keys still move between them, so notes collect along the flow.
   const navBusy = draftOpen || noting || live || editingStep
 
-  useLayoutEffect(() => {
-    const el = stage.current
-    if (!el) return
-    const measure = () => setBox({ width: el.clientWidth, height: el.clientHeight })
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  const scale = box.width ? Math.min(1, (box.width * (box.width < 760 ? 0.9 : 0.72)) / d.width, (box.height - 8) / d.height) : 0
-  const w = d.width * scale
-  const h = d.height * scale
   // What each step renders in, and how it sits in its slot: a screen fills it, a component's frame is centered.
-  const fit = (id: string) => {
+  const fit = (id: string, w: number, h: number, scale: number) => {
     const f = frameOf ? frameOf(id) : d
     const k = frameOf ? Math.min(MAX_ZOOM, w / f.width, h / f.height) : scale
     return { frame: f, k, left: (w - f.width * k) / 2, top: (h - f.height * k) / 2 }
@@ -150,7 +134,6 @@ export function FlowViewer({
         try {
           ;(el.contentDocument?.activeElement as HTMLElement | null)?.blur()
         } catch {}
-        stage.current?.scrollTo(0, 0)
       }
     }
     window.addEventListener("message", onMessage)
@@ -304,20 +287,6 @@ export function FlowViewer({
     return () => window.removeEventListener("keydown", onKey, true)
   })
 
-  // Trackpad swipe: horizontal wheel travel past a threshold moves one screen.
-  const wheel = useRef({ dx: 0, at: 0 })
-  const onWheel = (e: RWheelEvent) => {
-    if (busy || Math.abs(e.deltaX) < Math.abs(e.deltaY)) return
-    const now = Date.now()
-    if (now - wheel.current.at > 400) wheel.current.dx = 0
-    wheel.current.at = now
-    wheel.current.dx += e.deltaX
-    if (Math.abs(wheel.current.dx) > SWIPE * 2) {
-      go(wheel.current.dx > 0 ? 1 : -1)
-      wheel.current = { dx: 0, at: now + 400 }
-    }
-  }
-  const touch = useRef<number | undefined>(undefined)
 
   const surface = useMemo<Surface | undefined>(
     () =>
@@ -395,6 +364,7 @@ export function FlowViewer({
           key={currentStep.id}
           flow={flow}
           step={currentStep}
+          base={base}
           play={play?.stepId === currentStep.id ? play : undefined}
           editing={editingStep}
           onEdit={setEditingStep}
@@ -406,112 +376,88 @@ export function FlowViewer({
           }}
         />
       )}
-      <div
-        ref={stage}
-        className="sbu-viewer-stage"
-        onScroll={(e) => e.currentTarget.scrollTo(0, 0)}
-        onWheel={onWheel}
-        onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
-        onTouchEnd={(e) => {
-          const start = touch.current
-          touch.current = undefined
-          if (start === undefined || busy) return
-          const dx = e.changedTouches[0].clientX - start
-          if (Math.abs(dx) > SWIPE) go(dx < 0 ? 1 : -1)
-        }}
-      >
-        {scale > 0 && (
-          <div className="sbu-viewer-track" style={{ height: h }}>
-            {flow.steps.map((st, i) => {
-              if (Math.abs(i - step) > PRELOAD) return null
-              const id = storyOf(i)
-              const current = i === step
-              const mounted = current || currentReady || ready.has(st.id)
-              const offset = (i - step) * (w + GAP)
-              const at = id ? fit(id) : undefined
-              return (
-                <div
-                  key={st.id}
-                  className="sbu-viewer-slot"
-                  data-current={current}
-                  data-live={current && live}
-                  style={{ width: w, height: h, transform: `translateX(calc(-50% + ${offset}px))` }}
-                  onClick={current ? undefined : () => onStep(i)}
-                  aria-hidden={!current}
-                  ref={(el) => {
-                    if (el) el.inert = !current
-                  }}
-                >
-                  {id && !mounted ? null : id && at ? (
-                    <div
-                      className="sbu-viewer-scale"
-                      style={{ width: at.frame.width, height: at.frame.height, left: at.left, top: at.top, transform: `scale(${at.k})`, ["--sbu-k" as string]: at.k }}
-                    >
-                      <iframe
-                        key={`${id}-${device}`}
-                        ref={(el) => {
-                          if (el) {
-                            frames.current.set(st.id, el)
-                            el.inert = !(current && live)
-                          } else frames.current.delete(st.id)
+      <ViewerStage
+        steps={flow.steps.map((st) => st.id)}
+        step={step}
+        frame={d}
+        busy={busy}
+        onStep={onStep}
+        slot={(i, current, { w, h, scale }) => {
+          const st = flow.steps[i]
+          const id = storyOf(i)
+          const mounted = current || currentReady || ready.has(st.id)
+          const at = id ? fit(id, w, h, scale) : undefined
+          return {
+            live,
+            content: (
+              <>
+                {id && !mounted ? null : id && at ? (
+                  <div
+                    className="sbu-viewer-scale"
+                    style={{ width: at.frame.width, height: at.frame.height, left: at.left, top: at.top, transform: `scale(${at.k})`, ["--sbu-k" as string]: at.k }}
+                  >
+                    <iframe
+                      key={`${id}-${device}`}
+                      ref={(el) => {
+                        if (el) {
+                          frames.current.set(st.id, el)
+                          el.inert = !(current && live)
+                        } else frames.current.delete(st.id)
+                      }}
+                      className="sbu-viewer-frame"
+                      src={frameUrl(id)}
+                      title={id}
+                      tabIndex={current && live ? 0 : -1}
+                    />
+                    {current && !live && <div className="sbu-viewer-guard" title="Click to use this screen · Enter" onClick={() => setLive(true)} />}
+                    {current && surface && <AnnotationLayer surface={surface} viewport={at.frame} marks={marks} />}
+                    {current && plainSurface && (
+                      <VariantLayer
+                        key={`v-${id}`}
+                        surface={plainSurface}
+                        visible={variantsOn && !annotating}
+                        onCount={setVariantCount}
+                        onAskMore={(box) => {
+                          savePrefs({ ...readPrefs(), mode: "variants" })
+                          setVariantsOn(false)
+                          onAnnotate(false)
+                          const win = frameOfCurrent()?.contentWindow
+                          onDraft({ surface: plainSurface, region: box.rect, viewport: at.frame, scroll: { x: win?.scrollX ?? 0, y: win?.scrollY ?? 0 } })
                         }}
-                        className="sbu-viewer-frame"
-                        src={frameUrl(id)}
-                        title={id}
-                        tabIndex={current && live ? 0 : -1}
                       />
-                      {current && !live && <div className="sbu-viewer-guard" title="Click to use this screen · Enter" onClick={() => setLive(true)} />}
-                      {current && surface && <AnnotationLayer surface={surface} viewport={at.frame} marks={marks} />}
-                      {current && plainSurface && (
-                        <VariantLayer
-                          key={`v-${id}`}
-                          surface={plainSurface}
-                          visible={variantsOn && !annotating}
-                          onCount={setVariantCount}
-                          onAskMore={(box) => {
-                            savePrefs({ ...readPrefs(), mode: "variants" })
-                            setVariantsOn(false)
-                            onAnnotate(false)
-                            const win = frameOfCurrent()?.contentWindow
-                            onDraft({ surface: plainSurface, region: box.rect, viewport: at.frame, scroll: { x: win?.scrollX ?? 0, y: win?.scrollY ?? 0 } })
-                          }}
-                        />
-                      )}
-                      {current && surface && annotating && (
-                        <SketchLayer
-                          key={`${id}-${sentAt}`}
-                          surface={surface}
-                          components={components}
-                          componentThumb={componentThumb}
-                          paused={draftOpen}
-                          toolbarHost={tools}
-                          onExit={() => onAnnotate(false)}
-                        />
-                      )}
-                    </div>
+                    )}
+                    {current && surface && annotating && (
+                      <SketchLayer
+                        key={`${id}-${sentAt}`}
+                        surface={surface}
+                        components={components}
+                        componentThumb={componentThumb}
+                        paused={draftOpen}
+                        toolbarHost={tools}
+                        onExit={() => onAnnotate(false)}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  st.references?.[0] ? (
+                    <ReferenceShot src={referenceUrl(base, st.references[0].image)} reference={st.references[0]} />
                   ) : (
                     <div className="sbu-viewer-missing">This screen isn’t built yet</div>
-                  )}
-                  {id && !ready.has(st.id) && (
-                    <div className="sbu-viewer-loading">
-                      <WaveCanvas mode="render" fps={30} />
-                      <span className="sbu-thumb-note" data-on-waves="true">
-                        <Shimmer>Rendering</Shimmer>
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            {step > 0 && (
-              <IconButton size="lg" className="sbu-viewer-nav" style={{ transform: `translateX(calc(-50% - ${w / 2 + GAP / 2}px))` }} icon={<PrevIcon size={22} />} label="Previous · ←" onClick={() => go(-1)} />
-            )}
-            {step < count - 1 && (
-              <IconButton size="lg" className="sbu-viewer-nav" style={{ transform: `translateX(calc(-50% + ${w / 2 + GAP / 2}px))` }} icon={<NextIcon size={22} />} label="Next · →" onClick={() => go(1)} />
-            )}
-          </div>
-        )}
-      </div>
+                  )
+                )}
+                {id && !ready.has(st.id) && (
+                  <div className="sbu-viewer-loading">
+                    <WaveCanvas mode="render" fps={30} />
+                    <span className="sbu-thumb-note" data-on-waves="true">
+                      <Shimmer>Rendering</Shimmer>
+                    </span>
+                  </div>
+                )}
+              </>
+            ),
+          }
+        }}
+      />
       <div ref={setTools} className="sbu-viewer-tools" />
       {noting && <FlowNote flow={flow} base={base} batch={batchCount ? batch : undefined} component={group} onClose={() => setNoting(false)} />}
       <footer className="sbu-viewer-foot">
@@ -616,6 +562,7 @@ export function FlowViewer({
 function StepBar({
   flow,
   step,
+  base,
   play,
   editing,
   onEdit,
@@ -623,6 +570,7 @@ function StepBar({
 }: {
   flow: Flow
   step: FlowStep
+  base: string
   play?: { index: number; results?: PlayResult[] }
   editing: boolean
   onEdit: (on: boolean) => void
@@ -703,6 +651,7 @@ function StepBar({
           })}
         </ol>
       ) : null}
+      {step.references?.length ? <ReferenceList references={step.references} srcOf={(image) => referenceUrl(base, image)} /> : null}
       <span className="sbu-viewer-step-tools">
         {!described && (
           <Button

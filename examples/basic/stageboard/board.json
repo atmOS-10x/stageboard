@@ -1,0 +1,60 @@
+{
+  "dreams": [],
+  "flows": [
+    {
+      "id": "1a675430",
+      "name": "Sign up",
+      "description": "From the landing page to an account",
+      "group": "Onboarding",
+      "steps": [
+        {
+          "storyId": "pages--home",
+          "note": "The visitor lands on the home page",
+          "actions": [
+            {
+              "do": "click",
+              "target": "Pricing"
+            }
+          ],
+          "id": "7838054a"
+        },
+        {
+          "storyId": "pages--pricing",
+          "note": "They compare the plans and pick one",
+          "actions": [
+            {
+              "do": "hover",
+              "target": "Choose"
+            }
+          ],
+          "id": "c31e4c4d"
+        },
+        {
+          "storyId": "pages--login",
+          "note": "They log in to continue",
+          "actions": [
+            {
+              "do": "click",
+              "target": "Continue"
+            }
+          ],
+          "id": "105e57bb"
+        },
+        {
+          "pending": "Welcome",
+          "note": "A welcome screen greets the new customer",
+          "id": "8b4e09aa",
+          "references": [
+            {
+              "image": "stageboard/references/welcome.png",
+              "app": "Example",
+              "caption": "A greeting with the two next steps"
+            }
+          ]
+        }
+      ],
+      "status": "ready",
+      "createdAt": "2026-10-19T13:33:49.357Z"
+    }
+  ]
+}

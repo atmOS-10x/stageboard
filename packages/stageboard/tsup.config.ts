@@ -32,6 +32,16 @@ export default defineConfig([
     splitting: true,
   },
   {
+    entry: { "embed/flow": "src/embed/flow.tsx" },
+    format: "iife",
+    globalName: "StageboardFlowEmbed",
+    platform: "browser",
+    target: "es2020",
+    noExternal: [/.*/],
+    minify: true,
+    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+  },
+  {
     entry: {
       "shims/next/image": "src/shims/next/image.tsx",
       "shims/next/link": "src/shims/next/link.tsx",

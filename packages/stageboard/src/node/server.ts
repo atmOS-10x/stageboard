@@ -7,6 +7,7 @@ import { Bridge } from "./bridge"
 import type { ResolvedConfig } from "./config"
 import { buildIndex } from "./indexer"
 import { parseVariantParam, Thumbnailer } from "./thumbs"
+import { IMAGE_TYPE, isReferenced, referenceFile } from "./references"
 import { readUpload, saveUpload } from "./uploads"
 import { writeVariantsModule } from "./variants"
 
@@ -288,6 +289,24 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
           } catch (e) {
             res.statusCode = 400
             res.end(JSON.stringify({ error: (e as Error).message }))
+          }
+          return
+        }
+        if (sub === "/api/references" && req.method === "GET") {
+          const image = url.searchParams.get("src") ?? ""
+          if (!isReferenced(bridge.getState().flows, image)) {
+            res.statusCode = 404
+            res.end()
+            return
+          }
+          try {
+            const file = await referenceFile(config, image)
+            res.setHeader("content-type", IMAGE_TYPE[path.extname(file).toLowerCase()] ?? "application/octet-stream")
+            res.setHeader("cache-control", "max-age=3600")
+            fs.createReadStream(file).pipe(res)
+          } catch (e) {
+            res.statusCode = 502
+            res.end((e as Error).message)
           }
           return
         }
