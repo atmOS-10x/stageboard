@@ -10,6 +10,7 @@ import { Thumb } from "./thumb"
 import type { ClientEntry } from "./types"
 import { Button, IconButton, Input } from "./kit"
 import { PromptInput } from "./prompt-input"
+import { ReferenceShot, referenceUrl } from "./references"
 import { Shimmer } from "./shimmer"
 import { errorText, pushToast } from "./toasts"
 import { WaveCanvas } from "./waves"
@@ -413,6 +414,7 @@ function StepCard({ flow, step, index, ctx, onRemove }: { flow: Flow; step: Flow
   }, [Boolean(entry), Boolean(waiting)])
 
   const title = entry ? screenTitle(screen, entry) : step.pending ?? dream?.name ?? dream?.prompt ?? "Missing screen"
+  const reference = !entry && !waiting ? step.references?.[0] : undefined
   return (
     <div
       className="sbu-step"
@@ -422,7 +424,7 @@ function StepCard({ flow, step, index, ctx, onRemove }: { flow: Flow; step: Flow
         e.dataTransfer.effectAllowed = "move"
       }}
     >
-      <div className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }} onClick={() => entry && ctx.onStep(flow.id, index)} data-missing={!entry && !waiting} aria-label={title} role="button">
+      <div className="sbu-shot" style={{ aspectRatio: `${d.width} / ${d.height}` }} onClick={() => (entry || reference) && ctx.onStep(flow.id, index)} data-missing={!entry && !waiting && !reference} aria-label={title} role="button">
         {entry && <Thumb src={ctx.thumbUrl(entry.id)} />}
         {waiting && <WaveCanvas mode="render" fps={30} />}
         {reveal && (
@@ -430,7 +432,8 @@ function StepCard({ flow, step, index, ctx, onRemove }: { flow: Flow; step: Flow
             <WaveCanvas mode="reveal" onDone={() => setReveal(false)} />
           </div>
         )}
-        {!entry && !waiting && <span className="sbu-step-missing">{dream?.status === "failed" ? "The agent didn’t finish this screen" : "Screen not found"}</span>}
+        {reference && <ReferenceShot src={referenceUrl(ctx.base, reference.image)} reference={reference} />}
+        {!entry && !waiting && !reference && <span className="sbu-step-missing">{dream?.status === "failed" ? "The agent didn’t finish this screen" : "Screen not found"}</span>}
         <button
           type="button"
           className="sbu-step-x"

@@ -47,9 +47,37 @@ export const DEVICES: Record<Device, { label: string; width: number; height: num
 // visible text (or aria-label, placeholder, label) or a CSS selector; text is what to type, the key to press, or ms to wait.
 export type FlowAction = { do: "click" | "type" | "press" | "hover" | "scroll" | "wait"; target?: string; text?: string }
 
+export type FlowReference = { image: string; app?: string; caption?: string; url?: string }
+
 // note: what is happening on this screen. actions: what the user does on it, in order; the last one usually leads to
 // the next step.
-export type FlowStep = { id: string; storyId?: string; dream?: string; pending?: string; note?: string; actions?: FlowAction[] }
+export type FlowStep = { id: string; storyId?: string; dream?: string; pending?: string; note?: string; actions?: FlowAction[]; references?: FlowReference[] }
+
+export const isRemoteImage = (image: string) => /^https?:\/\//i.test(image)
+
+function referenceError(r: unknown): string | undefined {
+  if (!r || typeof r !== "object") return "must be an object"
+  const { image, app, caption, url } = r as Record<string, unknown>
+  if (typeof image !== "string" || !image.trim()) return "image is required"
+  if (!isRemoteImage(image) && (/^[a-z][\w+.-]*:/i.test(image) || image.startsWith("/") || image.startsWith("\\") || image.split(/[\\/]/).includes("..")))
+    return "image must be an http(s) URL or a path inside the project"
+  for (const [key, value] of Object.entries({ app, caption, url })) if (value !== undefined && typeof value !== "string") return `${key} must be a string`
+  if (typeof url === "string" && !isRemoteImage(url)) return "url must be an http(s) URL"
+}
+
+export function validateReferences<T extends { references?: unknown }>(steps: T[]): T[] {
+  return steps.map((step, i) => {
+    if (step.references === undefined) return step
+    if (!Array.isArray(step.references)) throw new Error(`steps[${i}].references must be a list`)
+    const references = step.references.map((r, j) => {
+      const error = referenceError(r)
+      if (error) throw new Error(`steps[${i}].references[${j}]: ${error}`)
+      const { image, app, caption, url } = r as FlowReference
+      return { image: image.trim(), ...(app ? { app } : {}), ...(caption ? { caption } : {}), ...(url ? { url } : {}) }
+    })
+    return { ...step, references: references.length ? references : undefined }
+  })
+}
 
 export const FLOW_ACTIONS: FlowAction["do"][] = ["click", "type", "press", "hover", "scroll", "wait"]
 

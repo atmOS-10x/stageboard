@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
-import { sketchBounds, type BridgeState, type ChangeRequest, type Dream, type DreamRequest, type Flow, type FlowRequest, type FlowStep, type Job, type VariantFile } from "../core/protocol"
+import { sketchBounds, validateReferences, type BridgeState, type ChangeRequest, type Dream, type DreamRequest, type Flow, type FlowRequest, type FlowStep, type Job, type VariantFile } from "../core/protocol"
 import { createRequire } from "node:module"
 import { createProvider, type AgentProvider, type AgentRun, type McpLaunch } from "./agents"
 import type { ResolvedConfig } from "./config"
@@ -544,14 +544,19 @@ export class Bridge {
         return true
       }
       if (req.method === "POST" && pathname === "/flows") {
-        const flow = await this.createFlow((await readJson(req)) as FlowRequest)
+        const body = (await readJson(req)) as FlowRequest
+        const steps = flowSteps(body?.steps)
+        if (steps instanceof Error) return send(400, { error: steps.message }), true
+        const flow = await this.createFlow({ ...body, steps })
         send(200, flow ?? { ok: true })
         return true
       }
       if (req.method === "POST" && pathname === "/flows/save") {
         const body = await readJson(req)
         if (!Array.isArray(body?.steps)) return send(400, { error: "steps are required" }), true
-        send(200, this.saveFlowFromAgent(body))
+        const steps = flowSteps(body.steps)
+        if (steps instanceof Error) return send(400, { error: steps.message }), true
+        send(200, this.saveFlowFromAgent({ ...body, steps: steps ?? [] }))
         return true
       }
       const flowRoute = /^\/flows\/([\w-]+)(\/remove)?$/.exec(pathname)
@@ -561,7 +566,10 @@ export class Bridge {
           send(200, { ok: true })
           return true
         }
-        const flow = this.updateFlow(flowRoute[1], await readJson(req))
+        const body = await readJson(req)
+        const steps = flowSteps(body?.steps)
+        if (steps instanceof Error) return send(400, { error: steps.message }), true
+        const flow = this.updateFlow(flowRoute[1], { ...body, steps })
         if (!flow) return send(404, { error: `no flow ${flowRoute[1]}` }), true
         send(200, flow)
         return true
@@ -623,6 +631,15 @@ function explainFailure(job: Job, error?: string): string | undefined {
 
 function emptyTarget(): ChangeRequest["target"] {
   return { url: "", selector: "", tag: "flow", rect: { x: 0, y: 0, width: 0, height: 0 }, viewport: { width: 1440, height: 900 }, components: [] }
+}
+
+function flowSteps<T extends { references?: unknown }>(steps: T[] | undefined): T[] | undefined | Error {
+  if (steps === undefined) return undefined
+  try {
+    return validateReferences(steps)
+  } catch (e) {
+    return e as Error
+  }
 }
 
 function readJson(req: IncomingMessage): Promise<any> {
