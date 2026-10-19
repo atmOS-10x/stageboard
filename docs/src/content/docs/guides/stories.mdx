@@ -38,11 +38,30 @@ The default export describes every story in the file. Import the `Meta` type fro
 | Option | Type | Default | What it does |
 | --- | --- | --- | --- |
 | `layout` | `"centered" \| "padded" \| "fullscreen"` | `"fullscreen"` with `page`, otherwise `"centered"` | How the story sits in the frame. |
-| `viewport` | `{ width, height? }` | none | Fixed width of the stage; applies to the `centered` layout. |
+| `viewport` | `{ width, height? }` | `640 × 360` for components | The frame a component story renders in. A missing `height` is 16:9 to the width. See [Component frames](#component-frames). |
 | `theme` | `"light" \| "dark"` | none | Forces the color scheme (see [Screens](/guides/screens#light-and-dark)). |
 | `background` | `string` | none | CSS background of the frame's body. |
 | `page` | object | none | Makes the story a screen. See [Screens](/guides/screens). |
 | `variants` | `Record<string, string>` | none | Variant to show per boundary, as `{ "landing.hero": "hero.calm" }`. See [Variants](/guides/variants). |
+
+## Component frames
+
+A component story renders in its own frame, `parameters.viewport`, not at the Desktop, Tablet or Mobile size the device switcher sets for screens. Components shows every frame scaled to fit the same 16:9 tile, so a small button fills its tile as well as a whole panel does. The flow-style viewer and `stageboard shot` render the story at its frame too. Inside the frame, the story is a page of that size, so its CSS breakpoints apply to the frame's width.
+
+Set the frame on the default export for all of a file's stories, and on a story that needs a different one:
+
+```tsx title="src/components/button.stories.tsx"
+export default {
+  title: "Primitives/Button",
+  component: Button,
+  parameters: { viewport: { width: 880, height: 120 } },
+} satisfies Meta<typeof Button>
+
+export const Variants: Story<typeof Button> = { render: () => <ButtonRow /> }
+export const Primary: Story<typeof Button> = { parameters: { viewport: { width: 200, height: 120 } } }
+```
+
+Make a frame just large enough for what the story draws, plus 40px on each side, and leave room for a menu, popover or dialog it opens. `npx stageboard frames` measures every component story and prints frames that fit; `--write` sets them in the story files. Write the frame as numbers, so stageboard can read it without loading the file.
 
 ## Named exports: `Story`
 

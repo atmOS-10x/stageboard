@@ -70,9 +70,17 @@ export function useBatchVersion(): number {
   return useSyncExternalStore(subscribe, () => version)
 }
 
-export function toAnnotations(comments: BatchComment[], sketches: BatchSketch[], titleOf: (storyId: string) => string, viewport: { width: number; height: number }): FlowAnnotation[] {
+export function toAnnotations(
+  comments: BatchComment[],
+  sketches: BatchSketch[],
+  titleOf: (storyId: string) => string,
+  viewportOf: (storyId: string) => { width: number; height: number },
+): FlowAnnotation[] {
   return [
     ...comments.map((c): FlowAnnotation => ({ storyId: c.storyId, title: c.title, step: c.step, note: c.note, region: c.region, viewport: c.viewport, scroll: c.scroll })),
-    ...sketches.map((s): FlowAnnotation => ({ storyId: s.storyId, title: titleOf(s.storyId), step: s.step, viewport, sketch: { ops: readSketch(s.storyId), viewport, scroll: { x: 0, y: 0 } } })),
+    ...sketches.map((s): FlowAnnotation => {
+      const viewport = viewportOf(s.storyId)
+      return { storyId: s.storyId, title: titleOf(s.storyId), step: s.step, viewport, sketch: { ops: readSketch(s.storyId), viewport, scroll: { x: 0, y: 0 } } }
+    }),
   ].sort((a, b) => (a.step ?? 0) - (b.step ?? 0))
 }

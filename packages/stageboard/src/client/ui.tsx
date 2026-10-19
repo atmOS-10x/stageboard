@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createRoot } from "react-dom/client"
 import { devtoolsCss, Panel, startBridge, useStageboard } from "stageboard/react"
-import { DEVICES, type Device, type ElementTarget, type Region } from "stageboard"
+import { componentFrame, DEVICES, type Device, type ElementTarget, type Flow, type Region } from "stageboard"
 import { AnnotateProvider, AnnotationLayer, useDismissedPins, type Draft, type Surface } from "./annotate"
 import { fetchUsedVariants, storyUrl } from "./api"
-import { componentGroup, Grid, groupBy, ScreenCard, screenGroup, screenTitle, dragStory, useSurfaces, type ScreenNode } from "./browse"
+import { ComponentCard, ComponentRows, componentGroup, frameOf, Grid, groupBy, ScreenCard, screenGroup, screenTitle, dragStory, useSurfaces, type Frame, type ScreenNode } from "./browse"
 import { Composer } from "./composer"
 import { clearDraft, readDraft, readPrefs, savePrefs, type StoredDraft } from "./draft-store"
 import { FlowsView } from "./flows"
@@ -155,6 +155,7 @@ function Sidebar({
   components,
   active,
   onPick,
+  onComponent,
   onFlow,
   onNewFlow,
 }: {
@@ -166,6 +167,7 @@ function Sidebar({
   components: ClientEntry[]
   active?: string
   onPick: (id: string) => void
+  onComponent: (group: string, step: number) => void
   onFlow: (id: string) => void
   onNewFlow: () => void
 }) {
@@ -227,7 +229,7 @@ function Sidebar({
           <div className="sbu-group" key={group}>
             <div className="sbu-group-title">{group.replaceAll("/", " / ")}</div>
             {list.map((c) => (
-              <button key={c.id} className="sbu-story" data-on={active === c.id} onClick={() => onPick(c.id)}>
+              <button key={c.id} className="sbu-story" data-on={active === c.id} onClick={() => onComponent(group, components.filter((x) => componentGroup(x) === group).indexOf(c))}>
                 {c.name}
               </button>
             ))}
@@ -320,6 +322,16 @@ function App({ index, loaders, base }: UIOptions) {
       return `${base}/api/thumb/${id}.jpg?${p}`
     },
     [base, theme, scheme],
+  )
+  // A component renders in its own frame; a small one at a higher density, so it stays sharp when its tile enlarges it.
+  const tileThumb = useCallback(
+    (id: string, frame: Frame) => {
+      const x = Math.round(Math.min(2, Math.max(0.5, 960 / frame.width)) * 4) / 4
+      const p = new URLSearchParams({ w: String(frame.width), h: String(frame.height), x: String(x), cs: scheme, s: selectionKey.slice(0, 200) })
+      if (theme) p.set("t", theme)
+      return `${base}/api/thumb/${id}.jpg?${p}`
+    },
+    [base, selectionKey, theme, scheme],
   )
   const thumbUrl = useCallback(
     (id: string) => {
@@ -480,6 +492,23 @@ function App({ index, loaders, base }: UIOptions) {
   const frameSize = DEVICES[device]
   const flows = useStageboard((s) => s.flows)
   const viewerFlow = route.view === "flows" && route.step !== undefined ? flows.find((f) => f.id === route.focus) : undefined
+  const componentSections = useMemo(() => groupBy(componentStories, componentGroup), [componentStories])
+  // A component opens in the flow viewer: its stories are the steps, ← → go through them, notes go to all of them.
+  const viewerComponent = useMemo<Flow | undefined>(() => {
+    if (route.view !== "components" || route.step === undefined) return undefined
+    const list = componentSections.find(([g]) => g === route.focus)?.[1]
+    if (!list?.length) return undefined
+    return { id: `component:${route.focus}`, name: route.focus!, status: "ready", createdAt: "", steps: list.map((e) => ({ id: e.id, storyId: e.id })) }
+  }, [route, componentSections])
+  const frameOfStory = useCallback(
+    (id: string) => {
+      const e = index.find((x) => x.id === id)
+      return e ? frameOf(e) : componentFrame()
+    },
+    [index],
+  )
+  const currentIsComponent = Boolean(current && componentStories.includes(current))
+  const currentFrame = current && currentIsComponent ? frameOf(current) : undefined
   const askMoreVariants = (frame: HTMLIFrameElement | null | undefined, surface: Surface, box: { rect: Region }) => {
     savePrefs({ ...readPrefs(), mode: "variants" })
     setShowVariants(false)
@@ -507,14 +536,16 @@ function App({ index, loaders, base }: UIOptions) {
             <Shimmer>{`${activeJobs} agent${activeJobs === 1 ? "" : "s"} working`}</Shimmer>
           </span>
         )}
-        <Segmented
-          className="sbu-hide-phone"
-          label="Device"
-          size="sm"
-          value={device}
-          onChange={setDevice}
-          options={(Object.keys(DEVICES) as Device[]).map((d) => ({ value: d, label: DEVICES[d].label, title: `${DEVICES[d].width}×${DEVICES[d].height}` }))}
-        />
+        {tab !== "components" && (
+          <Segmented
+            className="sbu-hide-phone"
+            label="Device"
+            size="sm"
+            value={device}
+            onChange={setDevice}
+            options={(Object.keys(DEVICES) as Device[]).map((d) => ({ value: d, label: DEVICES[d].label, title: `${DEVICES[d].width}×${DEVICES[d].height}` }))}
+          />
+        )}
         {tab !== "flows" && (
           <Button size="sm" icon={<AnnotateIcon size={14} />} on={annotating} onClick={() => setAnnotating((v) => !v)} title="Comment on any part of a screen; on a single screen, also move, retype and draw · A">
             Annotate
@@ -544,6 +575,7 @@ function App({ index, loaders, base }: UIOptions) {
         components={componentStories}
         active={current?.id}
         onPick={openStory}
+        onComponent={(group, step) => go({ view: "components", focus: group, step })}
         onFlow={(id) => go({ view: "flows", focus: id })}
         onNewFlow={() => {
           setComposingFlow(true)
@@ -607,10 +639,38 @@ function App({ index, loaders, base }: UIOptions) {
           />
         )}
         {route.view === "components" && (
-          <Grid
+          <ComponentRows
+            sections={componentSections}
+            focus={route.focus}
+            onOpenGroup={(group) => go({ view: "components", focus: group, step: 0 })}
+            render={(e, group, i) => (
+              <ComponentCard key={e.id} entry={e} thumbUrl={tileThumb} surface={componentSurfaces.get(e.id)!} onOpen={() => go({ view: "components", focus: group, step: i })} />
+            )}
+          />
+        )}
+        {viewerComponent && route.view === "components" && route.step !== undefined && (
+          <FlowViewer
+            key={viewerComponent.id}
+            flow={viewerComponent}
+            frameOf={frameOfStory}
+            base={base}
+            step={Math.min(route.step, viewerComponent.steps.length - 1)}
             device={device}
-            sections={groupBy(componentStories, componentGroup)}
-            render={(e) => <ScreenCard key={e.id} entry={e} title={e.name} device={device} thumbUrl={thumbUrl} surface={componentSurfaces.get(e.id)!} onOpen={() => openStory(e.id)} />}
+            screens={pages}
+            index={index}
+            components={componentStories}
+            componentThumb={componentThumb}
+            themeButton={<ThemeButton size="md" theme={theme} onTheme={setTheme} />}
+            frameUrl={frameUrl}
+            thumbUrl={thumbUrl}
+            annotating={annotating}
+            onAnnotate={(on) => setAnnotating(on)}
+            draftOpen={Boolean(draft)}
+            onDraft={setDraft}
+            onStep={(step) => go({ view: "components", focus: viewerComponent.name, step })}
+            onFlow={(flowId, step) => go({ view: "flows", focus: flowId, step })}
+            onOpenScreen={(id) => go({ view: "story", id, from: "components" })}
+            onClose={() => go({ view: "components", focus: viewerComponent.name })}
           />
         )}
         {route.view === "story" && current && (
@@ -651,13 +711,24 @@ function App({ index, loaders, base }: UIOptions) {
                 icon={<CopyIcon size={14} />}
                 label="Copy the screenshot command"
                 onClick={() => {
-                  void navigator.clipboard?.writeText(`npx stageboard shot ${current.id} --width ${frameSize.width} --height ${frameSize.height}`)
+                  const size = currentFrame ?? frameSize
+                  void navigator.clipboard?.writeText(`npx stageboard shot ${current.id} --width ${size.width} --height ${size.height}`)
                   pushToast({ tone: "info", title: "Copied the screenshot command" })
                 }}
               />
             </div>
             <div className="sbu-stage">
-              <div className="sbu-frame-wrap" data-device={device} style={device === "desktop" ? { width: "100%" } : { width: frameSize.width, height: Math.min(frameSize.height, 2000), flex: "none" }}>
+              <div
+                className="sbu-frame-wrap"
+                data-device={currentFrame ? "component" : device}
+                style={
+                  currentFrame
+                    ? { width: currentFrame.width, height: currentFrame.height, flex: "none" }
+                    : device === "desktop"
+                      ? { width: "100%" }
+                      : { width: frameSize.width, height: Math.min(frameSize.height, 2000), flex: "none" }
+                }
+              >
                 <iframe
                   key={`${current.id}-${theme}`}
                   ref={storyFrame}
@@ -692,7 +763,7 @@ function App({ index, loaders, base }: UIOptions) {
           </div>
         )}
         {route.view === "story" && !current && <div className="sbu-empty">Pick a story on the left.</div>}
-        {annotating && !draft && !viewerFlow && route.view !== "story" && (
+        {annotating && !draft && !viewerFlow && !viewerComponent && route.view !== "story" && (
           <div className="sbu-annot-hint" role="status">
             Drag over any part of a screen
           </div>

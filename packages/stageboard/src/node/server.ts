@@ -145,6 +145,9 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
   const storyGlobsMatch = (file: string) => /\.stories\.[cm]?[jt]sx?$/.test(file)
   const variantMatch = (file: string) => /\.variant\.[cm]?[jt]sx?$/.test(file)
   let server: ViteDevServer | undefined
+  // Every thumbnail asks which file its story is in; read the story files once until one of them changes.
+  let cached: ReturnType<typeof buildIndex> | undefined
+  const storyIndex = () => (cached ??= buildIndex(config).catch((e) => ((cached = undefined), Promise.reject(e))))
 
   return {
     name: "stageboard",
@@ -214,13 +217,14 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
         const sub = pathname.slice(API_BASE.length) || "/"
         const thumb = /^\/api\/thumb\/([\w.-]+?)\.jpg$/.exec(sub)
         if (thumb && thumbs) {
-          const index = await buildIndex(config)
+          const index = await storyIndex()
           const entry = index.find((e) => e.id === thumb[1])
           const q = url.searchParams
           const scheme = (v: string | null) => (v === "dark" || v === "light" ? v : undefined)
           await thumbs.serve(res, thumb[1], entry?.absFile, q.has("refresh"), parseVariantParam(q.get("variant")), {
             width: q.get("w") ? Number(q.get("w")) : undefined,
             height: q.get("h") ? Number(q.get("h")) : undefined,
+            scale: q.get("x") ? Math.min(3, Math.max(0.25, Number(q.get("x")) || 1)) : undefined,
             theme: scheme(q.get("t")),
             colorScheme: scheme(q.get("cs")),
           })
@@ -266,7 +270,7 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
           return
         }
         if (sub === "/api/used-variants" && thumbs) {
-          const index = await buildIndex(config)
+          const index = await storyIndex()
           const map: Record<string, string[]> = {}
           for (const e of index) {
             const used = thumbs.usedVariants(e.id)
@@ -316,7 +320,8 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
       })
       const onFs = (event: "add" | "unlink" | "change") => (file: string) => {
         if (variantMatch(file)) bridge.scheduleRescan()
-        if (storyGlobsMatch(file) && (event !== "change" || true)) {
+        if (storyGlobsMatch(file)) {
+          cached = undefined
           const mod = s.moduleGraph.getModuleById(RESOLVED_PREFIX + V.index)
           if (mod) {
             s.moduleGraph.invalidateModule(mod)
@@ -329,6 +334,7 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
       s.watcher.on("change", onFs("change"))
     },
     handleHotUpdate(ctx) {
+      if (storyGlobsMatch(ctx.file)) cached = undefined
       if (storyGlobsMatch(ctx.file) && server) {
         const mod = server.moduleGraph.getModuleById(RESOLVED_PREFIX + V.index)
         if (mod) server.moduleGraph.invalidateModule(mod)

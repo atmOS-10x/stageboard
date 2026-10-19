@@ -92,6 +92,7 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-viewer-tools { min-height: 54px; display: flex; align-items: center; justify-content: center; padding-top: 10px; }
 .sbu-sketch-bar[data-docked="true"] { position: static; translate: none; }
 .sbu-viewer-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.sbu-viewer[data-component] .sbu-viewer-slot { background: var(--sbu-screen-bg, #fff); }
 .sbu-viewer-frame { display: block; width: 100%; height: 100%; border: 0; background: var(--sbu-screen-bg, #fff); }
 .sbu[data-screens="dark"] { --sbu-screen-bg: #0a0a0b; }
 .sbu-viewer-guard { position: absolute; inset: 0; z-index: 2; cursor: pointer; }
@@ -151,6 +152,17 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
 .sbu-flow-rename { font: inherit; font-size: 16px; font-weight: 500; color: #fff; background: rgba(255,255,255,.06); border: 0; border-radius: 6px; padding: 2px 6px; outline: 1.5px solid rgba(190,176,255,.5); }
 .sbu-flow-row { display: flex; align-items: flex-start; overflow-x: auto; padding: 8px 2px 14px; }
 .sbu-flow-cell { position: relative; display: flex; align-items: flex-start; flex: none; }
+.sbu-comps { --comp-w: 320px; }
+.sbu-comp-group { margin-bottom: 30px; }
+.sbu-comp-head { display: flex; align-items: baseline; gap: 8px; }
+.sbu-comp-head .sbu-flow-name { cursor: pointer; }
+.sbu-comp-head .sbu-flow-name:hover { color: #d4cbff; }
+.sbu-comp-head .sbu-flow-name .sbu-dim { font-weight: 400; }
+.sbu-tile { width: var(--comp-w); flex: none; }
+.sbu-tile-shot { aspect-ratio: 16 / 9; background: var(--sbu-screen-bg, #fff); }
+.sbu-tile-fit { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; overflow: hidden; }
+.sbu-tile-fit .sbu-thumb { border-radius: 0; }
+.sbu-viewer-sub { margin-left: 10px; font-size: 14px; color: #9a9aa4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sbu-flow-cell[data-over="true"]::before { content: ""; position: absolute; left: -2px; top: 0; height: calc(var(--step-w) * var(--ratio)); width: 3px; border-radius: 2px; background: #8d7af6; box-shadow: 0 0 12px rgba(141,122,246,.8); }
 .sbu-step { position: relative; width: var(--step-w); flex: none; }
 .sbu-step .sbu-shot { cursor: pointer; }
@@ -438,6 +450,7 @@ body.sb-ui { background: #0e0e11; color: #ededf0; font: 13px/1.45 ui-sans-serif,
   .sbu-input, .sbu-composer-input, .sbu-prompt-title, .sbu-sketch-edit, .sb-textarea { font-size: 16px !important; }
 }
 @media (max-width: 760px) {
+  .sbu-comps { --comp-w: 240px; }
   .sbu { grid-template-columns: 1fr; grid-template-rows: 52px 1fr; height: 100dvh; }
   .sbu-top { gap: 6px; padding: 0 8px; }
   .sbu-menu-btn { display: inline-flex !important; }

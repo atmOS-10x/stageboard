@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { createPortal } from "react-dom"
 import { createDream, createFlow, removeFlow, submitChangeRequest, updateFlow, useStageboard } from "stageboard/react"
-import { DEVICES, type Device, type Flow, type FlowAnnotation, type FlowStep } from "stageboard"
+import { DEVICES, type ComponentGroup, type Device, type Flow, type FlowAnnotation, type FlowStep } from "stageboard"
 import type { BatchComment, BatchSketch } from "./flow-batch"
 import { groupBy, screenGroup, STORY_MIME, screenTitle, type ScreenNode } from "./browse"
 import { markReveal, pendingReveals } from "./dreams"
@@ -150,6 +150,18 @@ export async function sendFlowNote(flow: Flow, note: string, attachments: string
   pushToast({ tone: "info", title: "Sent to the agent", body: `Your note on “${flow.name}” is being worked on.` })
 }
 
+export async function sendComponentNote(component: ComponentGroup, note: string, attachments: string[] = [], annotations?: FlowAnnotation[]) {
+  await submitChangeRequest({
+    kind: "edit",
+    note,
+    component,
+    attachments,
+    ...(annotations?.length ? { annotations } : {}),
+    target: { url: "", title: component.title, selector: "", tag: "component", rect: { x: 0, y: 0, width: 0, height: 0 }, viewport: { width: 0, height: 0 }, components: [], storyId: component.stories[0]?.id },
+  })
+  pushToast({ tone: "info", title: "Sent to the agent", body: `Your note on “${component.title.split("/").at(-1)}” is being worked on.` })
+}
+
 export const DESCRIBE_STEPS =
   "Describe every step of this flow and change nothing else: for each screen write what is happening on it (note) and what the user does on it (actions: the clicks, typing and key presses, in order, by the elements' visible text), the last usually leading to the next screen. Open each screen to get them right, check the actions play with `npx stageboard flow shot`, then save the flow with the same steps in the same order."
 
@@ -165,7 +177,11 @@ export type FlowBatch = {
 
 // A note on the whole flow. With a batch (comments and sketches collected on its screens) it is Reconcile: the
 // batch goes out as one request, with this note on top if there is one.
-export function FlowNote({ flow, base, batch, onClose }: { flow: Flow; base: string; batch?: FlowBatch; onClose: () => void }) {
+export function FlowNote({ flow, base, batch, component, onClose }: { flow: Flow; base: string; batch?: FlowBatch; component?: ComponentGroup; onClose: () => void }) {
+  const send = (note: string, attachments: string[], annotations?: FlowAnnotation[]) =>
+    component ? sendComponentNote(component, note, attachments, annotations) : sendFlowNote(flow, note, attachments, annotations)
+  const whole = component ? "component" : "flow"
+  const name = component ? flow.name.split("/").at(-1) : flow.name
   const [note, setNote] = useState("")
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
@@ -175,7 +191,7 @@ export function FlowNote({ flow, base, batch, onClose }: { flow: Flow; base: str
   const items = batch ? batch.comments.length + batch.sketches.length : 0
   return createPortal(
     <div className="sbu-picker-scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sbu-note-dialog" role="dialog" aria-label={items ? `Reconcile ${flow.name}` : `Note on ${flow.name}`}>
+      <div className="sbu-note-dialog" role="dialog" aria-label={items ? `Reconcile ${name}` : `Note on ${name}`}>
         {batch && items > 0 && (
           <ol className="sbu-batch sbu-panel">
             {[
@@ -206,21 +222,24 @@ export function FlowNote({ flow, base, batch, onClose }: { flow: Flow; base: str
           onClose={onClose}
           minRows={items ? 2 : 4}
           allowEmpty={items > 0}
-          label="Note on the whole flow"
+          label={`Note on the whole ${whole}`}
           placeholder={
             items
               ? "Anything that goes for all of them? (optional)"
-              : "What should change across this flow? For example the order of screens, a step that is missing, or wording that should match everywhere."
+              : component
+                ? "What should change about this component? It goes for every story of it: its states, sizes and variants."
+                : "What should change across this flow? For example the order of screens, a step that is missing, or wording that should match everywhere."
           }
           head={
             <span className="sbu-prompt-context">
               {items ? (
                 <>
-                  Reconcile <strong>{items}</strong> annotation{items === 1 ? "" : "s"} on <strong>{flow.name}</strong>
+                  Reconcile <strong>{items}</strong> annotation{items === 1 ? "" : "s"} on <strong>{name}</strong>
                 </>
               ) : (
                 <>
-                  Whole flow · <strong>{flow.name}</strong> · {flow.steps.length} screen{flow.steps.length === 1 ? "" : "s"}
+                  Whole {whole} · <strong>{name}</strong> · {flow.steps.length} {component ? "stor" : "screen"}
+                  {flow.steps.length === 1 ? (component ? "y" : "") : component ? "ies" : "s"}
                 </>
               )}
             </span>
@@ -228,9 +247,9 @@ export function FlowNote({ flow, base, batch, onClose }: { flow: Flow; base: str
           onSubmit={async (uploads) => {
             if (batch && items) {
               const extra = batch.comments.flatMap((c) => c.attachments.map((u) => u.id))
-              await sendFlowNote(flow, note.trim() || "Apply my annotations on the screens of this flow.", [...uploads.map((u) => u.id), ...extra], batch.annotations())
+              await send(note.trim() || `Apply my annotations on the ${component ? "stories of this component" : "screens of this flow"}.`, [...uploads.map((u) => u.id), ...extra], batch.annotations())
               batch.onSent()
-            } else await sendFlowNote(flow, note.trim(), uploads.map((u) => u.id))
+            } else await send(note.trim(), uploads.map((u) => u.id))
             onClose()
           }}
         />

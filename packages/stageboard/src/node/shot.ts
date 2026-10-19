@@ -1,6 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import { API_BASE } from "../core/protocol"
+import { componentFrame } from "../core/stories"
 import type { ResolvedConfig } from "./config"
 import { buildIndex, type IndexedStory } from "./indexer"
 import { settle } from "./settle"
@@ -109,7 +110,8 @@ export async function shoot(config: ResolvedConfig, options: ShotOptions): Promi
   const consoleErrors: string[] = []
   try {
     const page = await browser.newPage({
-      viewport: { width: options.width ?? 1280, height: options.height ?? 800 },
+      // A component renders in its own frame unless asked for another size.
+      viewport: { width: options.width ?? story.viewport?.width ?? 1280, height: options.height ?? (options.width ? 800 : story.viewport ? componentFrame(story.viewport, story.layout).height : 800) },
       deviceScaleFactor: options.scale ?? 1,
       colorScheme: options.theme,
       reducedMotion: "reduce",

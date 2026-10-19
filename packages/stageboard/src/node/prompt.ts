@@ -119,28 +119,29 @@ function batchSection(job: Job, request: ChangeRequest, screens: Screen[]): stri
   const list = request.annotations ?? []
   if (!list.length) return []
   const byId = new Map(screens.map((s) => [s.id, s]))
+  const [whole, each] = request.component ? ["component", "story"] : ["flow", "screen"]
   const lines = [
     "",
-    "## The user's annotations, screen by screen",
-    `They went through the flow and marked up ${list.length} place${list.length === 1 ? "" : "s"}. Handle every one; they belong together, so keep the screens consistent. Coordinates are page pixels in the screen's viewport.`,
+    `## The user's annotations, ${each} by ${each}`,
+    `They went through the ${whole} and marked up ${list.length} place${list.length === 1 ? "" : "s"}. Handle every one; they belong together, so keep the ${each === "story" ? "stories" : "screens"} consistent. Coordinates are page pixels in the ${each}'s viewport.`,
   ]
   let sketched = false
   for (const [i, a] of list.entries()) {
     const screen = byId.get(a.storyId)
     const images = (job.images ?? []).filter((img) => img.label.startsWith(`${i + 1}:`))
-    lines.push("", `### ${i + 1}. ${a.step !== undefined ? `Screen ${a.step + 1}: ` : ""}${a.title ?? screen?.title ?? a.storyId} (\`${a.storyId}\`${screen ? `, ${screen.file}` : ""})`)
+    lines.push("", `### ${i + 1}. ${a.step !== undefined ? `${request.component ? "Story" : "Screen"} ${a.step + 1}: ` : ""}${a.title ?? screen?.title ?? a.storyId} (\`${a.storyId}\`${screen ? `, ${screen.file}` : ""})`)
     if (a.note) lines.push(`Note: ${a.note}`)
     if (a.region) lines.push(`About the area at ${box(a.region)} in a ${a.viewport.width}×${a.viewport.height} viewport.`)
     if (a.sketch?.ops.length) {
       sketched = true
-      lines.push("They sketched on this screen (nothing was changed in code; this is the state they want):", ...a.sketch.ops.map(describeOp))
+      lines.push(`They sketched on this ${each} (nothing was changed in code; this is the state they want):`, ...a.sketch.ops.map(describeOp))
     }
     for (const img of images) {
       const kind = img.label.split(":")[1]
       lines.push(`${kind === "selection" ? "Screenshot of that area" : kind === "before" ? "Before" : "After, with the sketch applied"}: \`${img.path}\``)
     }
   }
-  lines.push("", "Open every screenshot before you start. Screenshot each screen you change with `npx stageboard shot <story-id>` afterwards.")
+  lines.push("", `Open every screenshot before you start. Screenshot each ${each} you change with \`npx stageboard shot <story-id>\` afterwards.`)
   if (sketched)
     lines.push("Treat moves and resizes as layout intent, not pixel offsets: change the layout so the screen looks like the sketch at every width. Blocks and freehand marks are rough placeholders for what the notes ask for.")
   return lines
@@ -232,6 +233,19 @@ function flowNotePrompt(request: ChangeRequest, screens: Screen[]): string[] {
   ]
 }
 
+function componentNotePrompt(request: ChangeRequest, screens: Screen[]): string[] {
+  const group = request.component!
+  const byId = new Map(screens.map((s) => [s.id, s]))
+  const file = group.stories.map((s) => byId.get(s.id)?.file).find(Boolean)
+  return [
+    `Change the component "${group.title}" as the user asks below. The note is about the component as a whole, seen across all of its stories (its states and variants): change the component itself so every story reflects it, keep them consistent with each other, and only add, remove or rewrite stories when the note asks for that.`,
+    "",
+    `## Its stories${file ? ` (in ${file})` : ""}`,
+    ...group.stories.map((s, i) => `${i + 1}. \`${s.id}\` — ${s.name}`),
+    "Screenshot the stories you touch with `npx stageboard shot <story-id>` before and after; it renders each in its own frame (`parameters.viewport`).",
+  ]
+}
+
 function pagePrompt(job: Job, request: ChangeRequest): string[] {
   const dream = request.dream!
   const parent = request.target.storyId
@@ -286,6 +300,8 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
         VARIANT_FORMAT("<the id you chose>", job.id),
       )
     }
+  } else if (request.kind === "edit" && request.component) {
+    lines.push(...componentNotePrompt(request, screens), "", `What the user asked for: ${request.note}`, ...batchSection(job, request, screens))
   } else if (request.kind === "edit" && request.flow) {
     lines.push(...flowNotePrompt(request, screens), "", `What the user asked for: ${request.note}`, ...batchSection(job, request, screens))
   } else if (request.kind === "edit") {
@@ -302,7 +318,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     )
   }
 
-  const context = request.kind === "page" || request.kind === "flow" || request.flow ? "" : contextSection(job, request)
+  const context = request.kind === "page" || request.kind === "flow" || request.flow || request.component ? "" : contextSection(job, request)
   if (context) lines.push("", context)
   const sketch = sketchSection(job, request)
   if (sketch) lines.push("", sketch)

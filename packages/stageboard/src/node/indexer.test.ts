@@ -93,4 +93,31 @@ export const One = {}
     expect(stories[0].title).toBe("Nested Title")
     expect(stories[0].hasPage).toBe(true)
   })
+
+  it("reads a component's frame from its own or its meta's parameters.viewport", () => {
+    const stories = index(
+      "frames.stories.tsx",
+      `export default { title: "Kit/Chip", parameters: { layout: "centered", viewport: { width: 320, height: 180 } } }
+export const Default = {}
+export const Wide: Story = { args: { long: true }, parameters: { viewport: { width: 960 } } }
+export const Nested = { render: () => <Chip style={{ width: 20 }} />, args: { viewport: { width: 1 } } }
+`,
+    )
+    expect(Object.fromEntries(stories.map((s) => [s.exportName, s.viewport]))).toEqual({
+      Default: { width: 320, height: 180 },
+      Wide: { width: 960 },
+      Nested: { width: 320, height: 180 },
+    })
+  })
+
+  it("reads the layout, so a fullscreen story gets a page-sized frame", () => {
+    const stories = index(
+      "layouts.stories.tsx",
+      `export default { title: "Pages/Calendar" } satisfies Meta
+export const Day = { ...day, parameters: { layout: "fullscreen" } } satisfies Story
+export const Legend = { render: () => <Legend layout="padded" /> }
+`,
+    )
+    expect(Object.fromEntries(stories.map((s) => [s.exportName, s.layout]))).toEqual({ Day: "fullscreen", Legend: undefined })
+  })
 })
