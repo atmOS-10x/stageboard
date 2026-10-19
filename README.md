@@ -5,7 +5,7 @@
 <h1 align="center">stageboard</h1>
 
 <p align="center">
-  Your whole app on one board. Point at anything, ask an agent for variants, watch them appear live.
+  Your app's screens and flows on one board. Walk through a flow, mark what should change, and an agent changes the real code.
 </p>
 
 <p align="center">
@@ -23,9 +23,9 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/annotate.png" alt="A note on the Members list of a team page in atmOS, in the Create a team flow" width="880" />
+  <img src=".github/assets/flow.gif" alt="Opening the Create a team flow in atmOS, watching its screens play, leaving a note on two of them and reconciling both into one request" width="880" />
   <br />
-  <sub>stageboard on <a href="https://atmos.build">atmOS</a>: a note on one screen of the Create a team flow, before it goes to an agent.</sub>
+  <sub>A flow in <a href="https://atmos.build">atmOS</a>: open it, watch each screen play what the user does, note what should change as you go, then Reconcile sends every note to an agent at once.</sub>
 </p>
 
 ## Get started: paste this into your agent
@@ -41,19 +41,19 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 
 ## What it does
 
+- **Flows.** Ordered journeys through your screens, like Mobbin's. Describe a new flow and an agent assembles it from existing screens, building the missing ones while they render as a pixel ocean; or add, drag and remove screens yourself. In the flow viewer each step says what is happening on the screen and plays what the user does on it (clicks, typing, key presses) with a cursor; Play runs the whole flow screen by screen. Annotate goes across screens: comment and sketch on one, press → for the next, and Note on flow becomes Reconcile, sending everything in one request. Click a screen (or press Enter) to use it, Escape to hand control back, R to replay it from the start. `npx stageboard flow shot <flow>` renders a whole flow into one grid image, playing each step's actions first and listing them with the note so an agent can take it in at once. Flows live in `stageboard/board.json`; commit it.
 - **Stories with mock data.** A Storybook-compatible `*.stories.tsx` format. Pages are stories too, so no backend or login is needed.
 - **Screens, Flows, Components.** Browse every page and the user flows through the app as Desktop, Tablet or Mobile, and every UI component in its own frame. The sidebar searches whichever you are looking at.
 - **Components.** One row per component, its stories side by side. Each story renders in its own frame (`parameters.viewport`), fitted into the same 16:9 tile, so a small button is as easy to see as a whole panel. Open one to go through its stories with ← →, annotate them, and send one note on the whole component. `npx stageboard frames --write` measures every component story and sets frames that fit.
-- **Flows.** Ordered journeys through your screens, like Mobbin's. Describe a new flow and an agent assembles it from existing screens, building the missing ones while they render as a pixel ocean; or add, drag and remove screens yourself. In the flow viewer each step says what is happening on the screen and plays what the user does on it (clicks, typing, key presses) with a cursor; Play runs the whole flow screen by screen. Annotate goes across screens: comment and sketch on one, press → for the next, and Note on flow becomes Reconcile, sending everything in one request. Click a screen (or press Enter) to use it, Escape to hand control back, R to replay it from the start. `npx stageboard flow shot <flow>` renders a whole flow into one grid image, playing each step's actions first and listing them with the note so an agent can take it in at once. Flows live in `stageboard/board.json`; commit it.
 - **Annotate.** Press A. Comment is the default: drag over any screen, component, story or variant, write a note, paste reference images, and send it to an agent. On a single screen the same toolbar also lets you move, resize and retype elements, draw, add blocks and drop in your own components, then Reconcile. The agent gets every change plus before/after screenshots.
 - **Live variants.** `variant("landing.hero", Hero)` makes a component swappable. Agents write `*.variant.tsx` files that appear while they work, and you pick one or keep the original. Adopt as original asks the agent to make the picked variant the new original. Production renders the original.
 - **`stageboard shot`.** A headless screenshot of any story, variant or region. Agents use it to check their own work.
 - **MCP server.** `list_stories`, `screenshot`, `flow_grid`, `list_variants`, `compare_variants`, `select_variant`, `list_flows`, `save_flow` and `complete_job` (agents report when they are done), attached to Claude and Codex agents automatically.
 
 <p align="center">
-  <img src=".github/assets/components.png" alt="Charts from atmOS's component library under Components, one row per component, each story in its own frame" width="880" />
+  <img src=".github/assets/annotate.png" alt="A note on the Members list of a team page in atmOS, in the Create a team flow" width="880" />
   <br />
-  <sub>The charts of the <a href="https://atmos.build">atmOS</a> component library under Components.</sub>
+  <sub>A note on one screen of the Create a team flow in <a href="https://atmos.build">atmOS</a>, before it joins the others.</sub>
 </p>
 
 ## Quick start
