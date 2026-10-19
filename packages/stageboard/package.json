@@ -27,7 +27,7 @@
   ],
   "type": "module",
   "bin": {
-    "stageboard": "./dist/node/cli.js"
+    "stageboard": "dist/node/cli.js"
   },
   "exports": {
     ".": {
