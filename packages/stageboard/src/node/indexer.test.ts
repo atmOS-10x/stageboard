@@ -120,4 +120,21 @@ export const Legend = { render: () => <Legend layout="padded" /> }
     )
     expect(Object.fromEntries(stories.map((s) => [s.exportName, s.layout]))).toEqual({ Day: "fullscreen", Legend: undefined })
   })
+
+  it("counts a story built by a local helper that sets a route as a page", () => {
+    const stories = index(
+      "helpers.stories.tsx",
+      `export default { title: "Pages/Settings" } satisfies Meta
+const at = (id: string, title: string) =>
+  page({ route: \`/settings/\${id}\`, title, group: "Settings" })
+const state = (title: string) => ({ layout: "fullscreen" as const, page: { route: "/settings/software", title } })
+const prime = (qc: QueryClient) => qc.clear()
+
+export const Members = at("members", "Mitglieder")
+export const T2med: Story = { parameters: state("T2med"), args: { doc: 1 } }
+export const Loading: Story = { render: () => <Spinner />, play: prime }
+`,
+    )
+    expect(pages(stories)).toEqual({ Members: true, T2med: true, Loading: false })
+  })
 })
