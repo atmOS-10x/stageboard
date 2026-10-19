@@ -1,6 +1,6 @@
 ---
 name: stageboard
-description: Set up and grow stageboard in a web app. Use it to write stories with mock data, put every page in Screens, assemble flows, create or edit *.variant.tsx variants, or screenshot a component without running the app. Trigger on "set up stageboard", "add stories", "site map", "flows", "make variants", or a stageboard annotation prompt.
+description: Set up and grow stageboard in a web app. Use it to write stories with mock data, decide what is a component, a screen or a flow, put every page and page state in Screens, assemble flows, create or edit *.variant.tsx variants, or screenshot a component without running the app. Trigger on "set up stageboard", "add stories", "site map", "flows", "make variants", or a stageboard annotation prompt.
 ---
 
 # stageboard
@@ -51,9 +51,24 @@ export const Disabled: Story<typeof Button> = { args: { disabled: true } }
 - Every component story renders in its own frame, `parameters.viewport: { width, height }`, shown fitted into a 16:9 tile under Components (default 640×360). Give each new component file a frame just large enough for its stories plus 40px each side, as numbers on the default export, and a smaller one on a story that draws much less (a lone button in a file whose `Variants` story is a long row). Leave room for menus, popovers and dialogs that open. `npx stageboard frames` prints frames that fit; `--write` sets them.
 - Use realistic data in the product's language and domain. Never use lorem ipsum.
 
+## Component, screen or flow
+
+Every story is a component or a screen, and flows are made of screens. Decide before you write it:
+
+| | What it is | How to write it | Shows under |
+|---|---|---|---|
+| **Component** | A reusable piece of UI that makes sense without an address: a button, badge, menu, chart, card, a panel used in several places. No app shell. | No `page`. Title it by where it lives in the design system (`Primitives/Button`, `Tickets/Attachment`), never `Pages/…`. Give it a frame (below). | Components, one row per file, each story in its own frame |
+| **Screen** | What a user sees at an address: the app shell with a page, from a route. | `parameters.page = { route, title, group, links }`. Title the file `Pages/<Area>`. | Screens, grouped by `page.group` |
+| **Flow** | The screens a user goes through to get one thing done, in order. | Saved with `save_flow` into `stageboard/board.json`. Only screens can be steps. | Flows |
+
+- **Every state of a page is a screen.** A tab, a filter, an empty list, a dialog open, another record, another layout of the same page: each gets its own page story with the same `route` (and `path` if it shows another record) and a `title` that names the state, such as `Kalender: Tag` or `Anfrage: Fax`. Never drop `page` or replace `parameters` (`{ ...page(…), parameters: { layout: "fullscreen" } }`) to keep a state off Screens: the whole page lands under Components, squeezed into a component frame, and no flow can use it.
+- **The quick test.** Does it render the app's shell or fill a page at an address? Screen. Does it make sense on its own and appear in several places? Component. A story titled `Pages/…` under Components is always a mistake.
+- **Let stageboard see the route.** Write `parameters: { page: { route: "…" } }` in the story, or build it with a helper whose call or body shows `route: "…"` (`page({ route: "/inbox" })`, `{ ...page({ route }), decorators }`), so stageboard can tell a page without loading the file.
+- **Check the result.** After adding stories, look at `npx stageboard list`: page stories are marked `page`. Nothing titled `Pages/…` should be missing the mark.
+
 ## Screens and flows
 
-Pages are stories with `parameters.page = { route, title, group, links }`; they show up under Screens, grouped by `group`. Stories without a `route`, even in the same file, show up under Components. To cover a whole app, follow [site-map.md](references/site-map.md): enumerate routes, build a mock backend once, then add page stories area by area and verify each with `shot`. Flows need specific states (a dialog open, a form filled in), so give those their own page stories too.
+To cover a whole app, follow [site-map.md](references/site-map.md): enumerate routes, build a mock backend once, then add page stories area by area and verify each with `shot`. Flows need specific states (a dialog open, a form filled in), and those are screens like any other.
 
 Flows are ordered lists of screens kept in `stageboard/board.json`. Save one with the MCP tool `save_flow` (or `npx stageboard flow save '<json>'`): `{ "flow"?: id, "name", "group", "description", "steps": [{ "storyId", "note"?, "actions"? } | { "pending": "screen you are still building" }] }`. `note` is what happens on the screen. `actions` is what the user does on it, in order, and the viewer plays them with a cursor: `{ "do": "click" | "type" | "press" | "hover" | "scroll" | "wait", "target"?: "visible text, aria-label, placeholder or label (or a CSS selector)", "text"?: "what to type, the key, or ms" }`, e.g. `[{ "do": "click", "target": "Einstellungen" }, { "do": "click", "target": "Telefonmenü bearbeiten" }]`. The last action usually leads to the next step. `list_flows` shows what exists.
 

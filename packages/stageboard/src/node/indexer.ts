@@ -78,7 +78,8 @@ function hasRoute(obj: string | undefined, screens = new Set<string>()): boolean
   if (!obj) return false
   const own = topLevel(obj)
   const at = /\bparameters\s*:/.exec(own)
-  if (!at) return spreads(own, screens)
+  // `{ ...page({ route: "/patients" }), decorators }`: the spread of a call that sets a route.
+  if (!at) return spreads(own, screens) || (/\.\.\.\s*[A-Za-z_$][\w$.]*\s*\(/.test(own) && ROUTE_RE.test(obj))
   const value = obj.slice(at.index + at[0].length).trimStart()
   const params = objectAt(value, 0)
   if (!params) return screens.has(/^([A-Za-z_$][\w$]*)\.parameters\b/.exec(value)?.[1] ?? "")

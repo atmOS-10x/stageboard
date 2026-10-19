@@ -131,10 +131,11 @@ const state = (title: string) => ({ layout: "fullscreen" as const, page: { route
 const prime = (qc: QueryClient) => qc.clear()
 
 export const Members = at("members", "Mitglieder")
+export const Patients: Story = { ...page({ route: "/patients", title: "Patienten" }), decorators: [withSearch] }
 export const T2med: Story = { parameters: state("T2med"), args: { doc: 1 } }
 export const Loading: Story = { render: () => <Spinner />, play: prime }
 `,
     )
-    expect(pages(stories)).toEqual({ Members: true, T2med: true, Loading: false })
+    expect(pages(stories)).toEqual({ Members: true, Patients: true, T2med: true, Loading: false })
   })
 })

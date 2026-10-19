@@ -27,7 +27,7 @@ export const Tickets: Story = {
 - **`dream`:** set only when stageboard asks you to build a new screen for a flow; copy the id from the prompt exactly, so the placeholder turns into your page.
 - **`route`:** the real route pattern, with dynamic segments in brackets. `links` match against it.
 - **`group`:** one column on the canvas. Use the same group names across the app.
-- **Tabs and states of one page:** write extra stories without `page` in the same file; they show up under Components, grouped by the file's title. To make a state a screen of its own, give it the same route (or spread the page story: `{ ...Tickets, args: { … } }`).
+- **Tabs and states of one page:** every one is its own page story with the same `route`, a `path` if it shows another record, and a `title` that names the state (`Kalender: Tag`, `Posteingang: leer`). Spreading the page story works too (`{ ...Tickets, args: { … } }`). Never drop `page` or replace `parameters` to keep a state off Screens: the whole page then lands under Components.
 - **Redirect-only pages:** render the page's real UI if it has any. Otherwise skip it.
 - **Server components:** render the client part with the data they would receive, or copy the markup and say so in a comment.
 
