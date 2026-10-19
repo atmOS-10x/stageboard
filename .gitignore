@@ -6,3 +6,5 @@ dist
 examples/*/stageboard.fake.config.ts
 examples/*/stageboard.variants.ts
 site/stageboard.variants.ts
+.vercel
+.env*
