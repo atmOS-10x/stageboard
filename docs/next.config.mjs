@@ -8,7 +8,7 @@ const config = {
   // Next would otherwise write an AGENTS.md into this folder on dev start.
   agentRules: false,
   // Lets the dev server answer on a Tailscale hostname for remote review.
-  allowedDevOrigins: ["*.ts.net"],
+  allowedDevOrigins: ["*.ts.net", "**.ts.net", "mac-studio.tail8983c8.ts.net"],
   async rewrites() {
     // Every page as Markdown: /quick-start.md, /guides/flows.mdx, /index.md for the introduction.
     return [
