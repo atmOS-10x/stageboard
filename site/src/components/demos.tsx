@@ -3,22 +3,22 @@ import { ArrowUp, Component, Menu, MessageSquarePlus, MousePointer2, Pen, Plus, 
 import { BrandMark } from "./brand"
 import { AgentStack } from "./copy-prompt"
 import {
-  CheckoutScreen,
-  DoneScreen,
-  ListingScreen,
+  BookMachineScreen,
+  ReplayScreen,
+  SessionScreen,
   PHONE_H,
   PHONE_W,
-  PhoneCheckout,
-  PhoneDone,
-  PhoneListing,
-  PhoneSaved,
-  PhoneSearch,
+  PhoneBookMachine,
+  PhoneReplay,
+  PhoneSession,
+  PhonePlugins,
+  PhoneSessions,
   SCREEN_H,
   SCREEN_W,
-  SavedScreen,
+  PluginsScreen,
   Scaled,
-  SearchScreen,
-  type CheckoutProps,
+  SessionsScreen,
+  type BookMachineProps,
 } from "./mini-screens"
 import { PixelWaves } from "./pixel-waves"
 
@@ -140,7 +140,7 @@ function FlowsSidebar({ active, busy }: { active: string; busy?: boolean }) {
   return (
     <aside className="w-[176px] shrink-0 border-r border-white/8 bg-ink-850 px-2 pt-3">
       <div className="px-2 py-1 text-[12px] font-medium text-fg-dim">Flows</div>
-      {["Book a lakeside cabin", "Save stays for later"].map((name) => (
+      {["Run on a cloud machine", "Connect a plugin"].map((name) => (
         <div key={name} className={`flex items-center gap-2 rounded-md px-2 py-1 text-[12.5px] ${name === active ? "bg-accent/16 text-white" : "text-[#a0a0aa]"}`}>
           {name}
           {name === active && busy && <span className="ml-auto size-1.5 animate-pulse rounded-full bg-accent-soft" />}
@@ -165,9 +165,9 @@ export function FlowsDemo({ at }: { at?: number }) {
   const built = t > 4600
   const done = t > 6200
 
-  const A = phone ? [PhoneSearch, PhoneListing, PhoneCheckout, PhoneDone] : [SearchScreen, ListingScreen, CheckoutScreen, DoneScreen]
-  const B = phone ? [PhoneSearch, PhoneListing] : [SearchScreen, ListingScreen]
-  const Saved = phone ? PhoneSaved : SavedScreen
+  const A = phone ? [PhoneSessions, PhoneSession, PhoneBookMachine, PhoneReplay] : [SessionsScreen, SessionScreen, BookMachineScreen, ReplayScreen]
+  const B = phone ? [PhoneSessions, PhoneSession] : [SessionsScreen, SessionScreen]
+  const Saved = phone ? PhonePlugins : PluginsScreen
   const cols = phone ? "grid-cols-[repeat(4,29%)]" : "grid-cols-[repeat(4,31%)]"
 
   return (
@@ -175,7 +175,7 @@ export function FlowsDemo({ at }: { at?: number }) {
       <TopBar phone={phone} tab="Flows" />
       <div className="flex min-h-0 flex-1">
         {!phone && (
-          <FlowsSidebar active="Save stays for later" busy={!done} />
+          <FlowsSidebar active="Connect a plugin" busy={!done} />
         )}
         <div className="bg-dots min-w-0 flex-1 overflow-hidden bg-ink-950 px-4 pt-4 sm:px-6 sm:pt-5">
           <div className="space-y-5 sm:space-y-6">
@@ -185,7 +185,7 @@ export function FlowsDemo({ at }: { at?: number }) {
                   <Shot key={i}><Device phone={phone}><S /></Device></Shot>
                 ))}
               </div>
-              <h3 className="mt-2.5 text-[14px] font-medium text-fg sm:text-[15px]">Book a lakeside cabin</h3>
+              <h3 className="mt-2.5 text-[14px] font-medium text-fg sm:text-[15px]">Run on a cloud machine</h3>
               <p className="text-[12px] text-fg-dim">4 screens</p>
             </section>
             <section>
@@ -202,7 +202,7 @@ export function FlowsDemo({ at }: { at?: number }) {
                       <div className="absolute inset-0">
                         <PixelWaves cell={phone ? 6 : 7} />
                         <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#14131c]/72 px-2.5 py-1 text-[11px] font-medium whitespace-nowrap">
-                          <span className="text-shimmer">Building Saved</span>
+                          <span className="text-shimmer">Building Plugins</span>
                         </span>
                       </div>
                     )}
@@ -214,7 +214,7 @@ export function FlowsDemo({ at }: { at?: number }) {
                   </Shot>
                 </div>
               </div>
-              <h3 className="mt-2.5 text-[14px] font-medium text-fg sm:text-[15px]">Save stays for later</h3>
+              <h3 className="mt-2.5 text-[14px] font-medium text-fg sm:text-[15px]">Connect a plugin</h3>
               <p className="text-[12px] text-fg-dim">{done ? "3 screens" : <span className="text-shimmer">Assembling…</span>}</p>
             </section>
           </div>
@@ -230,10 +230,10 @@ export function FlowsDemo({ at }: { at?: number }) {
 const VIEWER_CYCLE = 15000
 
 const STEPS = [
-  { note: "Filters to lakeside stays", action: "Clicks Cabin on Lake Bled" },
-  { note: "Checks the dates and the price", action: "Clicks Reserve" },
-  { note: "Pays by card", action: "Clicks Pay €462" },
-  { note: "Sees the booking", action: "" },
+  { note: "Opens the billing ledger session", action: "Clicks Event-sourced billing ledger" },
+  { note: "The replay needs more than a laptop", action: "Clicks Book machine" },
+  { note: "Picks a Regular Linux machine", action: "Clicks Book machine" },
+  { note: "Watches the replay run on it", action: "" },
 ]
 
 type Pt = [number, number]
@@ -250,10 +250,10 @@ type Geometry = {
 }
 
 const DESKTOP: Geometry = {
-  search: [42, 38],
-  reserve: [80, 46],
-  dragFrom: [61, 16],
-  dragTo: [97, 72],
+  search: [55, 22],
+  reserve: [88, 78],
+  dragFrom: [61, 15],
+  dragTo: [97, 66],
   pay: [16, 80],
   moveBy: 150,
   stroke: "M 14 230 C 14 214, 70 210, 120 213 C 150 215, 156 238, 140 252 C 116 268, 40 268, 22 256 C 10 247, 12 236, 20 230 M 150 244 C 190 246, 230 246, 262 244 M 250 236 L 263 244 L 250 252",
@@ -261,8 +261,8 @@ const DESKTOP: Geometry = {
 }
 
 const PHONE: Geometry = {
-  search: [50, 25],
-  reserve: [80, 94],
+  search: [50, 17],
+  reserve: [50, 85],
   dragFrom: [5, 9],
   dragTo: [95, 34],
   pay: [30, 93],
@@ -271,7 +271,7 @@ const PHONE: Geometry = {
   composer: { left: "4%", top: "36%" },
 }
 
-const NOTE = "Total on its own line, one accent colour."
+const NOTE = "Specs as one line, and only one accent colour."
 
 export function FlowViewerDemo({ at }: { at?: number }) {
   const phone = usePhone()
@@ -314,13 +314,13 @@ export function FlowViewerDemo({ at }: { at?: number }) {
   const pressReconcile = t >= 10950 && t < 11250
 
   const screen = (i: number) => {
-    const checkout: CheckoutProps = {
+    const checkout: BookMachineProps = {
       revised: reconciled,
       paySelected: selected,
       payStyle: moved ? { transform: `translateX(${g.moveBy}px)` } : undefined,
     }
-    if (phone) return [<PhoneSearch pressed={t > 1450 && step === 0} />, <PhoneListing pressed={t > 3300 && step === 1} />, <PhoneCheckout {...(i === 2 ? checkout : {})} />, <PhoneDone />][i]
-    return [<SearchScreen pressed={t > 1450 && step === 0} />, <ListingScreen pressed={t > 3300 && step === 1} />, <CheckoutScreen {...(i === 2 ? checkout : {})} />, <DoneScreen />][i]
+    if (phone) return [<PhoneSessions pressed={t > 1450 && step === 0} />, <PhoneSession pressed={t > 3300 && step === 1} />, <PhoneBookMachine {...(i === 2 ? checkout : {})} />, <PhoneReplay />][i]
+    return [<SessionsScreen pressed={t > 1450 && step === 0} />, <SessionScreen pressed={t > 3300 && step === 1} />, <BookMachineScreen {...(i === 2 ? checkout : {})} />, <ReplayScreen />][i]
   }
 
   const slotWidth = phone ? "w-[min(56cqw,43cqh)]" : "w-[min(70cqw,152cqh)]"
@@ -331,10 +331,10 @@ export function FlowViewerDemo({ at }: { at?: number }) {
     <Window phone={phone}>
       <TopBar phone={phone} tab="Flows" />
       <div className="flex min-h-0 flex-1">
-        {!phone && <FlowsSidebar active="Book a lakeside cabin" />}
+        {!phone && <FlowsSidebar active="Run on a cloud machine" />}
         <div className="relative flex min-w-0 flex-1 flex-col bg-[#0c0c0f]">
           <div className="flex shrink-0 items-center gap-3 px-4 pt-3 pb-1 sm:px-5 sm:pt-4">
-            <h3 className="truncate text-[14px] font-medium text-[#f4f4f7] sm:text-[16px]">Book a lakeside cabin</h3>
+            <h3 className="truncate text-[14px] font-medium text-[#f4f4f7] sm:text-[16px]">Run on a cloud machine</h3>
             <span className="flex-1" />
             <span className="text-[12.5px] text-[#8b8b96] tabular-nums">{step + 1} / 4</span>
             <span className="flex-1 max-sm:hidden" />
@@ -403,8 +403,8 @@ export function FlowViewerDemo({ at }: { at?: number }) {
             {composer && (
               <div className="animate-rise absolute z-20 w-[230px] rounded-2xl bg-[#28282e]/97 p-3 shadow-[0_20px_60px_rgb(0_0_0/0.55),0_0_0_1px_rgb(255_255_255/0.06)] sm:w-[260px]" style={g.composer}>
                 <div className="flex gap-1.5 text-[10.5px] text-[#b4b4be]">
-                  <span className="rounded-md bg-white/7 px-1.5 py-0.5">Checkout</span>
-                  <span className="rounded-md bg-white/7 px-1.5 py-0.5 font-mono">OrderSummary</span>
+                  <span className="rounded-md bg-white/7 px-1.5 py-0.5">Book machine</span>
+                  <span className="rounded-md bg-white/7 px-1.5 py-0.5 font-mono">MachineSummary</span>
                 </div>
                 <p className="mt-2 min-h-[2.6em] text-[12.5px] leading-snug text-[#f2f2f5]">
                   {typed}

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { variant } from "stageboard/react"
 import { FlowViewerDemo } from "../components/demos"
-import { Photo } from "../components/mini-screens"
+import { AtmosLogo } from "../components/agent-logos"
 
 function StepHead({ n, title, body, detail }: { n: string; title: string; body: string; detail?: string }) {
   return (
@@ -100,7 +100,7 @@ export function SetupVisual() {
       <div className="rounded-xl border border-white/8 bg-ink-800 font-mono text-[12px] shadow-[0_20px_50px_rgb(0_0_0/0.45)] sm:text-[12.5px]">
         <div className="flex items-center gap-1.5 border-b border-white/6 px-4 py-3">
           {[0, 1, 2].map((i) => <span key={i} className="size-2.5 rounded-full bg-white/10" />)}
-          <span className="ml-3 text-[11.5px] text-fg-faint">fernway</span>
+          <span className="ml-3 text-[11.5px] text-fg-faint">billing-api</span>
         </div>
         {/* A fixed height, so the panel doesn't grow as lines arrive. */}
         <div className="h-[318px] space-y-2 overflow-hidden p-4 leading-relaxed">
@@ -120,30 +120,37 @@ export function SetupVisual() {
 
 const VARIANTS = ["Original", "Calm", "Split"] as const
 
-function ReserveCard({ kind }: { kind: (typeof VARIANTS)[number] }) {
+const MACHINES = [
+  ["Dani's MacBook", "Your laptop", "Ready"],
+  ["sap-gateway", "Regular, desktop", "Paused"],
+  ["staging-db", "Large, headless", "Ready"],
+] as const
+
+function BookCard({ kind }: { kind: (typeof VARIANTS)[number] }) {
   if (kind === "Calm")
     return (
       <div className="rounded-2xl bg-zinc-50 p-4 text-zinc-900">
-        <div className="text-[10px] tracking-wide text-zinc-500 uppercase">3 nights</div>
-        <div className="mt-1 text-[22px] font-semibold tracking-tight">€462</div>
-        <div className="mt-3 rounded-full bg-zinc-900 py-2 text-center text-[11px] font-medium text-white">Reserve</div>
+        <div className="text-[10px] tracking-wide text-zinc-500 uppercase">Regular, Linux</div>
+        <div className="mt-1 text-[22px] font-semibold tracking-tight">4 vCPU</div>
+        <div className="text-[11px] text-zinc-500">8 GB RAM, 160 GB disk</div>
+        <div className="mt-3 rounded-lg bg-zinc-900 py-2 text-center text-[11px] font-medium text-white">Book machine</div>
       </div>
     )
   if (kind === "Split")
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 p-3 text-zinc-900">
         <div className="flex-1">
-          <div className="text-[18px] font-semibold">€140</div>
-          <div className="text-[9.5px] text-zinc-500">per night</div>
+          <div className="text-[16px] font-semibold">Regular</div>
+          <div className="text-[9.5px] text-zinc-500">4 vCPU, 8 GB</div>
         </div>
-        <div className="rounded-xl bg-emerald-700 px-4 py-2.5 text-[11px] font-medium text-white">Reserve</div>
+        <div className="rounded-lg bg-zinc-900 px-3.5 py-2.5 text-[11px] font-medium text-white">Book</div>
       </div>
     )
   return (
     <div className="rounded-xl border border-zinc-200 p-3 text-zinc-900 shadow-sm">
-      <div className="text-[14px] font-semibold">€140 <span className="text-[10px] font-normal text-zinc-500">night</span></div>
-      <div className="mt-2 rounded-md border border-zinc-200 px-2 py-1.5 text-[10px] text-zinc-500">Jun 12 – 15, 2 guests</div>
-      <div className="mt-2 rounded-full bg-emerald-700 py-1.5 text-center text-[11px] font-medium text-white">Reserve</div>
+      <div className="text-[13px] font-semibold">Book a cloud machine</div>
+      <div className="mt-2 rounded-md border border-zinc-200 px-2 py-1.5 text-[10px] text-zinc-500">Regular, 4 vCPU, 8 GB</div>
+      <div className="mt-2 rounded-md bg-violet-600 py-1.5 text-center text-[11px] font-medium text-white">Book machine</div>
     </div>
   )
 }
@@ -159,28 +166,36 @@ export function VariantVisual() {
   return (
     <Panel>
       <div className="overflow-hidden rounded-[10px] bg-white shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_20px_50px_rgb(0_0_0/0.45)]">
-        <div className="flex h-9 items-center gap-4 border-b border-zinc-100 px-5 text-[10.5px] text-zinc-500">
-          <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-zinc-900"><span className="size-3 rounded-full bg-emerald-600" /> Fernway</span>
-          <span className="font-medium text-zinc-900">Stays</span>
-          <span>Trips</span>
+        <div className="flex h-9 items-center gap-2 border-b border-zinc-100 px-5 text-[10.5px] text-zinc-500">
+          <span className="grid size-4 place-items-center rounded-[5px] bg-zinc-950 text-white"><AtmosLogo className="size-2.5" /></span>
+          <span className="font-medium text-zinc-900">Machines</span>
         </div>
         <div className="grid gap-5 p-5 sm:grid-cols-[1fr_190px]">
-          <div>
-            <Photo name="bled-cabin" className="h-[130px] w-full rounded-xl" />
-            <div className="mt-3 text-[17px] font-semibold tracking-tight text-zinc-900">Cabin on Lake Bled</div>
-            <div className="mt-1 text-[11px] leading-snug text-zinc-500">A timber cabin on the north shore, with a wood stove and a private jetty.</div>
+          <div className="space-y-1.5">
+            {MACHINES.map(([name, spec, status]) => (
+              <div key={name} className="flex items-center gap-2.5 rounded-lg border border-zinc-100 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-medium text-zinc-900">{name}</div>
+                  <div className="text-[10px] text-zinc-500">{spec}</div>
+                </div>
+                <span className={`flex items-center gap-1 text-[10px] ${status === "Ready" ? "text-emerald-700" : "text-zinc-500"}`}>
+                  <span className={`size-1.5 rounded-full ${status === "Ready" ? "bg-emerald-500" : "bg-zinc-300"}`} />
+                  {status}
+                </span>
+              </div>
+            ))}
           </div>
           <div className="relative mt-3 self-start sm:mt-0">
             <span className="pointer-events-none absolute -inset-2 rounded-[14px] border-[1.5px] border-variant bg-variant/7" />
-            <span className="absolute -top-6 -left-2 rounded-md bg-variant px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-[#2a2205]">listing.reserve</span>
+            <span className="absolute -top-6 -left-2 rounded-md bg-variant px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-[#2a2205]">machines.book</span>
             <div key={VARIANTS[i]} className="animate-rise relative">
-              <ReserveCard kind={VARIANTS[i]} />
+              <BookCard kind={VARIANTS[i]} />
             </div>
           </div>
         </div>
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-        <div className="flex rounded-full bg-white/6 p-0.5 text-[12.5px]" role="radiogroup" aria-label="Variants of listing.reserve">
+        <div className="flex rounded-full bg-white/6 p-0.5 text-[12.5px]" role="radiogroup" aria-label="Variants of machines.book">
           {VARIANTS.map((v, n) => (
             <button
               key={v}

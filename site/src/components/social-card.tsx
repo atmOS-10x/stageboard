@@ -1,13 +1,13 @@
 import { variant } from "stageboard/react"
 import { BrandMark } from "./brand"
-import { ListingScreen, SavedScreen, Scaled, SearchScreen } from "./mini-screens"
+import { PluginsScreen, Scaled, SessionScreen, SessionsScreen } from "./mini-screens"
 import { PixelWaves } from "./pixel-waves"
 
 // The 1200 × 630 social preview. public/og.png is a screenshot of this story:
 // npx stageboard shot landing-social--card --width 1200 --height 630, then copy it to public/og.png.
 
 function SocialCardImpl() {
-  const steps = [SearchScreen, ListingScreen, SavedScreen]
+  const steps = [SessionsScreen, SessionScreen, PluginsScreen]
   return (
     <div className="relative h-[630px] w-[1200px] overflow-hidden bg-ink-900">
       <div className="absolute inset-0 [mask-image:radial-gradient(ellipse_75%_80%_at_70%_100%,#000_25%,transparent_75%)]">

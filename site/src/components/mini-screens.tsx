@@ -1,10 +1,15 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
+import { Cpu, HardDrive, MemoryStick, Mic, Plus, Search } from "lucide-react"
+import { AtmosLogo, ClaudeLogo, OpenAILogo } from "./agent-logos"
 
-// Screens of a made-up travel app, Fernway, drawn at a fixed size and scaled to fit, the way the board shows thumbnails.
-// The photos in public/photos were generated for it.
+// Screens of atmOS (atmos.build), the app the demos annotate, drawn at a fixed size and scaled to fit the way the
+// board shows thumbnails. Content follows the atmos.build home page: the billing-ledger session, machine booking
+// and the plugin catalog. Light theme, zinc neutrals, near-black primary, as in @atmos/ui.
 
 export const SCREEN_W = 480
 export const SCREEN_H = 300
+export const PHONE_W = 240
+export const PHONE_H = 500
 
 export function Scaled({ children, width = SCREEN_W, height = SCREEN_H, className }: { children: ReactNode; width?: number; height?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -25,49 +30,149 @@ export function Scaled({ children, width = SCREEN_W, height = SCREEN_H, classNam
   )
 }
 
-export type PhotoName = "bled-cabin" | "bled-interior" | "bled-terrace" | "comporta" | "lofoten" | "hallstatt" | "annecy"
+/* ------------------------------------------------------------------ shared bits */
 
-export function Photo({ name, className }: { name: PhotoName; className?: string }) {
-  return <img src={`/photos/${name}.jpg`} alt="" draggable={false} className={`block bg-zinc-200 object-cover ${className ?? ""}`} />
+type Person = "dani" | "philipp" | "mara"
+
+function Face({ who, className = "size-4" }: { who: Person; className?: string }) {
+  return <img src={`/people/${who}.webp`} alt="" draggable={false} className={`shrink-0 rounded-full bg-zinc-200 object-cover ${className}`} />
 }
 
-function AppNav({ active }: { active?: string }) {
+function Harness({ kind, className = "size-4" }: { kind: "claude" | "codex"; className?: string }) {
   return (
-    <div className="flex h-9 items-center gap-4 border-b border-zinc-100 px-5 text-[10px] text-zinc-500">
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-900">
-        <span className="size-3 rounded-full bg-emerald-600" /> Fernway
-      </span>
-      {["Stays", "Trips", "Saved"].map((l) => (
-        <span key={l} className={l === active ? "font-medium text-zinc-900" : ""}>
-          {l}
-        </span>
+    <span className={`grid shrink-0 place-items-center rounded-full bg-zinc-100 ${className}`}>
+      {kind === "claude" ? <ClaudeLogo className="size-[62%] text-[#d97757]" /> : <OpenAILogo className="size-[62%] text-zinc-900" />}
+    </span>
+  )
+}
+
+function Lights() {
+  return (
+    <span className="flex gap-1">
+      {["#ff5f57", "#febc2e", "#28c840"].map((c) => (
+        <span key={c} className="size-[6px] rounded-full" style={{ background: c }} />
       ))}
-      <span className="ml-auto size-5 rounded-full bg-zinc-200" />
+    </span>
+  )
+}
+
+function Mark({ className = "size-4" }: { className?: string }) {
+  return (
+    <span className={`grid shrink-0 place-items-center rounded-[5px] bg-zinc-950 text-white ${className}`}>
+      <AtmosLogo className="size-[62%]" />
+    </span>
+  )
+}
+
+const NAV = ["Sessions", "Machines", "Plugins"] as const
+
+function Sidebar({ active }: { active: (typeof NAV)[number] }) {
+  return (
+    <div className="flex w-[108px] shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 px-2 pt-2.5 text-[9.5px] text-zinc-600">
+      <div className="flex items-center gap-1.5 px-1 pb-2.5">
+        <Lights />
+      </div>
+      <div className="flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-zinc-900">
+        <Mark className="size-3.5" /> Platform
+      </div>
+      {NAV.map((n) => (
+        <div key={n} className={`mt-0.5 rounded-md px-1.5 py-1 ${n === active ? "bg-zinc-200/70 font-medium text-zinc-900" : ""}`}>
+          {n}
+        </div>
+      ))}
+      <div className="mt-3 px-1.5 text-[8.5px] font-medium text-zinc-400">Teams</div>
+      {["Design", "Growth"].map((t) => (
+        <div key={t} className="px-1.5 py-1">
+          {t}
+        </div>
+      ))}
     </div>
   )
 }
 
-export function HomeScreen() {
+function Top({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <AppNav active="Stays" />
-      <div className="px-5 pt-5">
-        <div className="text-[22px] leading-[1.1] font-semibold tracking-tight">Find a quiet place<br />by the water.</div>
-        <div className="mt-3 flex h-8 items-center gap-2 rounded-full border border-zinc-200 px-3 text-[10px] text-zinc-400">
-          <span className="size-2.5 rounded-full border border-zinc-300" /> Where to? <span className="ml-auto rounded-full bg-zinc-900 px-2.5 py-1 text-white">Search</span>
+    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-zinc-200 px-4 text-[10.5px]">
+      <span className="truncate font-medium text-zinc-900">{title}</span>
+      <span className="flex-1" />
+      {children}
+    </div>
+  )
+}
+
+function Composer({ value }: { value?: string }) {
+  return (
+    <div className="flex h-8 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-2.5 text-[9.5px] shadow-sm">
+      <Plus className="size-3 text-zinc-400" />
+      <span className={`flex-1 truncate ${value ? "text-zinc-900" : "text-zinc-400"}`}>{value ?? "Mention skills with $ or browse commands with /"}</span>
+      <Mic className="size-3 text-zinc-400" />
+    </div>
+  )
+}
+
+function Bubble({ who, name, time, children }: { who: Person | "claude"; name: string; time: string; children: ReactNode }) {
+  return (
+    <div className="flex gap-2">
+      {who === "claude" ? <Harness kind="claude" className="mt-px size-4" /> : <Face who={who} className="mt-px size-4" />}
+      <div className="min-w-0 flex-1 leading-snug">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-medium text-zinc-900">{name}</span>
+          <span className="text-[8px] text-zinc-400">{time}</span>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2.5">
-          {(
-            [
-              ["bled-cabin", "Lake Bled", "from €140"],
-              ["comporta", "Comporta", "from €210"],
-              ["lofoten", "Lofoten", "from €180"],
-            ] as const
-          ).map(([photo, name, price]) => (
-            <div key={name}>
-              <Photo name={photo} className="h-[86px] w-full rounded-lg" />
-              <div className="mt-1.5 text-[10px] font-medium">{name}</div>
-              <div className="text-[9px] text-zinc-500">{price}</div>
+        <div className="mt-0.5 text-zinc-700">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function Code({ children }: { children: ReactNode }) {
+  return <code className="rounded bg-zinc-100 px-1 font-mono text-[8.5px] text-zinc-800">{children}</code>
+}
+
+function Edited({ file, plus, minus }: { file: string; plus: number; minus: number }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[8.5px] text-zinc-500">
+      Edited <span className="font-mono text-zinc-800">{file}</span>
+      <span className="text-emerald-600">+{plus}</span>
+      <span className="text-rose-500">−{minus}</span>
+    </div>
+  )
+}
+
+const SESSIONS = [
+  { project: "billing-api", title: "Event-sourced billing ledger", harness: "claude", people: ["dani", "philipp"], status: "" },
+  { project: "billing-api", title: "Move invoice jobs to Temporal", harness: "codex", people: ["mara"], status: "" },
+  { project: "web", title: "Fix the flaky checkout e2e test", harness: "claude", people: [], status: "4m" },
+  { project: "infra", title: "NATS consumer backpressure", harness: "codex", people: ["philipp"], status: "" },
+] as const
+
+/* ------------------------------------------------------------------ desktop: 480 × 300 */
+
+export function SessionsScreen({ pressed }: { pressed?: boolean }) {
+  return (
+    <div className="flex h-full w-full bg-white text-[10px] text-zinc-900">
+      <Sidebar active="Sessions" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Top title="Sessions">
+          <span className="flex h-5 w-28 items-center gap-1 rounded-md border border-zinc-200 px-1.5 text-[9px] text-zinc-400">
+            <Search className="size-2.5" /> Search sessions
+          </span>
+          <span className="rounded-md bg-zinc-900 px-2 py-1 text-[9px] font-medium text-white">New session</span>
+        </Top>
+        <div className="space-y-1 p-2.5">
+          {SESSIONS.map((s, i) => (
+            <div key={s.title} className={`flex h-[42px] items-center gap-2.5 rounded-lg px-2.5 transition-colors ${pressed && i === 0 ? "bg-zinc-100 ring-1 ring-zinc-300" : i === 0 ? "bg-zinc-50" : ""}`}>
+              <Harness kind={s.harness} className="size-5" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{s.title}</div>
+                <div className="font-mono text-[8.5px] text-zinc-500">{s.project}</div>
+              </div>
+              {s.status && <span className="text-[8.5px] text-zinc-500">{s.status}</span>}
+              <span className="flex -space-x-1">
+                {s.people.map((p) => (
+                  <Face key={p} who={p} className="size-4 ring-2 ring-white" />
+                ))}
+              </span>
             </div>
           ))}
         </div>
@@ -76,307 +181,201 @@ export function HomeScreen() {
   )
 }
 
-const RESULTS = [
-  ["Cabin on Lake Bled", "€140", "bled-cabin", "4.9 (128 reviews)"],
-  ["Boathouse, Hallstatt", "€165", "hallstatt", "4.8 (94 reviews)"],
-  ["Glass lodge, Annecy", "€190", "annecy", "4.9 (61 reviews)"],
+export function SessionScreen({ pressed }: { pressed?: boolean }) {
+  return (
+    <div className="flex h-full w-full bg-white text-[9.5px] text-zinc-900">
+      <Sidebar active="Sessions" />
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <Top title={<><span className="font-mono text-zinc-500">billing-api/</span> Event-sourced billing ledger</>}>
+          <span className="flex -space-x-1">
+            <Face who="dani" className="size-4 ring-2 ring-white" />
+            <Face who="philipp" className="size-4 ring-2 ring-white" />
+          </span>
+        </Top>
+        <div className="space-y-3 px-4 pt-3">
+          <Bubble who="philipp" name="Philipp" time="10:02">
+            Pulled 30 days of billing incidents. 4 of 6 trace back to the read-modify-write in <Code>ApplyPayment</Code>.
+          </Bubble>
+          <Bubble who="claude" name="Claude Code" time="10:04">
+            <Edited file="ledger/writer.go" plus={64} minus={0} />
+            <div className="mt-1">Balances now have one writer. Replaying Tuesday's snapshot needs a bigger machine.</div>
+          </Bubble>
+        </div>
+        <div className="absolute inset-x-4 bottom-[52px] flex h-[30px] items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-[9px] text-zinc-600">
+          <Cpu className="size-3 text-zinc-400" /> Runs on Dani's MacBook
+          <span className="flex-1" />
+          <span className={`rounded-md px-2.5 py-1 font-medium text-white transition-colors ${pressed ? "bg-zinc-700" : "bg-zinc-900"}`}>Book machine</span>
+        </div>
+        <div className="absolute inset-x-4 bottom-3">
+          <Composer />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const SIZES = [
+  ["Tiny", "1 vCPU", "2 GB"],
+  ["Small", "2 vCPU", "4 GB"],
+  ["Regular", "4 vCPU", "8 GB"],
+  ["Large", "8 vCPU", "16 GB"],
 ] as const
 
-export function SearchScreen({ pressed }: { pressed?: boolean }) {
-  return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <AppNav active="Stays" />
-      <div className="flex gap-1.5 px-5 pt-3 text-[9px]">
-        {["Lakeside", "2 guests", "Jun 12 – 15", "Under €200"].map((f, i) => (
-          <span key={f} className={`rounded-full px-2.5 py-1 ${i === 0 ? "bg-zinc-900 text-white" : "border border-zinc-200 text-zinc-600"}`}>
-            {f}
-          </span>
-        ))}
-      </div>
-      <div className="mt-3 space-y-2.5 px-5">
-        {RESULTS.map(([title, price, photo, rating], i) => (
-          <div key={title} className={`flex items-center gap-3 rounded-xl border p-2 transition-colors ${pressed && i === 0 ? "border-emerald-600/40 bg-emerald-50/60" : "border-zinc-100"}`}>
-            <Photo name={photo} className="h-12 w-16 rounded-md" />
-            <div className="flex-1">
-              <div className="text-[11px] font-medium">{title}</div>
-              <div className="text-[9px] text-zinc-500">{rating}</div>
-            </div>
-            <div className="text-[11px] font-semibold">{price}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-export function ListingScreen({ pressed }: { pressed?: boolean }) {
-  return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <AppNav active="Stays" />
-      <div className="grid grid-cols-[1fr_150px] gap-4 px-5 pt-4">
-        <div>
-          <div className="grid h-[120px] grid-cols-[2fr_1fr] gap-1.5">
-            <Photo name="bled-cabin" className="h-full w-full rounded-l-xl" />
-            <div className="grid grid-rows-2 gap-1.5">
-              <Photo name="bled-interior" className="h-full w-full rounded-tr-xl" />
-              <Photo name="bled-terrace" className="h-full w-full rounded-br-xl" />
-            </div>
-          </div>
-          <div className="mt-2.5 text-[15px] font-semibold tracking-tight">Cabin on Lake Bled</div>
-          <div className="mt-1 text-[9.5px] leading-snug text-zinc-500">A timber cabin on the north shore, with a wood stove, a private jetty and the castle across the water.</div>
-        </div>
-        <div className="self-start rounded-xl border border-zinc-200 p-3 shadow-sm">
-          <div className="text-[13px] font-semibold">€140 <span className="text-[9px] font-normal text-zinc-500">night</span></div>
-          <div className="mt-2 rounded-md border border-zinc-200 px-2 py-1.5 text-[9px] text-zinc-500">Jun 12 – 15, 2 guests</div>
-          <div className={`mt-2 rounded-full py-1.5 text-center text-[10px] font-medium text-white transition-colors ${pressed ? "bg-emerald-900" : "bg-emerald-700"}`}>Reserve</div>
-          <div className="mt-1.5 text-center text-[8.5px] text-zinc-400">You won't be charged yet</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export type CheckoutProps = {
-  /** The design after the agent reconciled the sketch: total on its own line, one accent, a full-width pay button. */
+export type BookMachineProps = {
+  /** The design after the agent reconciled the sketch: the specs as one big line, one accent, a full-width button. */
   revised?: boolean
   payStyle?: CSSProperties
   paySelected?: boolean
 }
 
-export function CheckoutScreen({ revised, payStyle, paySelected }: CheckoutProps) {
+function Choice({ options, on }: { options: string[]; on: number }) {
   return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <AppNav />
-      <div className="grid grid-cols-[1fr_160px] gap-5 px-5 pt-4">
-        <div className="relative">
-          <div className="text-[15px] font-semibold tracking-tight">Confirm and pay</div>
-          {["Card number", "Expiry", "Name on card"].map((f) => (
-            <div key={f} className="mt-2">
-              <div className="text-[8.5px] text-zinc-500">{f}</div>
-              <div className="mt-0.5 h-6 rounded-md border border-zinc-200" />
-            </div>
-          ))}
-          {revised ? (
-            <div className="mt-3 rounded-full bg-zinc-900 py-2 text-center text-[10.5px] font-medium text-white">Pay €462</div>
-          ) : (
-            <div className="relative mt-3 w-28 transition-transform duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
-              <div className="rounded-full bg-emerald-700 py-1.5 text-center text-[10px] font-medium text-white">Pay €462</div>
-              {paySelected && <SelectionHandles />}
-            </div>
-          )}
+    <div className="mt-1 flex rounded-md bg-zinc-100 p-0.5 text-[9px]">
+      {options.map((o, i) => (
+        <span key={o} className={`flex-1 rounded-[5px] py-1 text-center ${i === on ? "bg-white font-medium text-zinc-900 shadow-sm" : "text-zinc-500"}`}>
+          {o}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+export function BookMachineScreen({ revised, payStyle, paySelected }: BookMachineProps) {
+  return (
+    <div className="flex h-full w-full flex-col bg-white text-[9.5px] text-zinc-900">
+      <Top title="Book a cloud machine">
+        <span className="text-[9px] text-zinc-400">Platform</span>
+      </Top>
+      <div className="relative flex-1">
+        <div className="absolute top-3 left-5 w-[256px]">
+          <div className="text-[8.5px] font-medium text-zinc-500">Operating system</div>
+          <Choice options={["Linux", "Windows"]} on={0} />
+          <div className="mt-2.5 text-[8.5px] font-medium text-zinc-500">Type</div>
+          <Choice options={["Headless", "Desktop"]} on={0} />
+          <div className="mt-2.5 text-[8.5px] font-medium text-zinc-500">Size</div>
+          <div className="mt-1 grid grid-cols-4 gap-1">
+            {SIZES.map(([name, cpu], i) => (
+              <div key={name} className={`rounded-md border px-1.5 py-1 ${i === 2 ? "border-zinc-900 bg-zinc-50" : "border-zinc-200"}`}>
+                <div className="font-medium">{name}</div>
+                <div className="text-[8px] text-zinc-500">{cpu}</div>
+              </div>
+            ))}
+          </div>
         </div>
         {revised ? (
-          <div className="self-start rounded-xl border border-zinc-200 p-3 text-[9.5px]">
-            <Photo name="bled-cabin" className="h-14 w-full rounded-md" />
-            <div className="mt-2 font-medium">Cabin on Lake Bled</div>
-            <div className="mt-0.5 text-zinc-500">3 nights, Jun 12 – 15</div>
-            <div className="mt-3 text-[8.5px] text-zinc-500">Total</div>
-            <div className="text-[17px] font-semibold tracking-tight">€462</div>
-          </div>
+          <div className="absolute top-[192px] left-5 w-[256px] rounded-lg bg-zinc-900 py-2 text-center text-[10px] font-medium text-white">Book machine</div>
         ) : (
-          <div className="self-start rounded-xl bg-zinc-50 p-3 text-[9.5px]">
-            <Photo name="bled-cabin" className="h-14 w-full rounded-md" />
-            <div className="mt-2 font-medium">Cabin on Lake Bled</div>
-            <div className="mt-2 flex justify-between text-zinc-500"><span>3 nights</span><span>€420</span></div>
-            <div className="flex justify-between text-zinc-500"><span>Cleaning</span><span>€42</span></div>
-            <div className="mt-1 flex justify-between border-t border-zinc-200 pt-1 font-semibold text-emerald-700"><span>Total</span><span>€462</span></div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-export function DoneScreen() {
-  return (
-    <div className="flex h-full w-full flex-col bg-white text-zinc-900">
-      <AppNav active="Trips" />
-      <div className="grid flex-1 grid-cols-[1fr_1fr] items-center gap-5 px-5">
-        <div>
-          <div className="grid size-9 place-items-center rounded-full bg-emerald-50 text-emerald-700">
-            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M20 6 9 17l-5-5" /></svg>
-          </div>
-          <div className="mt-3 text-[17px] leading-tight font-semibold tracking-tight">You're going<br />to Bled</div>
-          <div className="mt-1.5 text-[10px] text-zinc-500">Confirmation FW-2041</div>
-          <div className="mt-3 inline-block rounded-full border border-zinc-200 px-3 py-1 text-[10px]">View trip</div>
-        </div>
-        <Photo name="bled-terrace" className="h-[170px] w-full rounded-xl" />
-      </div>
-    </div>
-  )
-}
-
-export function TripsScreen() {
-  return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <AppNav active="Trips" />
-      <div className="px-5 pt-4">
-        <div className="text-[15px] font-semibold tracking-tight">Your trips</div>
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-          {(
-            [
-              ["Lake Bled", "Jun 12 – 15", "bled-cabin"],
-              ["Lofoten", "Aug 2 – 9", "lofoten"],
-            ] as const
-          ).map(([title, dates, photo]) => (
-            <div key={title} className="overflow-hidden rounded-xl border border-zinc-100">
-              <Photo name={photo} className="h-[118px] w-full" />
-              <div className="p-2">
-                <div className="text-[11px] font-medium">{title}</div>
-                <div className="text-[9px] text-zinc-500">{dates}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export function SavedScreen() {
-  return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <AppNav active="Saved" />
-      <div className="px-5 pt-4">
-        <div className="flex items-baseline gap-2">
-          <div className="text-[15px] font-semibold tracking-tight">Saved for later</div>
-          <div className="text-[10px] text-zinc-500">4 stays</div>
-        </div>
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {(["hallstatt", "annecy", "comporta", "lofoten"] as const).map((p, i) => (
-            <div key={p}>
-              <div className="relative">
-                <Photo name={p} className="h-[96px] w-full rounded-lg" />
-                <span className="absolute top-1.5 right-1.5 grid size-4 place-items-center rounded-full bg-white/90 text-[8px] text-rose-500">♥</span>
-              </div>
-              <div className="mt-1.5 text-[9.5px] font-medium">{["Hallstatt", "Annecy", "Comporta", "Lofoten"][i]}</div>
-              <div className="text-[8.5px] text-zinc-500">{["€165", "€190", "€210", "€180"][i]} night</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export const SCREENS = [
-  { name: "Home", route: "/", Screen: HomeScreen },
-  { name: "Search", route: "/search", Screen: SearchScreen },
-  { name: "Listing", route: "/stays/bled", Screen: ListingScreen },
-  { name: "Checkout", route: "/checkout", Screen: CheckoutScreen },
-  { name: "Booked", route: "/trips/fw-2041", Screen: DoneScreen },
-  { name: "Trips", route: "/trips", Screen: TripsScreen },
-  { name: "Saved", route: "/saved", Screen: SavedScreen },
-]
-
-// Phone versions, drawn at 240 × 500, for the demos on small screens (stageboard's Mobile device).
-
-export const PHONE_W = 240
-export const PHONE_H = 500
-
-function PhoneBar({ title, back }: { title?: string; back?: boolean }) {
-  return (
-    <div className="flex h-10 items-center gap-2 px-4 pt-2 text-[11px] font-semibold text-zinc-900">
-      {back ? <span className="text-[14px] text-zinc-500">‹</span> : <span className="size-3 rounded-full bg-emerald-600" />}
-      {title ?? "Fernway"}
-      <span className="ml-auto size-5 rounded-full bg-zinc-200" />
-    </div>
-  )
-}
-
-export function PhoneSearch({ pressed }: { pressed?: boolean }) {
-  return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <PhoneBar />
-      <div className="flex gap-1.5 overflow-hidden px-4 pt-1 text-[9px]">
-        {["Lakeside", "2 guests", "Jun 12 – 15"].map((f, i) => (
-          <span key={f} className={`shrink-0 rounded-full px-2.5 py-1 ${i === 0 ? "bg-zinc-900 text-white" : "border border-zinc-200 text-zinc-600"}`}>{f}</span>
-        ))}
-      </div>
-      <div className="mt-3 space-y-3 px-4">
-        {RESULTS.map(([title, price, photo, rating], i) => (
-          <div key={title} className={`rounded-xl transition-colors ${pressed && i === 0 ? "bg-emerald-50 ring-2 ring-emerald-600/30" : ""}`}>
-            <Photo name={photo} className="h-[96px] w-full rounded-xl" />
-            <div className="mt-1.5 flex items-baseline px-0.5">
-              <span className="text-[11px] font-medium">{title}</span>
-              <span className="ml-auto text-[11px] font-semibold">{price}</span>
-            </div>
-            <div className="px-0.5 text-[9px] text-zinc-500">{rating}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-export function PhoneListing({ pressed }: { pressed?: boolean }) {
-  return (
-    <div className="relative h-full w-full bg-white text-zinc-900">
-      <Photo name="bled-cabin" className="h-[200px] w-full" />
-      <div className="px-4 pt-3">
-        <div className="text-[16px] leading-tight font-semibold tracking-tight">Cabin on Lake Bled</div>
-        <div className="mt-1 text-[9.5px] text-zinc-500">4.9 (128 reviews)</div>
-        <div className="mt-2 text-[10px] leading-snug text-zinc-600">A timber cabin on the north shore, with a wood stove, a private jetty and the castle across the water.</div>
-        <div className="mt-3 grid grid-cols-2 gap-1.5">
-          <Photo name="bled-interior" className="h-[64px] w-full rounded-lg" />
-          <Photo name="bled-terrace" className="h-[64px] w-full rounded-lg" />
-        </div>
-      </div>
-      <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 border-t border-zinc-100 bg-white px-4 py-3">
-        <div>
-          <div className="text-[13px] font-semibold">€140 <span className="text-[9px] font-normal text-zinc-500">night</span></div>
-          <div className="text-[9px] text-zinc-500">Jun 12 – 15</div>
-        </div>
-        <div className={`ml-auto rounded-full px-5 py-2 text-[10.5px] font-medium text-white transition-colors ${pressed ? "bg-emerald-900" : "bg-emerald-700"}`}>Reserve</div>
-      </div>
-    </div>
-  )
-}
-
-export function PhoneCheckout({ revised, payStyle, paySelected }: CheckoutProps) {
-  return (
-    <div className="relative h-full w-full bg-white text-zinc-900">
-      <PhoneBar title="Confirm and pay" back />
-      <div className="px-4 pt-1">
-        {revised ? (
-          <div className="rounded-xl border border-zinc-200 p-3 text-[9.5px]">
-            <div className="flex gap-2.5">
-              <Photo name="bled-cabin" className="size-12 rounded-md" />
-              <div>
-                <div className="font-medium">Cabin on Lake Bled</div>
-                <div className="mt-0.5 text-zinc-500">3 nights, Jun 12 – 15</div>
-              </div>
-            </div>
-            <div className="mt-3 text-[8.5px] text-zinc-500">Total</div>
-            <div className="text-[18px] font-semibold tracking-tight">€462</div>
-          </div>
-        ) : (
-          <div className="rounded-xl bg-zinc-50 p-3 text-[9.5px]">
-            <div className="flex gap-2.5">
-              <Photo name="bled-cabin" className="size-12 rounded-md" />
-              <div className="font-medium">Cabin on Lake Bled</div>
-            </div>
-            <div className="mt-2 flex justify-between text-zinc-500"><span>3 nights</span><span>€420</span></div>
-            <div className="flex justify-between text-zinc-500"><span>Cleaning</span><span>€42</span></div>
-            <div className="mt-1 flex justify-between border-t border-zinc-200 pt-1 font-semibold text-emerald-700"><span>Total</span><span>€462</span></div>
-          </div>
-        )}
-        {["Card number", "Expiry", "Name on card"].map((f) => (
-          <div key={f} className="mt-2.5">
-            <div className="text-[8.5px] text-zinc-500">{f}</div>
-            <div className="mt-0.5 h-7 rounded-md border border-zinc-200" />
-          </div>
-        ))}
-      </div>
-      <div className="absolute inset-x-4 bottom-5">
-        {revised ? (
-          <div className="rounded-full bg-zinc-900 py-2.5 text-center text-[11px] font-medium text-white">Pay €462</div>
-        ) : (
-          <div className="relative w-28 transition-transform duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
-            <div className="rounded-full bg-emerald-700 py-2 text-center text-[10.5px] font-medium text-white">Pay €462</div>
+          <div className="absolute top-[192px] left-5 w-28 transition-transform duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
+            <div className="rounded-md bg-violet-600 py-1.5 text-center text-[9.5px] font-medium text-white">Book machine</div>
             {paySelected && <SelectionHandles />}
           </div>
         )}
+        {revised ? (
+          <div className="absolute top-3 right-5 w-[160px] rounded-xl border border-zinc-200 p-3">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Mark className="size-4" /> sap-ledger
+            </div>
+            <div className="mt-3 text-[8.5px] text-zinc-500">Regular, Linux, headless</div>
+            <div className="mt-0.5 text-[18px] leading-tight font-semibold tracking-tight">4 vCPU</div>
+            <div className="text-[9px] text-zinc-600">8 GB RAM, 160 GB disk</div>
+            <div className="mt-3 text-[8.5px] text-zinc-500">Ready in about a minute</div>
+          </div>
+        ) : (
+          <div className="absolute top-3 right-5 w-[160px] rounded-xl bg-zinc-50 p-3">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Mark className="size-4" /> sap-ledger
+              <span className="ml-auto rounded bg-sky-100 px-1 text-[7.5px] font-medium text-sky-700">Regular</span>
+            </div>
+            {[
+              [Cpu, "CPU", "4 vCPU"],
+              [MemoryStick, "Memory", "8 GB"],
+              [HardDrive, "Disk", "160 GB"],
+            ].map(([Icon, label, value]) => {
+              const I = Icon as typeof Cpu
+              return (
+                <div key={label as string} className="mt-1.5 flex items-center gap-1.5 text-zinc-500">
+                  <I className="size-2.5" /> {label as string}
+                  <span className="ml-auto text-zinc-900">{value as string}</span>
+                </div>
+              )
+            })}
+            <div className="mt-2 flex justify-between border-t border-zinc-200 pt-1.5 font-semibold text-emerald-700">
+              <span>Ready in</span>
+              <span>~1 min</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function ReplayScreen() {
+  return (
+    <div className="flex h-full w-full bg-white text-[9.5px] text-zinc-900">
+      <Sidebar active="Sessions" />
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <Top title={<><span className="font-mono text-zinc-500">billing-api/</span> Event-sourced billing ledger</>}>
+          <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[8.5px] font-medium text-emerald-700">
+            <span className="size-1.5 rounded-full bg-emerald-500" /> sap-ledger
+          </span>
+        </Top>
+        <div className="space-y-3 px-4 pt-3">
+          <Bubble who="dani" name="Dani" time="10:06">
+            Replay Tuesday's prod snapshot through it before we ship.
+          </Bubble>
+          <Bubble who="claude" name="Claude Code" time="10:07">
+            Booted <Code>sap-ledger</Code>. Replaying 1.2M events now.
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100">
+              <div className="h-full w-[62%] rounded-full bg-zinc-900" />
+            </div>
+            <div className="mt-1 flex justify-between text-[8px] text-zinc-500">
+              <span>744k of 1.2M events</span>
+              <span>balances match</span>
+            </div>
+          </Bubble>
+        </div>
+        <div className="absolute inset-x-4 bottom-3">
+          <Composer />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const PLUGINS = [
+  ["github", "GitHub", "Pull requests, issues and CI", true],
+  ["linear", "Linear", "Issues, projects and cycles", true],
+  ["sentry", "Sentry", "Errors and releases", false],
+  ["notion", "Notion", "Pages and databases", false],
+  ["figma", "Figma", "Files and comments", false],
+  ["posthog", "PostHog", "Events and insights", false],
+  ["slack", "Slack", "Channels and threads", false],
+  ["gmail", "Gmail", "Mail, labels and drafts", false],
+] as const
+
+export function PluginsScreen() {
+  return (
+    <div className="flex h-full w-full bg-white text-[9.5px] text-zinc-900">
+      <Sidebar active="Plugins" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Top title="Plugins">
+          <span className="flex h-5 w-28 items-center gap-1 rounded-md border border-zinc-200 px-1.5 text-[9px] text-zinc-400">
+            <Search className="size-2.5" /> Search plugins
+          </span>
+        </Top>
+        <div className="grid grid-cols-2 gap-1.5 p-2.5">
+          {PLUGINS.map(([slug, name, desc, on]) => (
+            <div key={slug} className="flex items-center gap-2 rounded-lg border border-zinc-200 px-2 py-1.5">
+              <img src={`/integrations/${slug}.svg`} alt="" className="size-4" />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{name}</div>
+                <div className="truncate text-[8px] text-zinc-500">{desc}</div>
+              </div>
+              {on && <span className="rounded bg-emerald-50 px-1 text-[7.5px] font-medium text-emerald-700">Connected</span>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -392,35 +391,153 @@ export function SelectionHandles() {
   )
 }
 
-export function PhoneDone() {
+/* ------------------------------------------------------------------ phone: 240 × 500 */
+
+function PhoneTop({ title, back }: { title: ReactNode; back?: boolean }) {
   return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <Photo name="bled-terrace" className="h-[230px] w-full" />
-      <div className="px-4 pt-4">
-        <div className="grid size-8 place-items-center rounded-full bg-emerald-50 text-emerald-700">
-          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M20 6 9 17l-5-5" /></svg>
-        </div>
-        <div className="mt-2.5 text-[18px] leading-tight font-semibold tracking-tight">You're going to Bled</div>
-        <div className="mt-1 text-[10px] text-zinc-500">Confirmation FW-2041</div>
-        <div className="mt-4 rounded-full border border-zinc-200 py-2 text-center text-[10.5px]">View trip</div>
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-zinc-200 px-3.5 pt-1 text-[11px] font-medium text-zinc-900">
+      {back ? <span className="text-[15px] text-zinc-400">‹</span> : <Mark className="size-4" />}
+      <span className="min-w-0 flex-1 truncate">{title}</span>
+    </div>
+  )
+}
+
+export function PhoneSessions({ pressed }: { pressed?: boolean }) {
+  return (
+    <div className="flex h-full w-full flex-col bg-white text-[10px] text-zinc-900">
+      <PhoneTop title="Sessions" />
+      <div className="space-y-1.5 p-2.5">
+        {SESSIONS.map((s, i) => (
+          <div key={s.title} className={`flex h-[58px] items-center gap-2.5 rounded-xl px-3 transition-colors ${pressed && i === 0 ? "bg-zinc-100 ring-1 ring-zinc-300" : "bg-zinc-50"}`}>
+            <Harness kind={s.harness} className="size-6" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{s.title}</div>
+              <div className="font-mono text-[8.5px] text-zinc-500">{s.project}</div>
+            </div>
+            <span className="flex -space-x-1">
+              {s.people.map((p) => (
+                <Face key={p} who={p} className="size-4 ring-2 ring-zinc-50" />
+              ))}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-export function PhoneSaved() {
+export function PhoneSession({ pressed }: { pressed?: boolean }) {
   return (
-    <div className="h-full w-full bg-white text-zinc-900">
-      <PhoneBar title="Saved for later" />
-      <div className="mt-1 grid grid-cols-2 gap-2.5 px-4">
-        {(["hallstatt", "annecy", "comporta", "lofoten"] as const).map((p, i) => (
-          <div key={p}>
-            <div className="relative">
-              <Photo name={p} className="h-[118px] w-full rounded-lg" />
-              <span className="absolute top-1.5 right-1.5 grid size-4 place-items-center rounded-full bg-white/90 text-[8px] text-rose-500">♥</span>
+    <div className="relative flex h-full w-full flex-col bg-white text-[10px] text-zinc-900">
+      <PhoneTop title="Event-sourced billing ledger" back />
+      <div className="space-y-3.5 px-3.5 pt-3">
+        <Bubble who="philipp" name="Philipp" time="10:02">
+          4 of 6 billing incidents trace back to the read-modify-write in <Code>ApplyPayment</Code>.
+        </Bubble>
+        <Bubble who="claude" name="Claude Code" time="10:04">
+          <Edited file="ledger/writer.go" plus={64} minus={0} />
+          <div className="mt-1">Balances now have one writer. The replay needs a bigger machine.</div>
+        </Bubble>
+      </div>
+      <div className="absolute inset-x-3.5 bottom-[60px]">
+        <div className={`rounded-lg py-2.5 text-center text-[10.5px] font-medium text-white transition-colors ${pressed ? "bg-zinc-700" : "bg-zinc-900"}`}>Book machine</div>
+      </div>
+      <div className="absolute inset-x-3.5 bottom-4">
+        <Composer />
+      </div>
+    </div>
+  )
+}
+
+export function PhoneBookMachine({ revised, payStyle, paySelected }: BookMachineProps) {
+  return (
+    <div className="relative flex h-full w-full flex-col bg-white text-[10px] text-zinc-900">
+      <PhoneTop title="Book a cloud machine" back />
+      <div className="px-3.5 pt-1.5">
+        {revised ? (
+          <div className="rounded-xl border border-zinc-200 p-3">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Mark className="size-4" /> sap-ledger
             </div>
-            <div className="mt-1.5 text-[10px] font-medium">{["Hallstatt", "Annecy", "Comporta", "Lofoten"][i]}</div>
-            <div className="text-[9px] text-zinc-500">{["€165", "€190", "€210", "€180"][i]} night</div>
+            <div className="mt-2.5 text-[8.5px] text-zinc-500">Regular, Linux, headless</div>
+            <div className="text-[19px] leading-tight font-semibold tracking-tight">4 vCPU</div>
+            <div className="text-[9.5px] text-zinc-600">8 GB RAM, 160 GB disk</div>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-zinc-50 p-3">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Mark className="size-4" /> sap-ledger
+              <span className="ml-auto rounded bg-sky-100 px-1 text-[8px] font-medium text-sky-700">Regular</span>
+            </div>
+            <div className="mt-2 flex justify-between text-zinc-500"><span>CPU</span><span className="text-zinc-900">4 vCPU</span></div>
+            <div className="flex justify-between text-zinc-500"><span>Memory</span><span className="text-zinc-900">8 GB</span></div>
+            <div className="mt-1 flex justify-between border-t border-zinc-200 pt-1 font-semibold text-emerald-700"><span>Ready in</span><span>~1 min</span></div>
+          </div>
+        )}
+        <div className="mt-3 text-[8.5px] font-medium text-zinc-500">Operating system</div>
+        <Choice options={["Linux", "Windows"]} on={0} />
+        <div className="mt-2.5 text-[8.5px] font-medium text-zinc-500">Type</div>
+        <Choice options={["Headless", "Desktop"]} on={0} />
+        <div className="mt-2.5 text-[8.5px] font-medium text-zinc-500">Size</div>
+        <div className="mt-1 grid grid-cols-2 gap-1">
+          {SIZES.map(([name, cpu, ram], i) => (
+            <div key={name} className={`rounded-md border px-2 py-1.5 ${i === 2 ? "border-zinc-900 bg-zinc-50" : "border-zinc-200"}`}>
+              <div className="font-medium">{name}</div>
+              <div className="text-[8.5px] text-zinc-500">{cpu}, {ram}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="absolute inset-x-4 bottom-5">
+        {revised ? (
+          <div className="rounded-lg bg-zinc-900 py-2.5 text-center text-[11px] font-medium text-white">Book machine</div>
+        ) : (
+          <div className="relative w-28 transition-transform duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
+            <div className="rounded-md bg-violet-600 py-2 text-center text-[10.5px] font-medium text-white">Book machine</div>
+            {paySelected && <SelectionHandles />}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function PhoneReplay() {
+  return (
+    <div className="relative flex h-full w-full flex-col bg-white text-[10px] text-zinc-900">
+      <PhoneTop title="Event-sourced billing ledger" back />
+      <div className="space-y-3.5 px-3.5 pt-3">
+        <Bubble who="dani" name="Dani" time="10:06">
+          Replay Tuesday's prod snapshot through it before we ship.
+        </Bubble>
+        <Bubble who="claude" name="Claude Code" time="10:07">
+          Booted <Code>sap-ledger</Code>. Replaying 1.2M events now.
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100">
+            <div className="h-full w-[62%] rounded-full bg-zinc-900" />
+          </div>
+          <div className="mt-1 text-[8.5px] text-zinc-500">744k of 1.2M events, balances match</div>
+        </Bubble>
+      </div>
+      <div className="absolute inset-x-3.5 bottom-4">
+        <Composer />
+      </div>
+    </div>
+  )
+}
+
+export function PhonePlugins() {
+  return (
+    <div className="flex h-full w-full flex-col bg-white text-[10px] text-zinc-900">
+      <PhoneTop title="Plugins" />
+      <div className="space-y-1.5 p-2.5">
+        {PLUGINS.slice(0, 7).map(([slug, name, desc, on]) => (
+          <div key={slug} className="flex items-center gap-2.5 rounded-xl border border-zinc-200 px-3 py-2">
+            <img src={`/integrations/${slug}.svg`} alt="" className="size-5" />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">{name}</div>
+              <div className="truncate text-[8.5px] text-zinc-500">{desc}</div>
+            </div>
+            {on && <span className="rounded bg-emerald-50 px-1 text-[8px] font-medium text-emerald-700">Connected</span>}
           </div>
         ))}
       </div>
