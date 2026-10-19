@@ -98,7 +98,7 @@ export function SetupVisual() {
   return (
     <Panel>
       <div className="rounded-xl border border-white/8 bg-ink-800 font-mono text-[12px] shadow-[0_20px_50px_rgb(0_0_0/0.45)] sm:text-[12.5px]">
-        <div className="flex items-center gap-1.5 border-b border-white/6 px-4 py-3">
+        <div className="flex items-center gap-1.5 px-4 pt-3 pb-1">
           {[0, 1, 2].map((i) => <span key={i} className="size-2.5 rounded-full bg-white/10" />)}
           <span className="ml-3 text-[11.5px] text-fg-faint">billing-api</span>
         </div>
@@ -145,9 +145,9 @@ function BookPanel({ kind }: { kind: (typeof VARIANTS)[number] }) {
         <div className="grid flex-1 grid-cols-3 gap-2">
           {SIZES.map(([name, cpu, ram], i) => (
             <div key={name} className={`min-w-0 rounded-md border px-2 py-2 sm:px-2.5 ${i === 1 ? "border-zinc-900 ring-1 ring-zinc-900" : "border-zinc-200"}`}>
-              <span className="rounded-sm border border-zinc-200 bg-zinc-50 px-1 font-mono text-[9px] tracking-wide text-zinc-600 uppercase">{name}</span>
-              <div className="mt-2 flex items-center gap-1.5 text-[11px] whitespace-nowrap text-zinc-700"><Cpu className="size-3 text-zinc-400" strokeWidth={1.6} /> {cpu}</div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] whitespace-nowrap text-zinc-700"><MemoryStick className="size-3 text-zinc-400" strokeWidth={1.6} /> {ram}</div>
+              <span className="text-[12px] font-medium text-zinc-900">{name}</span>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] whitespace-nowrap text-zinc-600"><Cpu className="size-3 text-zinc-400" strokeWidth={1.6} /> {cpu}</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] whitespace-nowrap text-zinc-600"><MemoryStick className="size-3 text-zinc-400" strokeWidth={1.6} /> {ram}</div>
             </div>
           ))}
         </div>
@@ -157,9 +157,9 @@ function BookPanel({ kind }: { kind: (typeof VARIANTS)[number] }) {
   if (kind === "Radio list")
     return (
       <div className="flex h-full flex-col gap-2.5">
-        <div className="flex-1 divide-y divide-zinc-100 rounded-md border border-zinc-200">
+        <div className="flex flex-1 flex-col gap-0.5">
           {SIZES.map(([name, cpu, ram], i) => (
-            <div key={name} className="flex h-1/3 items-center gap-2.5 px-3 text-[11.5px]">
+            <div key={name} className={`flex flex-1 items-center gap-2.5 rounded-md px-3 text-[11.5px] ${i === 1 ? "bg-zinc-100" : ""}`}>
               <span className={`grid size-3.5 place-items-center rounded-full border ${i === 1 ? "border-zinc-900" : "border-zinc-300"}`}>{i === 1 && <span className="size-1.5 rounded-full bg-zinc-900" />}</span>
               <span className="font-medium text-zinc-900">{name}</span>
               <span className="ml-auto text-zinc-500">{cpu}, {ram}</span>
@@ -204,13 +204,8 @@ export function VariantVisual({ at }: { at?: number }) {
           <div className="mt-0.5 text-[11px] text-zinc-500">Where your team's sessions run.</div>
         </div>
         <div className="mt-3 px-5">
-          <div className="grid grid-cols-[1fr_auto] border-b border-zinc-200 pb-1.5 text-[9.5px] font-medium tracking-wide text-zinc-400 uppercase sm:grid-cols-[1.3fr_1fr_auto]">
-            <span>Machine</span>
-            <span className="max-sm:hidden">Size</span>
-            <span>Status</span>
-          </div>
           {MACHINES.map(([name, owner, size, ready]) => (
-            <div key={name} className="grid grid-cols-[1fr_auto] items-center border-b border-zinc-100 py-2 text-[12px] sm:grid-cols-[1.3fr_1fr_auto]">
+            <div key={name} className="grid grid-cols-[1fr_auto] items-center py-1.5 text-[12px] sm:grid-cols-[1.3fr_1fr_auto]">
               <div className="min-w-0 leading-tight">
                 <div className="truncate font-medium">{name}</div>
                 <div className="truncate text-[10.5px] text-zinc-500">{owner}</div>

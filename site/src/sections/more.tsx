@@ -30,7 +30,7 @@ const ROWS = [
 
 function CompareImpl() {
   return (
-    <section id="code" className="scroll-mt-20 border-y border-white/6 bg-ink-850">
+    <section id="code" className="scroll-mt-20 bg-ink-850">
       <div className="mx-auto max-w-6xl px-5 py-24 sm:py-32">
         <div className="max-w-2xl">
           <p className="text-[13px] font-medium text-lilac">Not a canvas next to your code</p>
@@ -39,26 +39,26 @@ function CompareImpl() {
             Design canvases are learning to talk to code. stageboard skips the translation: what you point at is the component that ships.
           </p>
         </div>
-        <div className="mt-12 overflow-hidden rounded-2xl border border-white/8 bg-ink-900/40">
+        <div className="mt-12 overflow-hidden rounded-2xl bg-ink-900/50">
           <div className="grid grid-cols-2 text-[13.5px] font-medium sm:grid-cols-[0.8fr_1fr_1.2fr]">
             <span className="hidden px-5 py-4 sm:block" />
             <span className="flex items-center gap-2.5 px-5 py-4 text-fg-dim">
               <span className="grid size-7 place-items-center rounded-lg bg-white/6 text-fg-dim"><PenTool className="size-3.5" /></span>
               Design canvas
             </span>
-            <span className="flex items-center gap-2.5 border-l border-accent/25 bg-accent/7 px-5 py-4 text-white">
+            <span className="flex items-center gap-2.5 bg-accent/8 px-5 py-4 text-white">
               <BrandMark className="size-7" />
               stageboard
             </span>
           </div>
           {ROWS.map(([label, canvas, ours]) => (
-            <div key={label} className="grid grid-cols-2 border-t border-white/6 text-[14.5px] sm:grid-cols-[0.8fr_1fr_1.2fr]">
+            <div key={label} className="grid grid-cols-2 text-[14.5px] sm:grid-cols-[0.8fr_1fr_1.2fr]">
               <span className="col-span-2 px-5 pt-4 text-[13px] font-medium text-fg-soft sm:col-span-1 sm:py-4">{label}</span>
               <span className="flex items-start gap-3 px-5 py-4 text-fg-faint">
                 <CrossDisc className="mt-0.5 size-[18px] text-white/12" />
                 {canvas}
               </span>
-              <span className="flex items-start gap-3 border-l border-accent/25 bg-accent/7 px-5 py-4 text-fg">
+              <span className="flex items-start gap-3 bg-accent/8 px-5 py-4 text-fg">
                 <CheckDisc className="mt-0.5 size-[18px] text-accent-soft" />
                 {ours}
               </span>
@@ -125,7 +125,7 @@ export const CallToAction = variant("landing.cta", CallToActionImpl)
 
 function FooterImpl() {
   return (
-    <footer className="border-t border-white/6">
+    <footer>
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-4 px-5 py-10 text-[13px] text-fg-dim">
         <Wordmark />
         <a href={ATMOS_URL} className="group inline-flex items-center gap-1.5 transition-colors hover:text-fg">

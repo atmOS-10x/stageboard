@@ -332,7 +332,7 @@ function Stats({ revised }: { revised?: boolean }) {
   ] as const
   if (revised)
     return (
-      <div className="grid grid-cols-3 divide-x divide-zinc-200 text-center">
+      <div className="grid grid-cols-3 gap-2 text-center">
         {stats.map(([Icon, n, unit]) => (
           <div key={unit} className="py-1">
             <Icon className="mx-auto size-4 text-zinc-400" strokeWidth={1.6} />

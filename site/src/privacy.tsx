@@ -29,9 +29,9 @@ export function Privacy() {
       </LegalSection>
       <LegalSection heading="What is stored on your device">
         <p>Nothing is written to your device until you act. This is the whole list.</p>
-        <div className="overflow-hidden rounded-xl border border-white/8 text-[13.5px]">
+        <div className="space-y-1.5 text-[13.5px]">
           {STORED.map(([name, purpose, retention, basis]) => (
-            <div key={name} className="grid gap-1 border-b border-white/6 p-3.5 last:border-0 sm:grid-cols-[1fr_1.4fr]">
+            <div key={name} className="grid gap-1 rounded-xl bg-white/4 p-3.5 sm:grid-cols-[1fr_1.4fr]">
               <span className="font-medium text-fg">{name}</span>
               <span>
                 {purpose} <span className="text-fg-dim">Kept {retention.toLowerCase()}. {basis}.</span>

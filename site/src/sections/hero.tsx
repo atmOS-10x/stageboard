@@ -10,7 +10,7 @@ export const DOCS_URL = "https://docs.stageboard.design"
 
 function NavImpl() {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/6 bg-ink-900/75 backdrop-blur-md">
+    <header className="sticky top-0 z-40 bg-ink-900/75 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-8 px-5">
         <a href="/" className="rounded-md focus-visible:outline-2 focus-visible:outline-accent-soft">
           <Wordmark />

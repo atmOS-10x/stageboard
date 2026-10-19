@@ -35,7 +35,7 @@ export function GitHubStar() {
         </svg>
         Star
       </span>
-      <span className="flex h-full items-center gap-1 border-l border-white/8 pr-3 pl-2.5 text-fg-soft">
+      <span className="flex h-full items-center gap-1 pr-3 pl-0.5 text-fg-soft">
         <Star className="size-3.5 fill-variant/0 text-variant transition-[fill,transform] duration-200 group-hover:scale-110 group-hover:fill-variant" />
         {count !== undefined && <span className="tabular-nums">{count.toLocaleString("en")}</span>}
       </span>
