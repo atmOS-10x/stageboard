@@ -110,6 +110,19 @@ function layoutOf(obj: string | undefined): StoryEntry["layout"] {
   return params ? (/\blayout\s*:\s*["'`](centered|padded|fullscreen)["'`]/.exec(topLevel(params))?.[1] as StoryEntry["layout"]) : undefined
 }
 
+// Local helpers that set a route, such as `const at = (id) => page({ route: `/settings/${id}` })` or
+// `const state = (t) => ({ page: { route: "/x", title: t } })`: a story that calls one is a page too.
+function routeHelpers(source: string): string[] {
+  const out: string[] = []
+  for (const m of source.matchAll(/^(?:export\s+)?(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)) {
+    if (/^[A-Z]/.test(m[1]) && /^export/.test(m[0])) continue
+    const rest = source.slice(m.index! + m[0].length)
+    const end = rest.search(/\n(?:export|const|let|var|function|type|interface|import|class)\b/)
+    if (ROUTE_RE.test(end === -1 ? rest : rest.slice(0, end))) out.push(m[1])
+  }
+  return out
+}
+
 export async function storyFiles(config: ResolvedConfig): Promise<string[]> {
   return fg(config.stories, {
     cwd: config.root,
@@ -126,6 +139,8 @@ export function indexFile(config: ResolvedConfig, absFile: string): IndexedStory
   const metaPage = hasRoute(meta)
   const metaViewport = viewportOf(meta)
   const metaLayout = layoutOf(meta)
+  const helpers = routeHelpers(source)
+  const callsHelper = (text: string) => helpers.some((h) => new RegExp(`(?<![\\w$.])${h.replace(/\$/g, "\\$")}\\s*\\(`).test(text))
   const out: IndexedStory[] = []
   const screens = new Set<string>()
   for (const m of source.matchAll(EXPORT_RE)) {
@@ -137,7 +152,7 @@ export function indexFile(config: ResolvedConfig, absFile: string): IndexedStory
     const block = obj ?? storyBlock(source, start).replace(/^export\s+(?:const|let|var|function)\s+\w+/, "")
     const custom = STORY_NAME_RE.exec(topLevel(block))?.[2]
     const dream = DREAM_RE.exec(block)?.[2]
-    const page = metaPage || (obj ? hasRoute(obj, screens) : ROUTE_RE.test(block))
+    const page = metaPage || (obj ? hasRoute(obj, screens) : ROUTE_RE.test(block)) || callsHelper(obj ?? block)
     if (page) screens.add(exportName)
     const viewport = viewportOf(obj) ?? metaViewport
     const layout = layoutOf(obj) ?? metaLayout
