@@ -428,7 +428,7 @@ export async function renderFrame(container: HTMLElement | null, options: FrameO
       return StageboardDecorator
     }, StageboardStory)
     const stageStyle: CSSProperties =
-      layout === "fullscreen" ? {} : layout === "centered" ? { display: "inline-block", width: parameters.viewport?.width } : {}
+      layout === "fullscreen" ? {} : layout === "centered" ? { display: "inline-block", maxWidth: "100%" } : {}
     root.render(
       <StageboardErrorBoundary>
         <StageboardReady>

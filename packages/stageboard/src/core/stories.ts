@@ -2,6 +2,17 @@ import type { ComponentType, ReactNode } from "react"
 
 export type Viewport = { width: number; height?: number }
 
+/** The frame a component story renders in when it doesn't set `parameters.viewport`: 16:9, like the tile it shows in. */
+export const COMPONENT_FRAME = { width: 640, height: 360 }
+/** The same for a fullscreen one, which is usually the whole app in some state: a desktop page. */
+export const FULLSCREEN_FRAME = { width: 1440, height: 810 }
+
+/** A component story's frame: its own viewport, its height 16:9 to the width when left out. */
+export function componentFrame(viewport?: Viewport, layout?: StageParameters["layout"]): { width: number; height: number } {
+  if (!viewport?.width) return layout === "fullscreen" ? FULLSCREEN_FRAME : COMPONENT_FRAME
+  return { width: viewport.width, height: viewport.height ?? Math.round((viewport.width * 9) / 16) }
+}
+
 export type PageParameters = {
   route: string
   title?: string
@@ -64,6 +75,10 @@ export type StoryEntry = {
   exportName: string
   file: string
   page?: PageParameters
+  /** The frame the story renders in, from its own or its meta's `parameters.viewport`. */
+  viewport?: Viewport
+  /** Its own or its meta's `parameters.layout`, when written as a string. */
+  layout?: StageParameters["layout"]
 }
 
 export type StoryIndex = {

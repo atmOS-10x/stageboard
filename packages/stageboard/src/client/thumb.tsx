@@ -1,7 +1,20 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type RefObject } from "react"
 import { withQuery } from "./api"
 import { Shimmer } from "./shimmer"
 import { WaveCanvas } from "./waves"
+
+/** True once the element has come near the viewport (or its scrolling row), and from then on. */
+export function useSeen(ref: RefObject<Element | null>, margin = "300px"): boolean {
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || seen) return
+    const io = new IntersectionObserver(([entry]) => entry.isIntersecting && setSeen(true), { rootMargin: margin })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [ref, margin, seen])
+  return seen
+}
 
 export function Thumb({ src, className }: { src: string; className?: string }) {
   const [retry, setRetry] = useState(0)

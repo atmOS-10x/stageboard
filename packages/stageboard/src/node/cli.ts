@@ -3,6 +3,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { cac } from "cac"
+import { measureFrames } from "./frames"
 import pc from "picocolors"
 import { API_BASE } from "../core/protocol"
 import { loadConfig } from "./config"
@@ -62,6 +63,27 @@ cli
     for (const e of result.consoleErrors.slice(0, 10)) console.error(pc.yellow(`console error: ${e.slice(0, 400)}`))
     console.log(result.file)
     console.error(pc.dim(`${result.story.id} · ${(result.durationMs / 1000).toFixed(1)}s`))
+    process.exit(0)
+  })
+
+cli
+  .command("frames [filter]", "Measure what each component story draws and give it a frame (parameters.viewport) that fits")
+  .option("--write", "Write the frames into the story files (otherwise only print them)")
+  .action(async (filter: string | undefined, opts) => {
+    const config = await loadConfig(process.cwd(), opts.config)
+    const result = await measureFrames(config, {
+      filter,
+      write: Boolean(opts.write),
+      onProgress: (done, total) => process.stderr.write(`\r${pc.dim(`measured ${done}/${total}`)}`),
+    })
+    process.stderr.write("\n")
+    for (const plan of result.plans) {
+      console.log(`${pc.cyan(plan.file)} ${pc.bold(`${plan.meta.width}×${plan.meta.height}`)}`)
+      for (const s of plan.stories) console.log(`  ${s.exportName.padEnd(32)} ${s.frame.width}×${s.frame.height}`)
+    }
+    for (const s of result.stories.filter((s) => s.error)) console.error(pc.yellow(`could not measure ${s.id}: ${s.error}`))
+    for (const s of result.skipped) console.error(pc.dim(`left alone: ${s}`))
+    console.log(opts.write ? `\nWrote frames into ${result.written.length} file${result.written.length === 1 ? "" : "s"}. Run your formatter on them.` : "\nDry run: pass --write to set them.")
     process.exit(0)
   })
 

@@ -3,7 +3,7 @@ import { updateFlow, useStageboard } from "stageboard/react"
 import { DEVICES, formatAction, parseActions, type Device, type Flow, type FlowStep } from "stageboard"
 import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
-import { screenTitle, type ScreenNode } from "./browse"
+import { screenTitle, type Frame, type ScreenNode } from "./browse"
 import { DESCRIBE_STEPS, FlowNote, sendFlowNote, type FlowBatch } from "./flows"
 import { AnnotateIcon, CloseIcon, EditIcon, ExternalIcon, FlowNoteIcon, InfoIcon, LayersIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, ResetIcon } from "./icons"
 import type { PlayResult } from "./frame"
@@ -21,6 +21,9 @@ import type { ClientEntry } from "./types"
 const SWIPE = 70
 const GAP = 32
 const PRELOAD = 2
+// A component's slot is the same 16:9 tile as in Components; its own frame is fitted into it, small ones enlarged.
+const TILE = { width: 1600, height: 900 }
+const MAX_ZOOM = 3
 
 export function FlowViewer({
   flow,
@@ -42,6 +45,7 @@ export function FlowViewer({
   onFlow,
   onOpenScreen,
   onClose,
+  frameOf,
 }: {
   flow: Flow
   step: number
@@ -62,10 +66,13 @@ export function FlowViewer({
   onFlow: (flowId: string, index: number) => void
   onOpenScreen: (storyId: string) => void
   onClose: () => void
+  /** Set for a component: its stories are the steps, each rendered in its own frame inside a 16:9 slot. */
+  frameOf?: (storyId: string) => Frame
 }) {
   const flows = useStageboard((s) => s.flows)
   const dreams = useStageboard((s) => s.dreams)
-  const d = DEVICES[device]
+  const component = Boolean(frameOf)
+  const d = component ? TILE : DEVICES[device]
   const stage = useRef<HTMLDivElement>(null)
   const frames = useRef(new Map<string, HTMLIFrameElement>())
   const [ready, setReady] = useState<Set<string>>(() => new Set())
@@ -111,6 +118,17 @@ export function FlowViewer({
   const scale = box.width ? Math.min(1, (box.width * (box.width < 760 ? 0.9 : 0.72)) / d.width, (box.height - 8) / d.height) : 0
   const w = d.width * scale
   const h = d.height * scale
+  // What each step renders in, and how it sits in its slot: a screen fills it, a component's frame is centered.
+  const fit = (id: string) => {
+    const f = frameOf ? frameOf(id) : d
+    const k = frameOf ? Math.min(MAX_ZOOM, w / f.width, h / f.height) : scale
+    return { frame: f, k, left: (w - f.width * k) / 2, top: (h - f.height * k) / 2 }
+  }
+  const currentFrame = storyId && frameOf ? frameOf(storyId) : d
+  const group = useMemo(
+    () => (component ? { title: flow.name, stories: flow.steps.flatMap((s) => (s.storyId ? [{ id: s.storyId, name: index.find((e) => e.id === s.storyId)?.name ?? s.storyId }] : [])) } : undefined),
+    [component, flow, index],
+  )
 
   const go = useCallback((delta: number) => onStep(Math.max(0, Math.min(count - 1, step + delta))), [onStep, count, step])
 
@@ -196,7 +214,7 @@ export function FlowViewer({
   // link goes to, else to the nearest step that does. Played actions and Play flow move on by themselves.
   const playing = Boolean(play && play.stepId === currentStep?.id && !play.results)
   useEffect(() => {
-    if (touring || playing) return
+    if (touring || playing || component) return
     const onMessage = (e: MessageEvent) => {
       if (e.data?.source !== "stageboard" || e.data.type !== "navigate" || !e.source || e.source !== frameOfCurrent()?.contentWindow) return
       const href = String(e.data.href ?? "")
@@ -335,7 +353,7 @@ export function FlowViewer({
     comments,
     sketches,
     titleOf,
-    annotations: () => toAnnotations(comments, sketches, titleOf, { width: d.width, height: d.height }),
+    annotations: () => toAnnotations(comments, sketches, titleOf, (id) => (frameOf ? frameOf(id) : { width: d.width, height: d.height })),
     onRemoveComment: (id) => removeComment(flow.id, id),
     onRemoveSketch: (id) => {
       clearSketch(id)
@@ -360,9 +378,10 @@ export function FlowViewer({
     })
 
   return (
-    <div className="sbu-viewer" role="dialog" aria-label={`${flow.name}, screen ${step + 1} of ${count}`}>
+    <div className="sbu-viewer" data-component={component || undefined} role="dialog" aria-label={`${flow.name}, ${component ? "story" : "screen"} ${step + 1} of ${count}`}>
       <header className="sbu-viewer-head">
-        <h1 className="sbu-viewer-title">{flow.name}</h1>
+        <h1 className="sbu-viewer-title">{component ? flow.name.replaceAll("/", " / ") : flow.name}</h1>
+        {component && entry && <span className="sbu-viewer-sub">{entry.name}</span>}
         <span className="sbu-spacer" />
         <span className="sbu-viewer-count sbu-tnum">
           {count ? step + 1 : 0} / {count}
@@ -371,7 +390,7 @@ export function FlowViewer({
         {themeButton}
         <IconButton variant="ghost" icon={<CloseIcon size={18} />} label="Close · Esc" onClick={onClose} />
       </header>
-      {currentStep && (
+      {currentStep && !component && (
         <StepBar
           key={currentStep.id}
           flow={flow}
@@ -407,7 +426,9 @@ export function FlowViewer({
               if (Math.abs(i - step) > PRELOAD) return null
               const id = storyOf(i)
               const current = i === step
+              const mounted = current || currentReady || ready.has(st.id)
               const offset = (i - step) * (w + GAP)
+              const at = id ? fit(id) : undefined
               return (
                 <div
                   key={st.id}
@@ -421,8 +442,11 @@ export function FlowViewer({
                     if (el) el.inert = !current
                   }}
                 >
-                  {id ? (
-                    <div className="sbu-viewer-scale" style={{ width: d.width, height: d.height, transform: `scale(${scale})`, ["--sbu-k" as string]: scale }}>
+                  {id && !mounted ? null : id && at ? (
+                    <div
+                      className="sbu-viewer-scale"
+                      style={{ width: at.frame.width, height: at.frame.height, left: at.left, top: at.top, transform: `scale(${at.k})`, ["--sbu-k" as string]: at.k }}
+                    >
                       <iframe
                         key={`${id}-${device}`}
                         ref={(el) => {
@@ -437,7 +461,7 @@ export function FlowViewer({
                         tabIndex={current && live ? 0 : -1}
                       />
                       {current && !live && <div className="sbu-viewer-guard" title="Click to use this screen · Enter" onClick={() => setLive(true)} />}
-                      {current && surface && <AnnotationLayer surface={surface} viewport={{ width: d.width, height: d.height }} marks={marks} />}
+                      {current && surface && <AnnotationLayer surface={surface} viewport={at.frame} marks={marks} />}
                       {current && plainSurface && (
                         <VariantLayer
                           key={`v-${id}`}
@@ -449,7 +473,7 @@ export function FlowViewer({
                             setVariantsOn(false)
                             onAnnotate(false)
                             const win = frameOfCurrent()?.contentWindow
-                            onDraft({ surface: plainSurface, region: box.rect, viewport: { width: d.width, height: d.height }, scroll: { x: win?.scrollX ?? 0, y: win?.scrollY ?? 0 } })
+                            onDraft({ surface: plainSurface, region: box.rect, viewport: at.frame, scroll: { x: win?.scrollX ?? 0, y: win?.scrollY ?? 0 } })
                           }}
                         />
                       )}
@@ -489,10 +513,10 @@ export function FlowViewer({
         )}
       </div>
       <div ref={setTools} className="sbu-viewer-tools" />
-      {noting && <FlowNote flow={flow} base={base} batch={batchCount ? batch : undefined} onClose={() => setNoting(false)} />}
+      {noting && <FlowNote flow={flow} base={base} batch={batchCount ? batch : undefined} component={group} onClose={() => setNoting(false)} />}
       <footer className="sbu-viewer-foot">
         <span className="sbu-viewer-device">
-          {d.label} ({d.width}×{d.height})
+          {component ? `Frame ${currentFrame.width}×${currentFrame.height}` : `${DEVICES[device].label} (${d.width}×${d.height})`}
         </span>
         <div className="sbu-viewer-actions">
           <Button
@@ -501,7 +525,7 @@ export function FlowViewer({
             on={annotating}
             onClick={() => onAnnotate(!annotating)}
             disabled={!entry}
-            title="Comment on any part of the screen, or move, retype and draw on it · A"
+            title={`Comment on any part of the ${component ? "story" : "screen"}, or move, retype and draw on it · A`}
           >
             Annotate
           </Button>
@@ -528,26 +552,30 @@ export function FlowViewer({
             onClick={() => setNoting(true)}
             title={
               batchCount
-                ? "Send your notes and sketches on this flow’s screens to the agent, as one request"
-                : "A note about the whole flow, for every screen in it"
+                ? `Send your notes and sketches on this ${component ? "component’s stories" : "flow’s screens"} to the agent, as one request`
+                : component
+                  ? "A note about the whole component, for every story of it"
+                  : "A note about the whole flow, for every screen in it"
             }
           >
-            {batchCount ? "Reconcile" : "Note on flow"}
+            {batchCount ? "Reconcile" : component ? "Note on component" : "Note on flow"}
           </Button>
-          <IconButton
-            size="lg"
-            variant="ghost"
-            icon={touring ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
-            label={touring ? "Stop playing the flow" : "Play the flow: every screen plays what the user does, then moves on"}
-            on={touring}
-            onClick={() => setTouring((v) => !v)}
-          />
+          {!component && (
+            <IconButton
+              size="lg"
+              variant="ghost"
+              icon={touring ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
+              label={touring ? "Stop playing the flow" : "Play the flow: every screen plays what the user does, then moves on"}
+              on={touring}
+              onClick={() => setTouring((v) => !v)}
+            />
+          )}
           {entry && <IconButton size="lg" variant="ghost" icon={<ResetIcon size={16} />} label="Replay this screen from the start · R" onClick={reset} />}
           {entry && (
-            <IconButton size="lg" variant="ghost" icon={<ExternalIcon size={16} />} label="Open the full screen view" onClick={() => onOpenScreen(entry.id)} />
+            <IconButton size="lg" variant="ghost" icon={<ExternalIcon size={16} />} label={`Open the full ${component ? "story" : "screen"} view`} onClick={() => onOpenScreen(entry.id)} />
           )}
         </div>
-        <div className="sbu-viewer-info">
+        <div className="sbu-viewer-info" hidden={component}>
           <IconButton size="lg" variant="ghost" icon={<InfoIcon size={18} />} label="Screen info and other flows" on={info} onClick={() => setInfo((v) => !v)} aria-expanded={info} />
           {info && (
             <div className="sbu-viewer-popover sbu-panel" role="dialog" aria-label="Screen info">

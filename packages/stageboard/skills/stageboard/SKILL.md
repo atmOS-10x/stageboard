@@ -47,7 +47,8 @@ export const Disabled: Story<typeof Button> = { args: { disabled: true } }
 ```
 
 - Ids are `kebab(title)--kebab(export)`; `npx stageboard list` shows them.
-- `parameters.layout` is `"centered"` (the default for components), `"padded"` or `"fullscreen"` (the default for pages). Use `parameters.viewport.width` for wide components.
+- `parameters.layout` is `"centered"` (the default for components), `"padded"` or `"fullscreen"` (the default for pages).
+- Every component story renders in its own frame, `parameters.viewport: { width, height }`, shown fitted into a 16:9 tile under Components (default 640×360). Give each new component file a frame just large enough for its stories plus 40px each side, as numbers on the default export, and a smaller one on a story that draws much less (a lone button in a file whose `Variants` story is a long row). Leave room for menus, popovers and dialogs that open. `npx stageboard frames` prints frames that fit; `--write` sets them.
 - Use realistic data in the product's language and domain. Never use lorem ipsum.
 
 ## Screens and flows

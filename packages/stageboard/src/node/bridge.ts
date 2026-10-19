@@ -197,8 +197,8 @@ export class Bridge {
     job.attachments = (request.attachments ?? []).map((id) => readUpload(this.config, id)).filter((u): u is NonNullable<typeof u> => Boolean(u))
     const target = request.target
     if (request.kind === "page") return this.enrichPage(job, request)
-    if (request.kind === "flow" || request.flow) {
-      this.flowIndex = (await buildIndex(this.config)).filter((s) => s.hasPage).map((s) => ({ id: s.id, title: `${s.title} / ${s.name}`, file: s.file }))
+    if (request.kind === "flow" || request.flow || request.component) {
+      this.flowIndex = (await buildIndex(this.config)).filter((s) => s.hasPage || request.component).map((s) => ({ id: s.id, title: `${s.title} / ${s.name}`, file: s.file }))
       if (request.annotations?.length) return this.enrichBatch(job, request)
       if (request.kind === "flow" || !request.target.region) return
     }

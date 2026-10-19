@@ -167,8 +167,12 @@ export type ChangeRequest = {
   sketch?: Sketch
   dream?: Dream
   flow?: Flow
+  /** A note on a whole component: every story of it, in the order Components shows them. */
+  component?: ComponentGroup
   annotations?: FlowAnnotation[]
 }
+
+export type ComponentGroup = { title: string; stories: { id: string; name: string }[] }
 
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled"
 

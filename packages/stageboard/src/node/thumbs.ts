@@ -23,7 +23,9 @@ export type RenderOptions = {
   colorScheme?: "light" | "dark"
 }
 
-export type ThumbLook = { width?: number; height?: number; theme?: "light" | "dark"; colorScheme?: "light" | "dark" }
+export type ThumbLook = { width?: number; height?: number; scale?: number; theme?: "light" | "dark"; colorScheme?: "light" | "dark" }
+
+class Unwanted extends Error {}
 
 export type ShotRequest = RenderOptions & {
   full?: boolean
@@ -39,7 +41,7 @@ export class Thumbnailer {
   private browser?: Promise<Browser>
   private queue: Job[] = []
   private active = 0
-  private inflight = new Map<string, Promise<string>>()
+  private inflight = new Map<string, { promise: Promise<string>; waiters: number }>()
   private idleTimer?: ReturnType<typeof setTimeout>
   private dir: string
   private usedFile: string
@@ -170,11 +172,13 @@ export class Thumbnailer {
     }
   }
 
-  private renderThumb(id: string, file: string, variants: Record<string, string>, look: ThumbLook = {}): Promise<string> {
+  private renderThumb(id: string, file: string, variants: Record<string, string>, look: ThumbLook = {}, wanted = () => true): Promise<string> {
     return this.schedule(async () => {
+      // Its card scrolled away or the tab closed while it waited in line: skip it, the next view asks again.
+      if (!wanted()) throw new Unwanted("No longer wanted")
       let page: Page | undefined
       try {
-        const scale = look.width ? Math.min(1, 720 / look.width) : 0.5
+        const scale = look.scale ?? (look.width ? Math.min(1, 720 / look.width) : 0.5)
         page = await this.openStory(id, { variants, scale, useSelections: false, ...look })
         await page.screenshot({ path: file, type: "jpeg", quality: 72 })
         return file
@@ -187,19 +191,26 @@ export class Thumbnailer {
     })
   }
 
-  private ensure(id: string, storyFile: string | undefined, extra: Record<string, string> = {}, refresh = false, look: ThumbLook = {}): Promise<string> {
+  private ensure(id: string, storyFile: string | undefined, extra: Record<string, string> = {}, refresh = false, look: ThumbLook = {}, waiting?: ServerResponse): Promise<string> {
     const variants = this.effectiveVariants({ variants: extra })
     const key = this.cacheKey(id, storyFile, variants)
-    const size = look.width ? `.${look.width}x${look.height ?? 0}` : ""
+    const size = look.width ? `.${look.width}x${look.height ?? 0}${look.scale ? `@${look.scale}` : ""}` : ""
     const scheme = look.theme ? `.t-${look.theme}` : look.colorScheme === "dark" ? ".dark" : ""
     const file = path.join(this.dir, `${id.replace(/[^\w.-]/g, "_")}.${key}${size}${scheme}.jpg`)
     if (!refresh && fs.existsSync(file)) return Promise.resolve(file)
-    let pending = this.inflight.get(file)
-    if (!pending) {
-      pending = this.renderThumb(id, file, variants, look).finally(() => this.inflight.delete(file))
-      this.inflight.set(file, pending)
+    const existing = this.inflight.get(file)
+    // Renders nobody waits on (warming) always run; a request's render only while someone still waits for it. The
+    // waiter counts before the render is scheduled: with a free slot it starts right away.
+    const entry = existing ?? { waiters: 0, promise: undefined as unknown as Promise<string> }
+    if (waiting) {
+      entry.waiters++
+      waiting.once("close", () => entry.waiters--)
+    } else entry.waiters = Infinity
+    if (!existing) {
+      entry.promise = this.renderThumb(id, file, variants, look, () => entry.waiters > 0).finally(() => this.inflight.delete(file))
+      this.inflight.set(file, entry)
     }
-    return pending
+    return entry.promise
   }
 
   warm(stories: { id: string; absFile: string }[]) {
@@ -208,12 +219,13 @@ export class Thumbnailer {
 
   async serve(res: ServerResponse, id: string, storyFile: string | undefined, refresh: boolean, variants: Record<string, string> = {}, look: ThumbLook = {}) {
     try {
-      const file = await this.ensure(id, storyFile, variants, refresh, look)
+      const file = await this.ensure(id, storyFile, variants, refresh, look, res)
       res.setHeader("content-type", "image/jpeg")
       res.setHeader("cache-control", "no-cache")
       fs.createReadStream(file).pipe(res)
     } catch (e) {
-      res.statusCode = 500
+      if (res.destroyed) return
+      res.statusCode = e instanceof Unwanted ? 503 : 500
       res.end((e as Error).message)
     }
   }
