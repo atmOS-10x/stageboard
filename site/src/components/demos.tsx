@@ -238,9 +238,15 @@ type Geometry = {
   reserve: Pt
   dragFrom: Pt
   dragTo: Pt
-  pay: Pt
-  moveBy: number
-  /** The pen stroke around the pay button, in the screen's own coordinates. */
+  /** Where the pen starts and ends the full-width arrow under the button. */
+  drawFrom: Pt
+  drawTo: Pt
+  /** The button's right handle, before and after it is dragged out to the column edge. */
+  grab: Pt
+  grabTo: Pt
+  /** The button's width once it spans the column, in the screen's own pixels. */
+  fullWidth: number
+  /** The pen stroke, a hand-drawn |<->| across the column, in the screen's own coordinates. */
   stroke: string
   composer: CSSProperties
 }
@@ -250,9 +256,13 @@ const DESKTOP: Geometry = {
   reserve: [91.5, 77.3],
   dragFrom: [2.5, 56],
   dragTo: [51.5, 71],
-  pay: [11.25, 76.3],
-  moveBy: 280,
-  stroke: "M 18 448 C 20 426, 120 420, 200 428 C 230 434, 232 472, 206 488 C 168 504, 52 502, 30 488 C 14 478, 12 460, 20 450 M 216 460 C 290 462, 380 462, 460 460 M 444 450 L 462 460 L 444 470",
+  drawFrom: [3.1, 82.3],
+  drawTo: [51, 82.3],
+  grab: [19.6, 76.3],
+  grabTo: [51.25, 76.3],
+  fullWidth: 464,
+  stroke:
+    "M 30 495 C 150 491, 360 498, 490 493 M 44 484 L 30 495 L 44 506 M 476 482 L 490 493 L 477 505 M 28 482 C 28 492, 29 500, 28 510 M 492 480 C 491 490, 492 499, 492 508",
   composer: { left: "54%", top: "40%" },
 }
 
@@ -261,9 +271,13 @@ const PHONE: Geometry = {
   reserve: [50, 83],
   dragFrom: [5, 47],
   dragTo: [95, 59],
-  pay: [26.4, 93.3],
-  moveBy: 85,
-  stroke: "M 12 688 C 14 666, 100 660, 178 668 C 198 674, 200 716, 180 732 C 148 746, 40 744, 22 732 C 8 722, 8 702, 14 692 M 184 700 C 230 700, 270 700, 310 700 M 296 690 L 312 700 L 296 710",
+  drawFrom: [6.1, 88.5],
+  drawTo: [93.9, 88.5],
+  grab: [47.2, 93.3],
+  grabTo: [94.4, 93.3],
+  fullWidth: 320,
+  stroke:
+    "M 22 664 C 100 660, 250 667, 338 662 M 34 655 L 22 664 L 34 673 M 326 653 L 338 662 L 327 671 M 20 652 C 20 660, 21 668, 20 676 M 340 650 C 339 658, 340 666, 340 674",
   composer: { left: "4%", top: "10%" },
 }
 
@@ -303,10 +317,12 @@ export function FlowViewerDemo({ at }: { at?: number }) {
   else if (t >= 4800 && t < 5700) {
     cursor = g.dragTo
     pressing = true
-  } else if (t >= 7600 && t < 8800) cursor = [g.pay[0] + (phone ? 8 : 12), g.pay[1] + 3]
-  else if (t >= 9000 && t < 10500) {
-    cursor = moved ? [g.pay[0] + (g.moveBy / (phone ? PHONE_W : SCREEN_W)) * 100, g.pay[1]] : g.pay
-    pressing = t > 9300 && t < 9900
+  } else if (t >= 7600 && t < 8800) {
+    cursor = t < 7800 ? g.drawFrom : g.drawTo
+    pressing = t >= 7800 && t < 8700
+  } else if (t >= 9000 && t < 10500) {
+    cursor = moved ? g.grabTo : g.grab
+    pressing = t > 9300 && t < 10100
   }
   const atReconcile = t >= 10500 && t < 11400
   const pressReconcile = t >= 10950 && t < 11250
@@ -315,7 +331,7 @@ export function FlowViewerDemo({ at }: { at?: number }) {
     const checkout: BookMachineProps = {
       revised: reconciled,
       paySelected: selected,
-      payStyle: moved ? { transform: `translateX(${g.moveBy}px)` } : undefined,
+      payStyle: moved ? { width: g.fullWidth } : undefined,
     }
     if (phone) return [<PhoneSessions pressed={t > 1450 && step === 0} />, <PhoneSession pressed={t > 3300 && step === 1} />, <PhoneBookMachine {...(i === 2 ? checkout : {})} />, <PhoneReplay />][i]
     return [<SessionsScreen pressed={t > 1450 && step === 0} />, <SessionScreen pressed={t > 3300 && step === 1} />, <BookMachineScreen {...(i === 2 ? checkout : {})} />, <ReplayScreen />][i]
@@ -382,8 +398,8 @@ export function FlowViewerDemo({ at }: { at?: number }) {
                             key={loop}
                             d={g.stroke}
                             fill="none"
-                            stroke="#f0503c"
-                            strokeWidth={phone ? 3.6 : 4.4}
+                            stroke="#7c5cff"
+                            strokeWidth={phone ? 3.5 : 4}
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             pathLength={1}

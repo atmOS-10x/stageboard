@@ -395,7 +395,7 @@ export function BookMachineScreen({ revised, payStyle, paySelected }: BookMachin
         {revised ? (
           <div className="absolute inset-x-7 top-[440px] flex h-9 items-center justify-center rounded-lg bg-zinc-950 text-[13px] font-medium text-white">Book machine</div>
         ) : (
-          <div className="absolute top-[440px] left-7 w-40 transition-transform duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
+          <div className="absolute top-[440px] left-7 w-40 transition-[width] duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
             <div className="flex h-9 items-center justify-center rounded-lg bg-zinc-950 text-[13px] font-medium text-white">Book machine</div>
             {paySelected && <SelectionHandles />}
           </div>
@@ -620,7 +620,7 @@ export function PhoneBookMachine({ revised, payStyle, paySelected }: BookMachine
       {revised ? (
         <div className="absolute inset-x-5 bottom-7 flex h-11 items-center justify-center rounded-xl bg-zinc-950 text-[14px] font-medium text-white">Book machine</div>
       ) : (
-        <div className="absolute bottom-7 left-5 w-[150px] transition-transform duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
+        <div className="absolute bottom-7 left-5 w-[150px] transition-[width] duration-700 ease-[cubic-bezier(.32,.72,0,1)]" style={payStyle}>
           <div className="flex h-11 items-center justify-center rounded-xl bg-zinc-950 text-[14px] font-medium text-white">Book machine</div>
           {paySelected && <SelectionHandles />}
         </div>
