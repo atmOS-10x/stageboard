@@ -161,8 +161,8 @@ export function FlowsDemo({ at }: { at?: number }) {
   const t = useTimeline(FLOWS_CYCLE, 7000, at)
   const loop = Math.floor(performance.now() / FLOWS_CYCLE)
   const shown = [t > 500, t > 1100, t > 1700]
-  const revealing = t > 4600 && t < 6200
   const built = t > 4600
+  const wavesMounted = t < 5500
   const done = t > 6200
 
   const A = phone ? [PhoneSessions, PhoneSession, PhoneBookMachine, PhoneReplay] : [SessionsScreen, SessionScreen, BookMachineScreen, ReplayScreen]
@@ -197,19 +197,15 @@ export function FlowsDemo({ at }: { at?: number }) {
                 ))}
                 <div className={`transition-all duration-500 ease-[cubic-bezier(.32,.72,0,1)] ${shown[2] ? "opacity-100" : "translate-y-2 scale-95 opacity-0"}`}>
                   <Shot ring={!done}>
-                    <Device phone={phone}>{built && <Saved />}</Device>
-                    {!built && (
-                      <div className="absolute inset-0">
-                        <PixelWaves cell={phone ? 6 : 7} />
+                    <Soft shown={built}>
+                      <Device phone={phone}><Saved /></Device>
+                    </Soft>
+                    {wavesMounted && (
+                      <Waves gone={built} cell={phone ? 6 : 7}>
                         <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#14131c]/72 px-2.5 py-1 text-[11px] font-medium whitespace-nowrap">
                           <span className="text-shimmer">Building Plugins</span>
                         </span>
-                      </div>
-                    )}
-                    {revealing && (
-                      <div className="absolute inset-0">
-                        <PixelWaves key={loop} mode="reveal" cell={phone ? 6 : 7} />
-                      </div>
+                      </Waves>
                     )}
                   </Shot>
                 </div>
@@ -250,28 +246,28 @@ type Geometry = {
 }
 
 const DESKTOP: Geometry = {
-  search: [55, 22],
-  reserve: [88, 78],
-  dragFrom: [61, 15],
-  dragTo: [97, 66],
-  pay: [16, 80],
-  moveBy: 150,
-  stroke: "M 14 230 C 14 214, 70 210, 120 213 C 150 215, 156 238, 140 252 C 116 268, 40 268, 22 256 C 10 247, 12 236, 20 230 M 150 244 C 190 246, 230 246, 262 244 M 250 236 L 263 244 L 250 252",
-  composer: { left: "18%", top: "50%" },
+  search: [13, 49],
+  reserve: [91.5, 77.3],
+  dragFrom: [2.5, 56],
+  dragTo: [51.5, 71],
+  pay: [11.25, 76.3],
+  moveBy: 280,
+  stroke: "M 18 448 C 20 426, 120 420, 200 428 C 230 434, 232 472, 206 488 C 168 504, 52 502, 30 488 C 14 478, 12 460, 20 450 M 216 460 C 290 462, 380 462, 460 460 M 444 450 L 462 460 L 444 470",
+  composer: { left: "54%", top: "40%" },
 }
 
 const PHONE: Geometry = {
   search: [50, 17],
-  reserve: [50, 85],
-  dragFrom: [5, 9],
-  dragTo: [95, 34],
-  pay: [30, 93],
-  moveBy: 48,
-  stroke: "M 12 452 C 10 438, 60 436, 120 438 C 140 440, 142 470, 126 478 C 100 488, 30 488, 16 476 C 8 468, 10 458, 16 452 M 134 462 C 160 461, 190 461, 214 462 M 203 455 L 215 462 L 203 469",
-  composer: { left: "4%", top: "36%" },
+  reserve: [50, 83],
+  dragFrom: [5, 47],
+  dragTo: [95, 59],
+  pay: [26.4, 93.3],
+  moveBy: 85,
+  stroke: "M 12 688 C 14 666, 100 660, 178 668 C 198 674, 200 716, 180 732 C 148 746, 40 744, 22 732 C 8 722, 8 702, 14 692 M 184 700 C 230 700, 270 700, 310 700 M 296 690 L 312 700 L 296 710",
+  composer: { left: "4%", top: "10%" },
 }
 
-const NOTE = "Specs as one line, and only one accent colour."
+const NOTE = "Stats side by side, and a full-width Book machine."
 
 export function FlowViewerDemo({ at }: { at?: number }) {
   const phone = usePhone()
@@ -290,7 +286,9 @@ export function FlowViewerDemo({ at }: { at?: number }) {
   const selected = t >= 9300 && !reconciled
   const moved = t >= 9700
   const ops = reconciled ? 0 : Number(t >= 7300) + Number(t >= 8700) + Number(t >= 9900)
-  const revealing = t >= 11200 && t < 12800
+  // Reconcile: the agent works under the pixel ocean, then the new screen fades and scales in as the waves fade out.
+  const applying = t >= 11200 && t < 12500
+  const wavesMounted = t >= 11200 && t < 13300
 
   // Where the cursor is, inside the current screen; at the toolbar for Reconcile.
   let cursor: Pt | undefined
@@ -358,7 +356,13 @@ export function FlowViewerDemo({ at }: { at?: number }) {
                   className={`absolute top-1/2 left-1/2 ${slotWidth} overflow-hidden rounded-[12px] bg-ink-750 transition-[transform,opacity,box-shadow] duration-500 ease-[cubic-bezier(.32,.72,0,1)] ${current ? "z-10 opacity-100 shadow-[0_0_0_1px_rgb(255_255_255/0.1),0_30px_80px_rgb(0_0_0/0.55)]" : "opacity-40"}`}
                   style={{ transform: `translate(calc(-50% + ${(i - step) * 106}%), -50%)` }}
                 >
-                  <Device phone={phone}>{screen(i)}</Device>
+                  {i === 2 ? (
+                    <Soft shown={!applying}>
+                      <Device phone={phone}>{screen(i)}</Device>
+                    </Soft>
+                  ) : (
+                    <Device phone={phone}>{screen(i)}</Device>
+                  )}
                   {current && i === 2 && (
                     <>
                       {dragging && (
@@ -379,7 +383,7 @@ export function FlowViewerDemo({ at }: { at?: number }) {
                             d={g.stroke}
                             fill="none"
                             stroke="#f0503c"
-                            strokeWidth={phone ? 2.4 : 2.2}
+                            strokeWidth={phone ? 3.6 : 4.4}
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             pathLength={1}
@@ -388,11 +392,7 @@ export function FlowViewerDemo({ at }: { at?: number }) {
                           />
                         </svg>
                       )}
-                      {revealing && (
-                        <div className="absolute inset-0">
-                          <PixelWaves key={loop} mode="reveal" cell={phone ? 6 : 8} />
-                        </div>
-                      )}
+                      {wavesMounted && <Waves key={loop} gone={!applying} cell={phone ? 6 : 8} />}
                       {cursor && <Cursor at={cursor} pressing={pressing} />}
                     </>
                   )}
@@ -404,7 +404,7 @@ export function FlowViewerDemo({ at }: { at?: number }) {
               <div className="animate-rise absolute z-20 w-[230px] rounded-2xl bg-[#28282e]/97 p-3 shadow-[0_20px_60px_rgb(0_0_0/0.55),0_0_0_1px_rgb(255_255_255/0.06)] sm:w-[260px]" style={g.composer}>
                 <div className="flex gap-1.5 text-[10.5px] text-[#b4b4be]">
                   <span className="rounded-md bg-white/7 px-1.5 py-0.5">Book machine</span>
-                  <span className="rounded-md bg-white/7 px-1.5 py-0.5 font-mono">MachineSummary</span>
+                  <span className="rounded-md bg-white/7 px-1.5 py-0.5 font-mono">MachineStats</span>
                 </div>
                 <p className="mt-2 min-h-[2.6em] text-[12.5px] leading-snug text-[#f2f2f5]">
                   {typed}
@@ -451,6 +451,25 @@ export function FlowViewerDemo({ at }: { at?: number }) {
         </div>
       </div>
     </Window>
+  )
+}
+
+/** Content that fades and scales in when it's ready, instead of a hard edge. */
+function Soft({ shown, children }: { shown: boolean; children: ReactNode }) {
+  return (
+    <div className={`transition-[opacity,transform,filter] duration-[900ms] ease-[cubic-bezier(.32,.72,0,1)] ${shown ? "scale-100 opacity-100 blur-0" : "scale-[.96] opacity-0 blur-[3px]"}`}>
+      {children}
+    </div>
+  )
+}
+
+/** The pixel ocean over a screen that's being built; it fades and swells away when the screen is ready. */
+function Waves({ gone, cell, children }: { gone: boolean; cell: number; children?: ReactNode }) {
+  return (
+    <div className={`absolute inset-0 transition-[opacity,transform] duration-[900ms] ease-[cubic-bezier(.32,.72,0,1)] ${gone ? "pointer-events-none scale-[1.06] opacity-0" : "animate-[appear_.45s_ease-out] scale-100 opacity-100"}`}>
+      <PixelWaves cell={cell} />
+      {children}
+    </div>
   )
 }
 

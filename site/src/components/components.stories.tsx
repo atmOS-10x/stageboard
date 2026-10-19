@@ -16,6 +16,7 @@ export const Waves: Story = { render: () => <div className="h-[420px]"><PixelWav
 export const FlowsBuilding: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowsDemo /></div> }
 export const FlowViewer: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowViewerDemo /></div> }
 export const FlowsAssembling: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowsDemo at={3000} /></div> }
+export const FlowsRevealing: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowsDemo at={4900} /></div> }
 export const ViewerWalking: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowViewerDemo at={1600} /></div> }
 export const ViewerComment: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowViewerDemo at={6900} /></div> }
 export const ViewerDrawn: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowViewerDemo at={9200} /></div> }

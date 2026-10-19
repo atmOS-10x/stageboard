@@ -49,9 +49,12 @@ function HeroImpl({
     <section id="top" className="relative isolate overflow-hidden">
       <HeroBackdrop />
       <div className="relative mx-auto max-w-6xl px-5 pt-20 text-center sm:pt-28">
-        <a href="#how" className="animate-rise inline-flex items-center gap-2 rounded-full bg-white/6 py-1 pr-3 pl-1 text-[12.5px] text-fg-soft transition-colors hover:bg-white/10">
+        <a href="#how" className="animate-rise inline-flex max-w-full items-center gap-2 rounded-full bg-white/6 py-1 pr-3 pl-1 text-[12.5px] whitespace-nowrap text-fg-soft transition-colors hover:bg-white/10">
           <span className="rounded-full bg-accent/20 px-2 py-0.5 font-medium text-lilac">New</span>
-          Flows: describe a journey, watch the missing screens get built
+          <span className="truncate">
+            <span className="sm:hidden">Flows: watch missing screens get built</span>
+            <span className="max-sm:hidden">Flows: describe a journey, watch the missing screens get built</span>
+          </span>
         </a>
         <h1 className="animate-rise mx-auto mt-6 max-w-[15ch] text-[44px] leading-[1.02] font-semibold tracking-[-0.035em] text-balance text-white [animation-delay:60ms] sm:text-[68px]">
           {title}
