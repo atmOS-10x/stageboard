@@ -1,4 +1,4 @@
-import type { Region, RegionDescription, Upload } from "stageboard"
+import type { Region, RegionDescription, Upload } from "@atmos.build/stageboard"
 
 export type Viewport = { width: number; height: number }
 

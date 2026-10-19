@@ -1,4 +1,4 @@
-import type { Decorator, Meta, StageParameters, Story, StoryEntry } from "stageboard"
+import type { Decorator, Meta, StageParameters, Story, StoryEntry } from "@atmos.build/stageboard"
 
 export type ClientEntry = StoryEntry & { hasPage?: boolean }
 

@@ -7,7 +7,7 @@ The stageboard devtools are a small inspector you mount in your own app during d
 
 ## Mount it
 
-`StageboardDevtools` from `stageboard/react` is a component that mounts the inspector and renders nothing itself. `mountDevtools` does the same from plain code and returns a function that unmounts it. Both mount once per page; later calls do nothing.
+`StageboardDevtools` from `@atmos.build/stageboard/react` is a component that mounts the inspector and renders nothing itself. `mountDevtools` does the same from plain code and returns a function that unmounts it. Both mount once per page; later calls do nothing.
 
 Load it only in development, and import the generated `stageboard.variants.ts` next to it so variants you pick apply in the app too.
 
@@ -21,7 +21,7 @@ createRoot(document.getElementById("root")!).render(<App />)
 
 if (import.meta.env.DEV) {
   import("../stageboard.variants")
-  import("stageboard/react").then(({ mountDevtools }) => mountDevtools())
+  import("@atmos.build/stageboard/react").then(({ mountDevtools }) => mountDevtools())
 }
 ```
 
@@ -30,7 +30,7 @@ if (import.meta.env.DEV) {
 ```tsx title="src/app/stageboard-dev.tsx"
 "use client"
 import "../../stageboard.variants"
-import { StageboardDevtools } from "stageboard/react"
+import { StageboardDevtools } from "@atmos.build/stageboard/react"
 
 export default function StageboardDev() {
   return <StageboardDevtools base="/__stageboard" />

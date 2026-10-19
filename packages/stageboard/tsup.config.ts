@@ -1,6 +1,6 @@
 import { defineConfig } from "tsup"
 
-const external = ["react", "react-dom", "react/jsx-runtime", "vite", "stageboard", /^stageboard\//, /^virtual:/, /^next\//]
+const external = ["react", "react-dom", "react/jsx-runtime", "vite", "@atmos.build/stageboard", /^@atmos\.build\/stageboard\//, /^virtual:/, /^next\//]
 
 export default defineConfig([
   {

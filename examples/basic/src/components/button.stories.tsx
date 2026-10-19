@@ -1,4 +1,4 @@
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Button } from "./button"
 
 export default { title: "Primitives/Button", component: Button, args: { children: "Click me" } } satisfies Meta<typeof Button>

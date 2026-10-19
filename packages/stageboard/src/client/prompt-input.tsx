@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from "react"
-import { useStageboard } from "stageboard/react"
-import type { Upload } from "stageboard"
+import { useStageboard } from "@atmos.build/stageboard/react"
+import type { Upload } from "@atmos.build/stageboard"
 import { uploadImage, uploadUrl } from "./api"
 import { ArrowUpIcon, CloseIcon, PlusIcon } from "./icons"
 import { IconButton } from "./kit"

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { submitChangeRequest } from "stageboard/react"
-import type { ChangeRequest, Job, Upload } from "stageboard"
+import { submitChangeRequest } from "@atmos.build/stageboard/react"
+import type { ChangeRequest, Job, Upload } from "@atmos.build/stageboard"
 import { useAnnotate, useComposerPlacement, useOutsidePointer, type Draft } from "./annotate"
 import { withQuery } from "./api"
 import { readPrefs, saveDraft, savePrefs, type ComposerMode } from "./draft-store"

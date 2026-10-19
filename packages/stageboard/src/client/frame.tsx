@@ -1,7 +1,7 @@
 import { Component, createElement, useEffect, type ComponentType, type CSSProperties, type ReactNode } from "react"
 import { createRoot } from "react-dom/client"
-import { describeRegion, installSketch, mountDevtools, setVariantOverrides, startBridge } from "stageboard/react"
-import type { Decorator, FlowAction, StoryContext } from "stageboard"
+import { describeRegion, installSketch, mountDevtools, setVariantOverrides, startBridge } from "@atmos.build/stageboard/react"
+import type { Decorator, FlowAction, StoryContext } from "@atmos.build/stageboard"
 import { fillRoute, matchRoute, type RouteParams } from "./routes"
 import { resolveStory, type ClientEntry, type Loaders, type PreviewModule, type StoryModule } from "./types"
 

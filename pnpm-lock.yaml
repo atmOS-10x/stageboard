@@ -69,15 +69,15 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@atmos.build/stageboard':
+        specifier: workspace:*
+        version: link:../../packages/stageboard
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.4(@types/node@24.19.2)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.1))
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
-      stageboard:
-        specifier: workspace:*
-        version: link:../../packages/stageboard
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -170,6 +170,9 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@atmos.build/stageboard':
+        specifier: workspace:*
+        version: link:../packages/stageboard
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.4(@types/node@24.19.2)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.1))
@@ -182,9 +185,6 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.4(@types/node@24.19.2)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.1))
-      stageboard:
-        specifier: workspace:*
-        version: link:../packages/stageboard
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3

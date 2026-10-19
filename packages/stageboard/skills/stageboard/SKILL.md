@@ -16,11 +16,11 @@ stageboard renders an app's components and pages as **stories** with mock data, 
 
 ## Setting up a project (first time)
 
-1. Install: `npm i -D stageboard`. Use the project's package manager.
+1. Install: `npm i -D @atmos.build/stageboard`. Use the project's package manager.
 2. Run `npx stageboard init`, then edit `stageboard.config.ts`:
    ```ts
-   import { defineConfig } from "stageboard"
-   import { nextPreset } from "stageboard/next" // Next.js only: shims next/image, link, navigation, font, dynamic
+   import { defineConfig } from "@atmos.build/stageboard"
+   import { nextPreset } from "@atmos.build/stageboard/next" // Next.js only: shims next/image, link, navigation, font, dynamic
 
    export default defineConfig({
      stories: ["src/**/*.stories.tsx", "stageboard/**/*.stories.tsx"],
@@ -38,7 +38,7 @@ stageboard renders an app's components and pages as **stories** with mock data, 
 ## Writing stories
 
 ```tsx
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Button } from "./button"
 
 export default { title: "Primitives/Button", component: Button, args: { children: "Save" } } satisfies Meta<typeof Button>
@@ -80,7 +80,7 @@ To see a whole flow at once, render it into one grid image: `npx stageboard flow
 
 ## Variants
 
-To make a component swappable, write `export const Hero = variant("landing.hero", HeroImpl)` (from `stageboard/react`), or wrap JSX in `<Variant id="…">`. Each alternative is one `*.variant.tsx` file next to the original. See [variants.md](references/variants.md) for the file format, how to handle an annotation request, and how to compare variants.
+To make a component swappable, write `export const Hero = variant("landing.hero", HeroImpl)` (from `@atmos.build/stageboard/react`), or wrap JSX in `<Variant id="…">`. Each alternative is one `*.variant.tsx` file next to the original. See [variants.md](references/variants.md) for the file format, how to handle an annotation request, and how to compare variants.
 
 ## Tools
 

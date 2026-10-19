@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { AgentStack, CopyPromptButton } from "./copy-prompt"
 import { FlowViewerDemo, FlowsDemo } from "./demos"
 import { PixelWaves } from "./pixel-waves"

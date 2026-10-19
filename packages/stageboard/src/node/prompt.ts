@@ -293,7 +293,7 @@ export function buildPrompt(config: ResolvedConfig, job: Job, request: ChangeReq
     } else {
       lines.push(
         "The component is not wrapped in a variant boundary yet. First wrap it, without changing its behaviour:",
-        "- for a component: rename the implementation and export `export const Hero = variant(\"<area>.<component>\", HeroImpl)` from `stageboard/react`, keeping the exported name the same;",
+        "- for a component: rename the implementation and export `export const Hero = variant(\"<area>.<component>\", HeroImpl)` from `@atmos.build/stageboard/react`, keeping the exported name the same;",
         "- or for an inline JSX section: wrap it in `<Variant id=\"<area>.<section>\">…</Variant>`.",
         "Choose a stable dotted id such as `landing.hero`. Then create the variants for that id.",
         "",

@@ -18,7 +18,7 @@ export const llmsDescription =
   "stageboard renders every screen, flow and component of a React app on one board from Storybook-compatible stories with mock data. People annotate it and an agent (Claude Code, Codex, atmOS or any CLI) changes the real components, optionally as live variants."
 
 export const llmsDetails =
-  "Install with `npm i -D stageboard`, then `npx stageboard skill` installs an agent skill. Stories are `*.stories.tsx`; variants are `*.variant.tsx`; flows live in `stageboard/board.json`. Agents check their work with `npx stageboard shot` and the MCP server."
+  "Install with `npm i -D @atmos.build/stageboard`, then `npx stageboard skill` installs an agent skill. Stories are `*.stories.tsx`; variants are `*.variant.tsx`; flows live in `stageboard/board.json`. Agents check their work with `npx stageboard shot` and the MCP server."
 
 export const siteDescription =
   "Every screen and flow of your React app on one board. Point at what's wrong, your agent fixes the code."

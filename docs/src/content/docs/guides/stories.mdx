@@ -6,7 +6,7 @@ description: Write stories for your components and pages, wrap them in providers
 A story is one state of a component or page, rendered with mock data. Stories live in `*.stories.tsx` files that match the `stories` globs in [`stageboard.config.ts`](/configuration), and stageboard shows them under Screens and Components.
 
 ```tsx title="src/components/button.stories.tsx"
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Button } from "./button"
 
 export default {
@@ -23,7 +23,7 @@ This file has two stories, `primitives-button--primary` and `primitives-button--
 
 ## The default export: `Meta`
 
-The default export describes every story in the file. Import the `Meta` type from `stageboard` and use `satisfies Meta<typeof Component>`, so `args` are checked against the component's props.
+The default export describes every story in the file. Import the `Meta` type from `@atmos.build/stageboard` and use `satisfies Meta<typeof Component>`, so `args` are checked against the component's props.
 
 | Field | Type | What it does |
 | --- | --- | --- |
@@ -87,7 +87,7 @@ The preview file wraps every story. Point the `preview` option at it (`npx stage
 
 ```tsx title="stageboard.preview.tsx"
 import "./src/styles.css"
-import type { Decorator } from "stageboard"
+import type { Decorator } from "@atmos.build/stageboard"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MockAuthProvider } from "./stageboard/mocks"
 
@@ -126,7 +126,7 @@ stageboard reads titles from the source text without running it, so write `title
 
 ## Storybook compatibility
 
-The format follows Storybook's Component Story Format: a default export with `title`, `component`, `args`, `parameters` and `decorators`, and named object stories with `args`, `render` and `name`. Most CSF 3 stories render unchanged once their types come from `stageboard`.
+The format follows Storybook's Component Story Format: a default export with `title`, `component`, `args`, `parameters` and `decorators`, and named object stories with `args`, `render` and `name`. Most CSF 3 stories render unchanged once their types come from `@atmos.build/stageboard`.
 
 What stageboard does not do:
 

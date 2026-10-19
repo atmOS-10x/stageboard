@@ -16,7 +16,7 @@ The site is a Fumadocs (Next.js) app. Pages are MDX in `src/content/docs`; the s
 - Frontmatter: `title` (sentence case) and a one-line `description` that says what the reader can do after reading. Nothing else.
 - Open with one or two sentences: what it is and when to use it. Then the smallest working example. Then details.
 - Code blocks always have a language and, when it's a file, a title: ```` ```tsx title="src/hero.stories.tsx" ````. Use `// [!code ++]`, `// [!code --]` or `// [!code highlight]` markers only when they help.
-- Commands use `npx stageboard …`. Install steps use an ```` ```npm ```` block with the npm command (`npm i -D stageboard`); it renders as npm, pnpm, yarn and bun tabs. Use `<Tabs items={["A", "B"]}>` with `<Tab value="A">` only for other real alternatives.
+- Commands use `npx stageboard …`. Install steps use an ```` ```npm ```` block with the npm command (`npm i -D @atmos.build/stageboard`); it renders as npm, pnpm, yarn and bun tabs. Use `<Tabs items={["A", "B"]}>` with `<Tab value="A">` only for other real alternatives.
 - Tables for options: `Option | Type | Default | What it does`.
 - Use `<Callout>` (`type="info"`, `"warn"`, `"error"` or `"idea"`) sparingly, at most one per page. No imports needed; `Callout`, `Tabs`, `Tab`, `Steps` and `Step` are available in every page.
 - Link between pages with root-relative links without a trailing slash (`/guides/flows`, `/guides/flows#the-flow-viewer`).

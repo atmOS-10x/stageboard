@@ -1,4 +1,4 @@
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { HomePage, LoginPage, PricingPage } from "./pages"
 
 export default { title: "Pages", parameters: { layout: "fullscreen" } } satisfies Meta

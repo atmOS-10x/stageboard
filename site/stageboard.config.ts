@@ -1,5 +1,5 @@
 import tailwind from "@tailwindcss/vite"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 // Same agent setup as atmos-health: each note starts an atmOS Agent Session on this Machine, in this worktree, on
 // Claude Code with Opus 5.5 and the Claude subscription with the most left (stageboard/atmos-session.mjs resolves

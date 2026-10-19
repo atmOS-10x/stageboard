@@ -1,4 +1,4 @@
-import type { FlowReference } from "stageboard"
+import type { FlowReference } from "@atmos.build/stageboard"
 
 export function referenceUrl(base: string, image: string): string {
   return `${base}/api/references?src=${encodeURIComponent(image)}`

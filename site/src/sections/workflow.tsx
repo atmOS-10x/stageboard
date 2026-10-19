@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 import { FlowViewerDemo } from "../components/demos"
 import { Cpu, MemoryStick } from "lucide-react"
 
@@ -80,7 +80,7 @@ export function Panel({ children, className }: { children: ReactNode; className?
 }
 
 const SETUP_LINES = [
-  ["$", "npm i -D stageboard", ""],
+  ["$", "npm i -D @atmos.build/stageboard", ""],
   ["✓", "wrote stageboard.config.ts and a preview", ""],
   ["✓", "14 component stories", ""],
   ["✓", "6 screens with mock data", ""],

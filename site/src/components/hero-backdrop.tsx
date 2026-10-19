@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 import { PixelWaves } from "./pixel-waves"
 
 // The hero's backdrop: a canvas behind the headline and the Flows demo. It's its own variant point

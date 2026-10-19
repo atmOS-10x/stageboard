@@ -13,8 +13,8 @@ import {
   type RefObject,
   type WheelEvent as RWheelEvent,
 } from "react"
-import { useStageboard } from "stageboard/react"
-import type { Job, Region, Sketch } from "stageboard"
+import { useStageboard } from "@atmos.build/stageboard/react"
+import type { Job, Region, Sketch } from "@atmos.build/stageboard"
 import { frameScroll, type VariantRef, type Viewport } from "./api"
 import type { StoredDraft } from "./draft-store"
 import { Pin } from "./pins"

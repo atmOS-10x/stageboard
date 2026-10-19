@@ -1,4 +1,4 @@
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 import { PenTool } from "lucide-react"
 import { BrandMark, Wordmark } from "../components/brand"
 import { CheckDisc, CrossDisc } from "../components/discs"

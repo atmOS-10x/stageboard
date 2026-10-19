@@ -12,7 +12,7 @@ export type NextPresetOptions = {
 const require = createRequire(import.meta.url)
 
 function shim(name: string): string {
-  return require.resolve(`stageboard/shims/next/${name}`)
+  return require.resolve(`@atmos.build/stageboard/shims/next/${name}`)
 }
 
 export function stripJsonc(text: string): string {

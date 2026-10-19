@@ -1,8 +1,30 @@
 {
-  "name": "stageboard",
+  "name": "@atmos.build/stageboard",
   "version": "0.1.0",
-  "description": "Render every component and page of your app on one canvas, inspect anything, and ask an agent for live variants.",
+  "description": "Every screen, flow and component of your React app on one board. Point at what's wrong; your agent changes the real code, optionally as live variants.",
   "license": "MIT",
+  "homepage": "https://stageboard.design",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atmOS-10x/stageboard.git",
+    "directory": "packages/stageboard"
+  },
+  "bugs": {
+    "url": "https://github.com/atmOS-10x/stageboard/issues"
+  },
+  "keywords": [
+    "react",
+    "storybook",
+    "design",
+    "agents",
+    "claude-code",
+    "codex",
+    "mcp",
+    "vite",
+    "nextjs",
+    "variants",
+    "flows"
+  ],
   "type": "module",
   "bin": {
     "stageboard": "./dist/node/cli.js"
@@ -32,14 +54,20 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "LICENSE",
+    "README.md",
     "dist",
     "skills"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "pnpm build && node scripts/prepack.mjs"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -76,11 +104,5 @@
     "typescript": "~5.9.3",
     "vite": "^8.3.4",
     "vitest": "^4.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/atmOS-10x/stageboard.git",
-    "directory": "packages/stageboard"
-  },
-  "homepage": "https://github.com/atmOS-10x/stageboard#readme"
+  }
 }

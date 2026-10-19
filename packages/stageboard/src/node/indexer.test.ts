@@ -24,7 +24,7 @@ describe("indexFile", () => {
   it("decides page-ness per story in a file mixing routed and unrouted stories", () => {
     const stories = index(
       "settings.stories.tsx",
-      `import type { Meta, Story } from "stageboard"
+      `import type { Meta, Story } from "@atmos.build/stageboard"
 export default { title: "Settings", parameters: { layout: "fullscreen" } } satisfies Meta
 
 export const Profile: Story = { render: () => <Settings tab="profile" />, parameters: { page: { route: "/settings", title: "Settings" } } }
@@ -53,7 +53,7 @@ export const Loading = { args: { loading: true } }
   it("reads the title from const meta with export default meta", () => {
     const stories = index(
       "pages.stories.tsx",
-      `import type { Meta, Story } from "stageboard"
+      `import type { Meta, Story } from "@atmos.build/stageboard"
 const meta = {
   component: Page,
   parameters: { layout: "fullscreen" },

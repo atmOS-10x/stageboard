@@ -1,4 +1,4 @@
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Hero, Nav } from "./hero"
 import { Agents, CallToAction, Compare, Footer } from "./more"
 import { Workflow } from "./workflow"

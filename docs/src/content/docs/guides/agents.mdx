@@ -6,7 +6,7 @@ description: Choose which agent stageboard sends requests to, configure it, and 
 stageboard sends every request from Annotate, Variants, Reconcile and Flows to a coding agent. You pick the agent with the `agent` option in `stageboard.config.ts`; without it, stageboard uses `claude`.
 
 ```ts title="stageboard.config.ts"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
@@ -74,7 +74,7 @@ The command also gets two environment variables: `STAGEBOARD_PROMPT_FILE` (the p
 Set `detached: true` when the command starts a session in another tool (a tmux pane, a remote agent) and returns at once. The job then stays running until the agent reports with the `complete_job` MCP tool or `npx stageboard done <jobId> [summary] [--failed]`, as the prompt tells it, or until you cancel it. A non-zero exit still marks the job failed, since the launcher itself failed. This one starts an interactive Claude Code session in a tmux session per job:
 
 ```ts title="stageboard.config.ts"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],

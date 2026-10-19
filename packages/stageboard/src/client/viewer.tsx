@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { updateFlow, useStageboard } from "stageboard/react"
-import { DEVICES, formatAction, parseActions, type Device, type Flow, type FlowStep } from "stageboard"
+import { updateFlow, useStageboard } from "@atmos.build/stageboard/react"
+import { DEVICES, formatAction, parseActions, type Device, type Flow, type FlowStep } from "@atmos.build/stageboard"
 import { AnnotationLayer, type Draft, type Surface } from "./annotate"
 import { storyUrl } from "./api"
 import { screenTitle, type Frame, type ScreenNode } from "./browse"

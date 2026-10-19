@@ -3,8 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "stageboard": ["./src/core/index.ts"],
-      "stageboard/react": ["./src/react/index.ts"]
+      "@atmos.build/stageboard": ["./src/core/index.ts"],
+      "@atmos.build/stageboard/react": ["./src/react/index.ts"]
     }
   },
   "include": ["src"]

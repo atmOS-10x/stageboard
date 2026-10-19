@@ -3,13 +3,13 @@ title: Next.js
 description: Render a Next.js app's components and pages in stageboard with the nextPreset Vite config.
 ---
 
-stageboard renders stories with Vite, not with Next.js. `nextPreset` from `stageboard/next` returns a Vite config that replaces the `next/*` modules with browser shims and copies the parts of Next's setup that components rely on (path aliases, `NEXT_PUBLIC_*` variables, `public/`). Use it for any App Router or Pages Router project.
+stageboard renders stories with Vite, not with Next.js. `nextPreset` from `@atmos.build/stageboard/next` returns a Vite config that replaces the `next/*` modules with browser shims and copies the parts of Next's setup that components rely on (path aliases, `NEXT_PUBLIC_*` variables, `public/`). Use it for any App Router or Pages Router project.
 
 ## Config
 
 ```ts title="stageboard.config.ts"
-import { defineConfig } from "stageboard"
-import { nextPreset } from "stageboard/next"
+import { defineConfig } from "@atmos.build/stageboard"
+import { nextPreset } from "@atmos.build/stageboard/next"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx", "stageboard/**/*.stories.tsx"],
@@ -21,7 +21,7 @@ export default defineConfig({
 
 ```tsx title="stageboard.preview.tsx"
 import "../src/app/globals.css"
-import type { Decorator } from "stageboard"
+import type { Decorator } from "@atmos.build/stageboard"
 import { ThemeProvider } from "../src/components/theme-provider"
 
 export const decorators: Decorator[] = [(Story) => <ThemeProvider><Story /></ThemeProvider>]
@@ -44,8 +44,8 @@ To add your own Vite plugins on top, merge the preset with Vite's `mergeConfig`:
 ```ts title="stageboard.config.ts"
 import { mergeConfig } from "vite"
 import svgr from "vite-plugin-svgr"
-import { defineConfig } from "stageboard"
-import { nextPreset } from "stageboard/next"
+import { defineConfig } from "@atmos.build/stageboard"
+import { nextPreset } from "@atmos.build/stageboard/next"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],

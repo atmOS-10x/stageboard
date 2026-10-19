@@ -3,10 +3,10 @@ title: Configuration
 description: Look up every field of stageboard.config.ts, its type, its default and what it changes.
 ---
 
-stageboard reads its settings from `stageboard.config.ts` in your project. `npx stageboard init` creates one. Wrap the object in `defineConfig` from `stageboard` to get types.
+stageboard reads its settings from `stageboard.config.ts` in your project. `npx stageboard init` creates one. Wrap the object in `defineConfig` from `@atmos.build/stageboard` to get types.
 
 ```ts title="stageboard.config.ts"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
@@ -33,7 +33,7 @@ The config is loaded with [jiti](https://github.com/unjs/jiti), so TypeScript wo
 | `port` | `number` | `STAGEBOARD_PORT` or `6060` | Port for `stageboard dev`. If it is taken, the next free port is used. `--port` overrides it. |
 | `publicUrl` | `string` | `STAGEBOARD_PUBLIC_URL` | The URL the board is reached at from the browser, for example through a tunnel or a remote machine. Hot reload connects to this host, and `dev` prints it. |
 | `framework` | `"react"` | none | The UI framework. React is the only supported value, and leaving it out means React. |
-| `vite` | `UserConfig` or `() => UserConfig \| Promise<UserConfig>` | none | Vite config merged into stageboard's own: plugins, aliases, `define`, CSS options. Use `nextPreset()` from `stageboard/next` for Next.js apps. The React plugin is added unless you pass one. |
+| `vite` | `UserConfig` or `() => UserConfig \| Promise<UserConfig>` | none | Vite config merged into stageboard's own: plugins, aliases, `define`, CSS options. Use `nextPreset()` from `@atmos.build/stageboard/next` for Next.js apps. The React plugin is added unless you pass one. |
 | `agent` | `AgentConfig` | `{ provider: "claude" }` | Which agent handles annotations and variant requests. See below. |
 | `instructions` | `string` | none | Project notes appended to every agent prompt under "Project notes", for example "Use the tokens in `src/theme.ts`". |
 
@@ -56,7 +56,7 @@ Claude and Codex agents get the stageboard MCP server attached automatically.
 
 ```ts title="stageboard.config.ts"
 import tailwind from "@tailwindcss/vite"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx", "stageboard/**/*.stories.tsx"],

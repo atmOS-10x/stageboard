@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react"
-import { componentFrame, DEVICES, type Device, type PageParameters } from "stageboard"
+import { componentFrame, DEVICES, type Device, type PageParameters } from "@atmos.build/stageboard"
 import { AnnotationLayer, type Surface } from "./annotate"
 import { Thumb, useSeen } from "./thumb"
 import type { ClientEntry } from "./types"

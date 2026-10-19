@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "pnpm install --frozen-lockfile=false",
-  "buildCommand": "pnpm --filter stageboard build && pnpm build",
+  "buildCommand": "pnpm --filter @atmos.build/stageboard build && pnpm build",
   "outputDirectory": "dist",
-  "cleanUrls": true
+  "cleanUrls": true,
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ../packages/stageboard"
 }

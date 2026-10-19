@@ -1,4 +1,4 @@
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Imprint } from "./imprint"
 import { Landing } from "./landing"
 import { Privacy } from "./privacy"

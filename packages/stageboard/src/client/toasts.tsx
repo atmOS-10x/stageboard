@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
-import { createFlow, updateDream, updateFlow, useStageboard } from "stageboard/react"
-import type { Job } from "stageboard"
+import { createFlow, updateDream, updateFlow, useStageboard } from "@atmos.build/stageboard/react"
+import type { Job } from "@atmos.build/stageboard"
 import { AlertIcon, CloseIcon } from "./icons"
 import { Button, IconButton } from "./kit"
 

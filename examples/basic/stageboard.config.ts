@@ -1,5 +1,5 @@
 import tailwind from "@tailwindcss/vite"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],

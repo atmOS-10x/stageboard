@@ -1,4 +1,4 @@
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 import { BrandMark } from "./brand"
 import { PluginsScreen, Scaled, SessionScreen, SessionsScreen } from "./mini-screens"
 import { PixelWaves } from "./pixel-waves"

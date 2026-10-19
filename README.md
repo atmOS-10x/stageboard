@@ -31,7 +31,7 @@
 ## Get started: paste this into your agent
 
 ```text
-Set up stageboard in this repo. Run `npm i -D stageboard` (use this repo's package manager), then
+Set up stageboard in this repo. Run `npm i -D @atmos.build/stageboard` (use this repo's package manager), then
 `npx stageboard skill` to install the stageboard skill, and follow it: write the config and a preview
 with mock providers, add stories for the main components, put every page in Screens with realistic
 mock data, and check each one with `npx stageboard shot`. Finish by listing the stories that look weak.
@@ -59,15 +59,15 @@ Works with Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or
 ## Quick start
 
 ```bash
-npm i -D stageboard
+npm i -D @atmos.build/stageboard
 npx stageboard init        # writes stageboard.config.ts, with the preview at ./stageboard.preview.tsx
 npx stageboard dev         # screens, flows, components and agent bridge on :6060/__stageboard/
 ```
 
 ```ts
 // stageboard.config.ts
-import { defineConfig } from "stageboard"
-import { nextPreset } from "stageboard/next" // only for Next.js apps
+import { defineConfig } from "@atmos.build/stageboard"
+import { nextPreset } from "@atmos.build/stageboard/next" // only for Next.js apps
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],

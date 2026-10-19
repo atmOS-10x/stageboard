@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { AtmosLogo, ClaudeLogo, CursorLogo, OpenAILogo } from "./agent-logos"
 
 export const SETUP_PROMPT = [
-  "Set up stageboard in this repo. Run `npm i -D stageboard` (use this repo's package manager), then",
+  "Set up stageboard in this repo. Run `npm i -D @atmos.build/stageboard` (use this repo's package manager), then",
   "`npx stageboard skill` to install the stageboard skill, and follow it: write the config and a preview",
   "with mock providers, add stories for the main components, put every page in Screens with realistic",
   "mock data, and check each one with `npx stageboard shot`. Finish by listing the stories that look weak.",

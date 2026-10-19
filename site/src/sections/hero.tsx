@@ -1,4 +1,4 @@
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 import { FlowsDemo } from "../components/demos"
 import { Wordmark } from "../components/brand"
 import { CopyPromptButton } from "../components/copy-prompt"

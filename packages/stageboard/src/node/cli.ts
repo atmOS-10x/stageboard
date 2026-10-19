@@ -200,7 +200,7 @@ cli.command("init", "Create a stageboard.config.ts").action(() => {
   }
   fs.writeFileSync(
     file,
-    `import { defineConfig } from "stageboard"
+    `import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
@@ -210,10 +210,23 @@ export default defineConfig({
 `,
   )
   console.log(`Created ${file}`)
+  // The config points at a preview file; write a starter one so the first story renders without it.
+  const preview = path.resolve("stageboard.preview.tsx")
+  if (!fs.existsSync(preview)) {
+    fs.writeFileSync(
+      preview,
+      `import type { Decorator } from "@atmos.build/stageboard"
+
+// Global CSS, providers and mocks every story renders inside. Import your app's stylesheet here.
+export const decorators: Decorator[] = [(Story) => <Story />]
+`,
+    )
+    console.log(`Created ${preview}`)
+  }
 })
 
 cli.help()
-cli.version("0.1.0")
+cli.version(JSON.parse(fs.readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8")).version)
 
 try {
   cli.parse(process.argv, { run: false })

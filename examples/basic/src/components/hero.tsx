@@ -1,4 +1,4 @@
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 import { Button } from "./button"
 
 export type HeroProps = { title: string; subtitle: string; cta: string }

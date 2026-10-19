@@ -101,7 +101,7 @@ export class Bridge {
   private mcpLaunch(): McpLaunch | undefined {
     try {
       const require = createRequire(import.meta.url)
-      const pkg = require.resolve("stageboard/package.json")
+      const pkg = require.resolve("@atmos.build/stageboard/package.json")
       const cli = path.join(path.dirname(pkg), "dist", "node", "cli.js")
       if (!fs.existsSync(cli)) return undefined
       return { command: process.execPath, args: [cli, "mcp", "--config", this.config.configFile] }

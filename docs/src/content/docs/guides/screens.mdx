@@ -6,7 +6,7 @@ description: Turn page components into screens with parameters.page, browse them
 A screen is a story with `parameters.page`. It renders a whole page of your app with mock data, full-bleed, and shows up in the Screens view next to every other page. Use page stories to put your entire app on the board without running its backend.
 
 ```tsx title="src/pages/pages.stories.tsx"
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { HomePage, LoginPage, PricingPage } from "./pages"
 
 export default { title: "Pages", parameters: { layout: "fullscreen" } } satisfies Meta

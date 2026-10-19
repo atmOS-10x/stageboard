@@ -3,7 +3,7 @@
 ## Make something swappable
 
 ```tsx
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 function HeroImpl(props: HeroProps) { /* … */ }
 export const Hero = variant("landing.hero", HeroImpl)
 ```

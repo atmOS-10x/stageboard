@@ -184,7 +184,7 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
           `import * as preview from ${JSON.stringify(V.preview)}`,
           `import ${JSON.stringify(V.variants)}`,
           `import { index, loaders } from ${JSON.stringify(V.index)}`,
-          `import { renderFrame } from "stageboard/client"`,
+          `import { renderFrame } from "@atmos.build/stageboard/client"`,
           `renderFrame(document.getElementById("root"), { index, loaders, preview, base: ${JSON.stringify(API_BASE)} })`,
           `if (import.meta.hot) import.meta.hot.accept()`,
         ].join("\n")
@@ -192,7 +192,7 @@ export function stageboardPlugin(config: ResolvedConfig, bridge: Bridge, thumbs?
       if (virtualId === V.ui) {
         return [
           `import { index, loaders } from ${JSON.stringify(V.index)}`,
-          `import { mountUI } from "stageboard/client"`,
+          `import { mountUI } from "@atmos.build/stageboard/client"`,
           `mountUI(document.getElementById("root"), { index, loaders, base: ${JSON.stringify(API_BASE)} })`,
         ].join("\n")
       }
@@ -420,7 +420,7 @@ export async function createStageboardServer(config: ResolvedConfig, options: Se
     plugins: [stageboardPlugin(config, bridge, thumbs), ...(hasReact ? [] : await reactPlugin())],
     optimizeDeps: {
       entries: [...config.stories, ...(config.preview ? [config.preview] : [])],
-      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "stageboard/client", "stageboard/react"],
+      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "@atmos.build/stageboard/client", "@atmos.build/stageboard/react"],
     },
   }
   const vite = await createServer(mergeConfig(base, userVite))

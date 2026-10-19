@@ -3,7 +3,7 @@ title: API reference
 description: The public exports of stageboard, stageboard/react, stageboard/next and stageboard/node, with signatures and what each is for.
 ---
 
-stageboard has four public entry points. App authors mostly use `stageboard` (config and story types), `stageboard/react` (variants and the in-app inspector) and `stageboard/next` (the Next.js preset). `stageboard/node` is for scripts that drive stageboard from Node.
+stageboard has four public entry points. App authors mostly use `stageboard` (config and story types), `@atmos.build/stageboard/react` (variants and the in-app inspector) and `@atmos.build/stageboard/next` (the Next.js preset). `@atmos.build/stageboard/node` is for scripts that drive stageboard from Node.
 
 ## stageboard
 
@@ -18,7 +18,7 @@ function defineConfig(config: StageboardConfig): StageboardConfig
 Returns the config unchanged and types it. Default-export it from `stageboard.config.ts`. See [Configuration](/configuration) for every option and [Agents](/guides/agents) for `agent`.
 
 ```ts title="stageboard.config.ts"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
@@ -58,7 +58,7 @@ type Story<C = ComponentType<any>> = {
 A named export of a stories file. The story id is `kebab(title)--kebab(exportName)`.
 
 ```tsx title="src/button.stories.tsx"
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Button } from "./button"
 
 export default { title: "Primitives/Button", component: Button, args: { children: "Save" } } satisfies Meta<typeof Button>
@@ -111,7 +111,7 @@ function variant<P extends object>(id: string, Original: ComponentType<P>): Comp
 Makes a component swappable. `id` is a stable dotted id such as `landing.hero`. The returned component renders the selected variant for that id, or `Original`.
 
 ```tsx title="src/landing/hero.tsx"
-import { variant } from "stageboard/react"
+import { variant } from "@atmos.build/stageboard/react"
 
 function HeroImpl(props: HeroProps) {
   return <section>{props.title}</section>
@@ -150,7 +150,7 @@ Mount the stageboard inspector in your running app, in development. `StageboardD
 ```tsx title="app/stageboard-dev.tsx"
 "use client"
 import "@/stageboard.variants"
-import { StageboardDevtools } from "stageboard/react"
+import { StageboardDevtools } from "@atmos.build/stageboard/react"
 
 export default function StageboardDev() {
   return <StageboardDevtools base="/__stageboard" />
@@ -184,8 +184,8 @@ function nextPreset(options?: NextPresetOptions): InlineConfig
 Returns a Vite config that renders a Next.js app's components outside Next: it shims `next/image`, `next/legacy/image`, `next/link`, `next/navigation`, `next/router`, `next/dynamic`, `next/script`, `next/head` and `next/font`, resolves the tsconfig path aliases, loads the `.env` files into `process.env`, and serves `public/`. `root` defaults to the current folder; `aliases` and `env` add to what it finds.
 
 ```ts title="stageboard.config.ts"
-import { defineConfig } from "stageboard"
-import { nextPreset } from "stageboard/next"
+import { defineConfig } from "@atmos.build/stageboard"
+import { nextPreset } from "@atmos.build/stageboard/next"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
@@ -214,7 +214,7 @@ The CLI's building blocks, for scripts and custom tooling.
 It also exports `stageboardPlugin`, `Bridge`, `buildPrompt` and `createProvider`, which the server uses internally.
 
 ```ts title="scripts/shot-all.ts"
-import { buildIndex, loadConfig, shoot } from "stageboard/node"
+import { buildIndex, loadConfig, shoot } from "@atmos.build/stageboard/node"
 
 const config = await loadConfig()
 for (const story of await buildIndex(config)) {

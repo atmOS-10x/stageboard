@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react"
-import type { Flow, FlowAnnotation, Region, Upload } from "stageboard"
+import type { Flow, FlowAnnotation, Region, Upload } from "@atmos.build/stageboard"
 import { readSketch } from "./sketch"
 
 // While annotating a flow in the viewer, comments collect here per flow instead of going out one by one; sketches

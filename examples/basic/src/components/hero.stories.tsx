@@ -1,4 +1,4 @@
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Hero } from "./hero"
 
 export default {

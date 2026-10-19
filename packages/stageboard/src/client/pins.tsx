@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { cancelJob } from "stageboard/react"
-import type { Job } from "stageboard"
+import { cancelJob } from "@atmos.build/stageboard/react"
+import type { Job } from "@atmos.build/stageboard"
 import { belowAnchor, isActive, useAnchored, useAnnotate, useOutsidePointer } from "./annotate"
 import { uploadUrl } from "./api"
 import { AlertIcon, CheckIcon, CloseIcon, ExternalIcon, LayersIcon } from "./icons"

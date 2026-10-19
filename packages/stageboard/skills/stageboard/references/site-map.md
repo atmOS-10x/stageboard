@@ -46,7 +46,7 @@ At the end, run `npx stageboard list` and shoot every page story in a loop. Repo
 // a dev-only client component, loaded lazily from the root layout
 "use client"
 import "@/stageboard.variants"
-import { StageboardDevtools } from "stageboard/react"
+import { StageboardDevtools } from "@atmos.build/stageboard/react"
 export default function Dev() { return <StageboardDevtools base="/__stageboard" /> }
 ```
 

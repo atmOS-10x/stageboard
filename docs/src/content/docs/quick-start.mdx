@@ -10,7 +10,7 @@ The fastest way to set up stageboard is to let your coding agent do it. The manu
 Paste this prompt into Claude Code, Codex, atmOS or any agent that reads `.claude/skills` or `.agents/skills`:
 
 ```text title="Prompt"
-Set up stageboard in this repo. Run `npm i -D stageboard` (use this repo's package manager), then
+Set up stageboard in this repo. Run `npm i -D @atmos.build/stageboard` (use this repo's package manager), then
 `npx stageboard skill` to install the stageboard skill, and follow it: write the config and a preview
 with mock providers, add stories for the main components, put every page in Screens with realistic
 mock data, and check each one with `npx stageboard shot`. Finish by listing the stories that look weak.
@@ -23,7 +23,7 @@ The skill tells the agent how to write the config, mock providers, stories and p
 ### 1. Install
 
 ```npm
-npm i -D stageboard
+npm i -D @atmos.build/stageboard
 ```
 
 stageboard needs `react` and `react-dom` 18 or later. It runs on Vite 6 or later.
@@ -37,7 +37,7 @@ npx stageboard init
 This writes `stageboard.config.ts` in the current directory:
 
 ```ts title="stageboard.config.ts"
-import { defineConfig } from "stageboard"
+import { defineConfig } from "@atmos.build/stageboard"
 
 export default defineConfig({
   stories: ["src/**/*.stories.tsx"],
@@ -50,7 +50,7 @@ Create the preview file it points to. It imports your global CSS and exports `de
 
 ```tsx title="stageboard.preview.tsx"
 import "./src/styles.css"
-import type { Decorator } from "stageboard"
+import type { Decorator } from "@atmos.build/stageboard"
 
 export const decorators: Decorator[] = [(Story) => <div className="font-sans antialiased"><Story /></div>]
 ```
@@ -60,7 +60,7 @@ Add `.stageboard/` (local state and caches) to `.gitignore`. See [Configuration]
 ### 3. Write a first story
 
 ```tsx title="src/components/button.stories.tsx"
-import type { Meta, Story } from "stageboard"
+import type { Meta, Story } from "@atmos.build/stageboard"
 import { Button } from "./button"
 
 export default { title: "Primitives/Button", component: Button, args: { children: "Save" } } satisfies Meta<typeof Button>

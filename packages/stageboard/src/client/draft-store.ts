@@ -1,4 +1,4 @@
-import type { Region, Sketch, Upload } from "stageboard"
+import type { Region, Sketch, Upload } from "@atmos.build/stageboard"
 import type { Viewport } from "./api"
 
 export type ComposerMode = "variants" | "edit"
