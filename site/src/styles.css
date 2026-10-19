@@ -65,6 +65,8 @@
   html { color-scheme: dark; background: var(--color-ink-900); }
   body { @apply bg-ink-900 font-sans text-fg antialiased; }
   ::selection { background: rgb(141 122 246 / 0.35); }
+  /* Tailwind v4 gives buttons the default cursor; every clickable thing gets the hand. */
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [role="radio"], summary, label[for] { cursor: pointer; }
 }
 
 /* A light that travels around the border: a conic gradient masked down to a 1.5px ring. */

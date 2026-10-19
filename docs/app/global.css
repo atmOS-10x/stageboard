@@ -67,3 +67,14 @@ body {
 ::selection {
   background: rgb(141 122 246 / 0.35);
 }
+
+/* Tailwind v4 gives buttons the default cursor; every clickable thing gets the hand. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+}
