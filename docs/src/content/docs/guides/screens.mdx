@@ -60,7 +60,7 @@ export const Tickets: Story = {
 
 Screens shows a card for every page story, rendered at the selected device size and grouped by `group`. The sidebar lists the same screens and searches their titles, story names and routes. Click a card to open the screen on its own, where you can [annotate](/guides/annotate) it, show its [variants](/guides/variants), open it in a new tab, or copy its `npx stageboard shot` command. Its `links` appear as buttons next to the title. A `next/link` click or `router.push` in the screen opens the screen whose `route` matches the URL (`/stays/42` matches `/stays/[id]` and `/stays/:id`; a literal route beats a dynamic one); with no match the board shows "No screen for /path".
 
-Components lists every story that isn't a screen, grouped by the file's `title`. That includes stories without a `route` in a file of page stories, so a page's tabs and states can live next to it without becoming screens of their own. A story that spreads a screen story (`{ ...Home, args: { … } }`) or its `parameters` keeps the route and stays a screen.
+Components lists every story that isn't a screen, grouped by the file's `title`. A story that renders a whole page belongs under Screens, even when it only shows another state of a page that is already there: give it the same `route` and a `title` that names the state (see [States of a page](#states-of-a-page)). A story that spreads a screen story (`{ ...Home, args: { … } }`) or its `parameters` keeps the route and stays a screen.
 
 ## Devices
 
