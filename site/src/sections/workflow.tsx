@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { variant } from "stageboard/react"
 import { FlowViewerDemo } from "../components/demos"
-import { AtmosLogo } from "../components/agent-logos"
+import { Cpu, MemoryStick } from "lucide-react"
 
 function StepHead({ n, title, body, detail }: { n: string; title: string; body: string; detail?: string }) {
   return (
@@ -118,78 +118,117 @@ export function SetupVisual() {
   )
 }
 
-const VARIANTS = ["Original", "Calm", "Split"] as const
+const VARIANTS = ["Original", "Size cards", "Radio list"] as const
 
 const MACHINES = [
-  ["Dani's MacBook", "Your laptop", "Ready"],
-  ["sap-gateway", "Regular, desktop", "Paused"],
-  ["staging-db", "Large, headless", "Ready"],
+  ["Dani's MacBook", "dani@atmos.build", "M3 Max, 64 GB", true],
+  ["sap-gateway", "Platform", "Regular, desktop", false],
+  ["staging-db", "Platform", "Large, headless", true],
 ] as const
 
-function BookCard({ kind }: { kind: (typeof VARIANTS)[number] }) {
-  if (kind === "Calm")
+const SIZES = [
+  ["Small", "2 vCPU", "4 GB"],
+  ["Regular", "4 vCPU", "8 GB"],
+  ["Large", "8 vCPU", "16 GB"],
+] as const
+
+function BookButton({ wide }: { wide?: boolean }) {
+  return <span className={`inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-zinc-950 px-3.5 text-[12px] font-medium text-white ${wide ? "w-full" : ""}`}>Book machine</span>
+}
+
+// The three takes on "Book a cloud machine" the agent wrote. Each fills the same fixed-height slot, so switching
+// between them never moves the page.
+function BookPanel({ kind }: { kind: (typeof VARIANTS)[number] }) {
+  if (kind === "Size cards")
     return (
-      <div className="rounded-2xl bg-zinc-50 p-4 text-zinc-900">
-        <div className="text-[10px] tracking-wide text-zinc-500 uppercase">Regular, Linux</div>
-        <div className="mt-1 text-[22px] font-semibold tracking-tight">4 vCPU</div>
-        <div className="text-[11px] text-zinc-500">8 GB RAM, 160 GB disk</div>
-        <div className="mt-3 rounded-lg bg-zinc-900 py-2 text-center text-[11px] font-medium text-white">Book machine</div>
+      <div className="flex h-full flex-col gap-2.5">
+        <div className="grid flex-1 grid-cols-3 gap-2">
+          {SIZES.map(([name, cpu, ram], i) => (
+            <div key={name} className={`min-w-0 rounded-md border px-2 py-2 sm:px-2.5 ${i === 1 ? "border-zinc-900 ring-1 ring-zinc-900" : "border-zinc-200"}`}>
+              <span className="rounded-sm border border-zinc-200 bg-zinc-50 px-1 font-mono text-[9px] tracking-wide text-zinc-600 uppercase">{name}</span>
+              <div className="mt-2 flex items-center gap-1.5 text-[11px] whitespace-nowrap text-zinc-700"><Cpu className="size-3 text-zinc-400" strokeWidth={1.6} /> {cpu}</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] whitespace-nowrap text-zinc-700"><MemoryStick className="size-3 text-zinc-400" strokeWidth={1.6} /> {ram}</div>
+            </div>
+          ))}
+        </div>
+        <BookButton wide />
       </div>
     )
-  if (kind === "Split")
+  if (kind === "Radio list")
     return (
-      <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 p-3 text-zinc-900">
-        <div className="flex-1">
-          <div className="text-[16px] font-semibold">Regular</div>
-          <div className="text-[9.5px] text-zinc-500">4 vCPU, 8 GB</div>
+      <div className="flex h-full flex-col gap-2.5">
+        <div className="flex-1 divide-y divide-zinc-100 rounded-md border border-zinc-200">
+          {SIZES.map(([name, cpu, ram], i) => (
+            <div key={name} className="flex h-1/3 items-center gap-2.5 px-3 text-[11.5px]">
+              <span className={`grid size-3.5 place-items-center rounded-full border ${i === 1 ? "border-zinc-900" : "border-zinc-300"}`}>{i === 1 && <span className="size-1.5 rounded-full bg-zinc-900" />}</span>
+              <span className="font-medium text-zinc-900">{name}</span>
+              <span className="ml-auto text-zinc-500">{cpu}, {ram}</span>
+            </div>
+          ))}
         </div>
-        <div className="rounded-lg bg-zinc-900 px-3.5 py-2.5 text-[11px] font-medium text-white">Book</div>
+        <BookButton wide />
       </div>
     )
   return (
-    <div className="rounded-xl border border-zinc-200 p-3 text-zinc-900 shadow-sm">
-      <div className="text-[13px] font-semibold">Book a cloud machine</div>
-      <div className="mt-2 rounded-md border border-zinc-200 px-2 py-1.5 text-[10px] text-zinc-500">Regular, 4 vCPU, 8 GB</div>
-      <div className="mt-2 rounded-md bg-violet-600 py-1.5 text-center text-[11px] font-medium text-white">Book machine</div>
+    <div className="flex h-full flex-col justify-between">
+      <div>
+        <div className="text-[13px] font-medium text-zinc-900">Book a cloud machine</div>
+        <div className="mt-0.5 text-[11px] text-zinc-500">Linux, up to 16 vCPU and 32 GB. It stays on between sessions.</div>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 rounded-md bg-zinc-100 p-0.5 text-[11px]">
+          {SIZES.map(([name], i) => (
+            <span key={name} className={`flex-1 rounded-[5px] py-1 text-center ${i === 1 ? "bg-white font-medium text-zinc-900 shadow-sm" : "text-zinc-500"}`}>{name}</span>
+          ))}
+        </div>
+        <BookButton />
+      </div>
     </div>
   )
 }
 
-export function VariantVisual() {
-  const [i, setI] = useState(0)
-  const [paused, setPaused] = useState(false)
+/** `at` shows one variant and stops the cycling, for stories and screenshots. */
+export function VariantVisual({ at }: { at?: number }) {
+  const [i, setI] = useState(at ?? 0)
+  const [paused, setPaused] = useState(at !== undefined)
   useEffect(() => {
     if (paused) return
-    const id = setInterval(() => setI((n) => (n + 1) % VARIANTS.length), 2400)
+    const id = setInterval(() => setI((n) => (n + 1) % VARIANTS.length), 2600)
     return () => clearInterval(id)
   }, [paused])
   return (
     <Panel>
-      <div className="overflow-hidden rounded-[10px] bg-white shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_20px_50px_rgb(0_0_0/0.45)]">
-        <div className="flex h-9 items-center gap-2 border-b border-zinc-100 px-5 text-[10.5px] text-zinc-500">
-          <span className="grid size-4 place-items-center rounded-[5px] bg-zinc-950 text-white"><AtmosLogo className="size-2.5" /></span>
-          <span className="font-medium text-zinc-900">Machines</span>
+      <div className="overflow-hidden rounded-[10px] bg-white text-zinc-900 shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_20px_50px_rgb(0_0_0/0.45)]">
+        <div className="px-5 pt-4">
+          <div className="text-[15px] font-semibold tracking-tight">Machines</div>
+          <div className="mt-0.5 text-[11px] text-zinc-500">Where your team's sessions run.</div>
         </div>
-        <div className="grid gap-5 p-5 sm:grid-cols-[1fr_190px]">
-          <div className="space-y-1.5">
-            {MACHINES.map(([name, spec, status]) => (
-              <div key={name} className="flex items-center gap-2.5 rounded-lg border border-zinc-100 px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-medium text-zinc-900">{name}</div>
-                  <div className="text-[10px] text-zinc-500">{spec}</div>
-                </div>
-                <span className={`flex items-center gap-1 text-[10px] ${status === "Ready" ? "text-emerald-700" : "text-zinc-500"}`}>
-                  <span className={`size-1.5 rounded-full ${status === "Ready" ? "bg-emerald-500" : "bg-zinc-300"}`} />
-                  {status}
-                </span>
-              </div>
-            ))}
+        <div className="mt-3 px-5">
+          <div className="grid grid-cols-[1fr_auto] border-b border-zinc-200 pb-1.5 text-[9.5px] font-medium tracking-wide text-zinc-400 uppercase sm:grid-cols-[1.3fr_1fr_auto]">
+            <span>Machine</span>
+            <span className="max-sm:hidden">Size</span>
+            <span>Status</span>
           </div>
-          <div className="relative mt-3 self-start sm:mt-0">
-            <span className="pointer-events-none absolute -inset-2 rounded-[14px] border-[1.5px] border-variant bg-variant/7" />
-            <span className="absolute -top-6 -left-2 rounded-md bg-variant px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-[#2a2205]">machines.book</span>
-            <div key={VARIANTS[i]} className="animate-rise relative">
-              <BookCard kind={VARIANTS[i]} />
+          {MACHINES.map(([name, owner, size, ready]) => (
+            <div key={name} className="grid grid-cols-[1fr_auto] items-center border-b border-zinc-100 py-2 text-[12px] sm:grid-cols-[1.3fr_1fr_auto]">
+              <div className="min-w-0 leading-tight">
+                <div className="truncate font-medium">{name}</div>
+                <div className="truncate text-[10.5px] text-zinc-500">{owner}</div>
+              </div>
+              <span className="text-[11.5px] text-zinc-600 max-sm:hidden">{size}</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+                <span className={`size-1.5 rounded-full ${ready ? "bg-emerald-500" : "bg-zinc-300"}`} />
+                {ready ? "Ready" : "Paused"}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 pt-10 pb-6">
+          <div className="relative">
+            <span className="pointer-events-none absolute -inset-3 rounded-[6px] border-2 border-variant" />
+            <span className="absolute -top-3 -left-3 -translate-y-full rounded-t-[6px] rounded-br-[6px] bg-variant px-2 py-0.5 text-[10.5px] leading-4 font-semibold text-[#1e1a0c]">machines.book</span>
+            <div key={VARIANTS[i]} className="h-[128px] animate-[appear_.35s_ease-out] sm:h-[118px]">
+              <BookPanel kind={VARIANTS[i]} />
             </div>
           </div>
         </div>
@@ -206,13 +245,13 @@ export function VariantVisual() {
                 setPaused(true)
                 setI(n)
               }}
-              className={`rounded-full px-3.5 py-1.5 font-medium transition-colors ${i === n ? "bg-[#ebebf0] text-[#16161b]" : "text-fg-dim hover:text-fg"}`}
+              className={`rounded-full px-3.5 py-1.5 font-medium whitespace-nowrap transition-colors ${i === n ? "bg-[#ebebf0] text-[#16161b]" : "text-fg-dim hover:text-fg"}`}
             >
               {v}
             </button>
           ))}
         </div>
-        <span className="inline-flex h-8 items-center rounded-full bg-white/8 px-3.5 text-[12.5px] font-medium text-fg">Keep {VARIANTS[i]}</span>
+        <span className="inline-flex h-8 w-[136px] items-center justify-center rounded-full bg-white/8 text-[12.5px] font-medium text-fg">Keep this one</span>
       </div>
     </Panel>
   )

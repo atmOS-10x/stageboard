@@ -23,4 +23,6 @@ export const ViewerDrawn: Story = { render: () => <div className="mx-auto max-w-
 export const ViewerMoved: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowViewerDemo at={10900} /></div> }
 export const ViewerReconciled: Story = { render: () => <div className="mx-auto max-w-6xl p-4 sm:p-8"><FlowViewerDemo at={13500} /></div> }
 export const SetupStep: Story = { render: () => <div className="mx-auto max-w-3xl p-8"><SetupVisual /></div> }
+export const VariantSizeCards: Story = { render: () => <div className="mx-auto max-w-3xl p-8"><VariantVisual at={1} /></div> }
+export const VariantRadioList: Story = { render: () => <div className="mx-auto max-w-3xl p-8"><VariantVisual at={2} /></div> }
 export const VariantStep: Story = { render: () => <div className="mx-auto max-w-3xl p-8"><VariantVisual /></div> }
