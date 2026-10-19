@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type CSSProperties, type DragEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react"
 import { componentFrame, DEVICES, type Device, type PageParameters } from "stageboard"
 import { AnnotationLayer, type Surface } from "./annotate"
 import { Thumb, useSeen } from "./thumb"
@@ -130,12 +130,14 @@ export function ComponentCard({
   const ref = useRef<HTMLDivElement>(null)
   const seen = useSeen(ref)
   const frame = frameOf(entry)
+  // The tile around the frame takes the colour of the frame's own page, so the two read as one surface.
+  const [paper, setPaper] = useState<string>()
   return (
     <div className="sbu-tile" ref={ref}>
-      <div className="sbu-shot sbu-tile-shot" onClick={onOpen} title={`${entry.name} · ${frame.width}×${frame.height}`} role="button" aria-label={entry.name}>
+      <div className="sbu-shot sbu-tile-shot" style={paper ? { background: paper } : undefined} onClick={onOpen} title={`${entry.name} · ${frame.width}×${frame.height}`} role="button" aria-label={entry.name}>
         {seen && (
           <div className="sbu-tile-fit" style={fitStyle(frame)}>
-            <Thumb src={thumbUrl(entry.id, frame)} />
+            <Thumb src={thumbUrl(entry.id, frame)} onColor={setPaper} />
             <AnnotationLayer surface={surface} viewport={frame} />
           </div>
         )}

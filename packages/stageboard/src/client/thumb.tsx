@@ -16,7 +16,21 @@ export function useSeen(ref: RefObject<Element | null>, margin = "300px"): boole
   return seen
 }
 
-export function Thumb({ src, className }: { src: string; className?: string }) {
+// The colour of an image's top-left pixel: what a frame's page is painted with, to fill the space around it.
+function cornerColor(img: HTMLImageElement): string | undefined {
+  try {
+    const canvas = document.createElement("canvas")
+    canvas.width = canvas.height = 1
+    const ctx = canvas.getContext("2d")!
+    ctx.drawImage(img, 0, 0, 1, 1, 0, 0, 1, 1)
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+    return `rgb(${r}, ${g}, ${b})`
+  } catch {
+    return undefined
+  }
+}
+
+export function Thumb({ src, className, onColor }: { src: string; className?: string; onColor?: (color: string) => void }) {
   const [retry, setRetry] = useState(0)
   const requested = retry ? withQuery(src, { refresh: 1, r: retry }) : src
   const [shown, setShown] = useState<string>()
@@ -38,7 +52,11 @@ export function Thumb({ src, className }: { src: string; className?: string }) {
           src={requested}
           alt=""
           draggable={false}
-          onLoad={() => setShown(requested)}
+          onLoad={(e) => {
+            setShown(requested)
+            const color = onColor && cornerColor(e.currentTarget)
+            if (color) onColor!(color)
+          }}
           onError={() => setFailed(requested)}
         />
       )}
